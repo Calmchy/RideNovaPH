@@ -15,7 +15,7 @@ class DriverProfile extends Model
 
     protected $fillable = [
         'user_id', 'license_number', 'license_expiry', 'license_image_path',
-        'status', 'reviewed_by', 'reviewed_at', 'remarks',
+        'status', 'reviewed_by', 'reviewed_at', 'remarks', 'bio', 'allows_luggage',
     ];
 
     protected function casts(): array
@@ -24,6 +24,7 @@ class DriverProfile extends Model
             'status' => ApprovalStatus::class,
             'license_expiry' => 'date',
             'reviewed_at' => 'datetime',
+            'allows_luggage' => 'boolean',
         ];
     }
 
