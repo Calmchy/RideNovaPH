@@ -44,6 +44,46 @@ export default function Register({ passwordRules }: Props) {
                                 />
                             </div>
 
+                            <fieldset className="grid gap-2">
+                                <legend className="mb-1 text-sm font-medium">
+                                    I want to
+                                </legend>
+                                <div className="grid grid-cols-2 gap-3">
+                                    {[
+                                        [
+                                            'passenger',
+                                            'Ride',
+                                            'Find seats on trips',
+                                        ],
+                                        [
+                                            'driver',
+                                            'Drive',
+                                            'Offer seats, earn',
+                                        ],
+                                    ].map(([v, t, d], i) => (
+                                        <label
+                                            key={v}
+                                            className="cursor-pointer rounded-xl border p-3 text-sm has-[:checked]:border-ocean has-[:checked]:bg-ocean/10"
+                                        >
+                                            <input
+                                                type="radio"
+                                                name="account_type"
+                                                value={v}
+                                                defaultChecked={i === 0}
+                                                className="sr-only"
+                                            />
+                                            <span className="block font-semibold">
+                                                {t}
+                                            </span>
+                                            <span className="text-xs text-muted-foreground">
+                                                {d}
+                                            </span>
+                                        </label>
+                                    ))}
+                                </div>
+                                <InputError message={errors.account_type} />
+                            </fieldset>
+
                             <div className="grid gap-2">
                                 <Label htmlFor="email">Email address</Label>
                                 <Input
@@ -56,6 +96,21 @@ export default function Register({ passwordRules }: Props) {
                                     placeholder="email@example.com"
                                 />
                                 <InputError message={errors.email} />
+                            </div>
+
+                            <div className="grid gap-2">
+                                <Label htmlFor="phone_number">
+                                    Mobile number (optional)
+                                </Label>
+                                <Input
+                                    id="phone_number"
+                                    type="tel"
+                                    tabIndex={3}
+                                    autoComplete="tel"
+                                    name="phone_number"
+                                    placeholder="09171234567"
+                                />
+                                <InputError message={errors.phone_number} />
                             </div>
 
                             <div className="grid gap-2">

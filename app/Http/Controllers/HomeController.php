@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Announcement;
 use App\Models\Banner;
+use App\Models\City;
 use App\Models\Ride;
 use App\Support\RidePresenter;
 use Illuminate\Support\Facades\Storage;
@@ -25,6 +26,7 @@ class HomeController extends Controller
                     ? $b->image_path
                     : Storage::disk('public')->url($b->image_path),
             ]),
+            'cities' => City::orderBy('name')->get(['id', 'name']),
             'rides' => Ride::with(RidePresenter::WITH)
                 ->available()->withSeatsLeft()
                 ->orderBy('departure_at')->limit(6)->get()

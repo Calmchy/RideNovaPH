@@ -11,6 +11,9 @@ use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 use Illuminate\Validation\ValidationException;
+use App\Models\Role;
+use App\Models\User;
+use App\Notifications\AppNotice;
 
 class IdentityDocumentController extends Controller
 {
@@ -23,6 +26,14 @@ class IdentityDocumentController extends Controller
             'id_types' => IdType::orderBy('name')->get(['id', 'name']),
             'status' => $latest?->status->value,   // null | pending | approved | rejected
             'remarks' => $latest?->status === ApprovalStatus::Rejected ? $latest->remarks : null,
+            // Full history so a rejected user can see what was wrong each time.
+            'history' => $request->user()->identityDocuments()->with('idType')->latest()->limit(10)->get()->map(fn ($d) => [
+                'id' => $d->id,
+                'id_type' => $d->idType->name,
+                'status' => $d->status->value,
+                'remarks' => $d->remarks,
+                'submitted_at' => $d->created_at->toIso8601String(),
+            ]),
         ]);
     }
 
@@ -46,6 +57,10 @@ class IdentityDocumentController extends Controller
             'front_image_path' => $front->storeAs('identity-documents', Str::uuid().'.'.$front->guessExtension(), 'local'),
             'back_image_path' => $back?->storeAs('identity-documents', Str::uuid().'.'.$back->guessExtension(), 'local'),
         ]);
+
+        User::where('role_id', Role::ADMIN)->get()->each->notify(
+            new AppNotice('ID to review', "{$user->name} submitted a valid ID.", '/admin/identity?status=pending'),
+        );
 
         $this->toast('ID submitted. An admin will review it shortly.');
 

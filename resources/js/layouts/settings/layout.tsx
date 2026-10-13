@@ -17,12 +17,6 @@ const sidebarNavItems: NavItem[] = [
         icon: null,
     },
     {
-        // Valid-ID upload: only reachable from the profile area (users and drivers alike)
-        title: 'Verify ID',
-        href: '/identity',
-        icon: null,
-    },
-    {
         title: 'Security',
         href: editSecurity(),
         icon: null,
