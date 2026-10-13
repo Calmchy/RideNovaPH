@@ -5,6 +5,7 @@ namespace App\Actions\Bookings;
 use App\Enums\BookingStatus;
 use App\Enums\PaymentStatus;
 use App\Enums\RideStatus;
+use App\Models\ActivityLog;
 use App\Models\Booking;
 use App\Models\Payment;
 use App\Models\Ride;
@@ -33,8 +34,78 @@ class ReserveSeat
             $this->fail('id', 'Upload a valid ID and wait for approval before booking.');
         }
 
-        $booking = DB::transaction(function () use ($passenger, $ride, $seats, $details) {
+        try {
+            $booking = $this->reserve($passenger, $ride, $seats, $details);
+        } catch (ValidationException $e) {
+            // Keep a trail of blocked attempts so an admin can spot someone hammering the limits.
+            if (array_key_exists('limit', $e->errors())) {
+                ActivityLog::record($passenger, 'booking.blocked', null, ['ride_id' => $ride->id, 'why' => $e->errors()['limit'][0]]);
+            }
+
+            throw $e;
+        }
+
+        // Tell the driver (after commit, so a failed notification can't undo the booking).
+        $driver = $ride->loadMissing('vehicle.driver.user')->vehicle->driver->user;
+        $driver->notify(new AppNotice(
+            'New seat request',
+            "{$passenger->name} requested {$seats} seat(s) on {$ride->departure_at->format('M j, g:i A')}.",
+            "/bookings/{$booking->id}",
+        ));
+
+        return $booking;
+    }
+
+    /**
+     * Anti-abuse rules (all configurable in Admin > Settings). They stop one account from
+     * "holding" many drivers at once, e.g. reserving a lot of rides it never intends to take:
+     *   1. unpaid cancellation fee      -> pay it (or have admin waive it) first
+     *   2. too many open bookings       -> finish or cancel one first
+     *   3. too many recent cancellations-> temporary block
+     *   4. overlapping departure times  -> one person can't be in two cars at once
+     * Runs inside the transaction with the passenger row locked, so two parallel requests can't both slip through.
+     */
+    private function assertWithinLimits(User $passenger, Ride $ride): void
+    {
+        User::whereKey($passenger->id)->lockForUpdate()->first(); // serialise this passenger's bookings
+
+        $unpaidFee = (float) Payment::where('fee_status', 'due')
+            ->whereHas('booking', fn ($q) => $q->where('passenger_id', $passenger->id))->sum('cancellation_fee');
+        if ($unpaidFee > 0) {
+            $this->fail('limit', 'You have an unpaid cancellation fee of ₱'.number_format($unpaidFee, 2).'. Settle it with support before booking again.');
+        }
+
+        $open = Booking::where('passenger_id', $passenger->id)
+            ->whereIn('status', [BookingStatus::Pending->value, BookingStatus::Approved->value, BookingStatus::Confirmed->value]);
+
+        $max = Setting::int('max_active_bookings');
+        if ($max > 0 && (clone $open)->count() >= $max) {
+            $this->fail('limit', "You can hold at most {$max} open bookings at a time. Complete or cancel one first.");
+        }
+
+        $days = Setting::int('cancel_strike_days');
+        $strikes = Setting::int('cancel_strike_limit');
+        if ($strikes > 0 && Booking::where('passenger_id', $passenger->id)
+            ->where('status', BookingStatus::Cancelled->value)
+            ->where('cancelled_at', '>=', now()->subDays($days))->count() >= $strikes) {
+            $this->fail('limit', "Too many cancellations in the last {$days} days. Booking is paused for now. Contact support if this is a mistake.");
+        }
+
+        $gap = Setting::int('booking_min_gap_hours');
+        if ($gap > 0 && (clone $open)->whereHas('ride', fn ($q) => $q
+            ->where('departure_at', '>', $ride->departure_at->copy()->subHours($gap))
+            ->where('departure_at', '<', $ride->departure_at->copy()->addHours($gap)))->exists()) {
+            $this->fail('limit', "You already have a booking that departs within {$gap} hour(s) of this ride. You can't be in two cars at once.");
+        }
+    }
+
+    /** The reservation itself: one transaction, ride row locked. */
+    private function reserve(User $passenger, Ride $ride, int $seats, array $details): Booking
+    {
+        return DB::transaction(function () use ($passenger, $ride, $seats, $details) {
             $locked = Ride::with('vehicle')->whereKey($ride->id)->lockForUpdate()->firstOrFail();
+
+            $this->assertWithinLimits($passenger, $locked);
 
             if ($locked->status !== RideStatus::Open || $locked->departure_at->isPast() || $locked->started_at) {
                 $this->fail('ride', 'This ride is no longer open for booking.');
@@ -76,16 +147,6 @@ class ReserveSeat
 
             return $booking;
         });
-
-        // Tell the driver (after commit, so a failed notification can't undo the booking).
-        $driver = $ride->loadMissing('vehicle.driver.user')->vehicle->driver->user;
-        $driver->notify(new AppNotice(
-            'New seat request',
-            "{$passenger->name} requested {$seats} seat(s) on {$ride->departure_at->format('M j, g:i A')}.",
-            "/bookings/{$booking->id}",
-        ));
-
-        return $booking;
     }
 
     private function fail(string $key, string $message): never

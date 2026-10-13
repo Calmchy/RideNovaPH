@@ -123,10 +123,10 @@ test('passengers cannot cancel inside the cut-off window, but the driver can', f
     $booking = reserve($passenger, $ride);
     $ride->update(['departure_at' => now()->addMinutes(30)]); // default cut-off is 2 hours
 
-    $this->actingAs($passenger)->patch("/bookings/{$booking->id}/cancel")->assertSessionHasErrors('status');
+    $this->actingAs($passenger)->patch("/bookings/{$booking->id}/cancel", ['reason' => 'Change of plans'])->assertSessionHasErrors('status');
     expect($booking->fresh()->status)->toBe(BookingStatus::Pending);
 
-    $this->actingAs($driver)->patch("/bookings/{$booking->id}/cancel")->assertSessionHasNoErrors();
+    $this->actingAs($driver)->patch("/bookings/{$booking->id}/cancel", ['reason' => 'Car trouble'])->assertSessionHasNoErrors();
     expect($booking->fresh()->status)->toBe(BookingStatus::Cancelled);
 });
 

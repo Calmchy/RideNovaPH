@@ -25,6 +25,7 @@ type Props = {
         upcoming: number;
         completed: number;
         spent: number;
+        my_pending: number;
         awaiting_my_approval: number;
         earned: number | null;
         active_rides: number | null;
@@ -161,17 +162,20 @@ export default function Dashboard({
                             tone="sand"
                         />
                         {stats.earned !== null ? (
+                            // Drivers: earnings, plus how many passenger requests need their answer.
                             <StatCard
                                 label="Driver earnings"
                                 value={peso(stats.earned)}
-                                hint={`${stats.active_rides} open ride(s)`}
+                                hint={`${stats.active_rides} open ride(s) · ${stats.awaiting_my_approval} request(s) to approve`}
                                 icon={Car}
                                 tone="deep"
                             />
                         ) : (
+                            // Passengers: their own bookings still waiting for a driver.
                             <StatCard
-                                label="Requests to approve"
-                                value={stats.awaiting_my_approval}
+                                label="Awaiting driver"
+                                value={stats.my_pending}
+                                hint="Your requests pending approval"
                                 icon={BadgeCheck}
                                 tone="coral"
                             />

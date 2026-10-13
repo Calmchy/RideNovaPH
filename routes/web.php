@@ -136,6 +136,15 @@ Route::middleware(['auth', 'verified', 'admin'])->prefix('admin')->group(functio
     Route::post('/announcements', [ContentController::class, 'storeAnnouncement'])->name('admin.announcements.store');
     Route::patch('/announcements/{announcement}', [ContentController::class, 'toggleAnnouncement'])->name('admin.announcements.toggle');
     Route::delete('/announcements/{announcement}', [ContentController::class, 'destroyAnnouncement'])->name('admin.announcements.destroy');
+
+    // ----Announcement Pictures ----
+    Route::post('/banners', [BannerController::class, 'store'])->name('admin.banners.store');
+Route::post('/announcements', [ContentController::class, 'storeAnnouncement'])->name('admin.announcements.store');
+Route::post('/banners/{banner}', [BannerController::class, 'update'])->name('admin.banners.update');
+Route::put('/announcements/{announcement}', [ContentController::class, 'updateAnnouncement'])->name('admin.announcements.update');
+
+    // ---- Rides(Abuse-protection) ----
+   Route::post('/transactions/{payment}/fee', [AdminTransactionController::class, 'settleFee'])->name('admin.transactions.fee');
 });
 
 require __DIR__.'/settings.php';

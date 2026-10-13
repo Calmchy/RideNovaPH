@@ -6,6 +6,7 @@ use App\Actions\Payments\RefundPayment;
 use App\Enums\PaymentStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Payment;
+use App\Models\ActivityLog;
 use App\Support\Csv;
 use App\Support\Like;
 use Illuminate\Database\Eloquent\Builder;
@@ -73,6 +74,9 @@ class TransactionController extends Controller
                 'driver_earnings' => $p->driver_earnings,
                 'paid_at' => $p->paid_at?->toIso8601String(),
                 'refund_reason' => $p->refund_reason,
+                'cancellation_fee' => $p->cancellation_fee,
+                'fee_status' => $p->fee_status,
+                'cancel_reason' => $p->booking->cancellation_reason,
             ]),
         ]);
     }
@@ -83,6 +87,19 @@ class TransactionController extends Controller
         $reason = $request->validate(['reason' => ['required', 'string', 'max:255']])['reason'];
         $refund->handle($payment, $request->user(), $reason);
         $this->toast('Payment refunded.');
+
+        return back();
+    }
+
+    /** POST /admin/transactions/{payment}/fee : mark an unpaid cancellation fee as paid, or waive it. */
+    public function settleFee(Request $request, Payment $payment): RedirectResponse
+    {
+        $data = $request->validate(['decision' => ['required', 'in:paid,waived']]);
+        abort_unless($payment->fee_status === 'due', 422, 'There is no unpaid fee on this payment.');
+
+        $payment->forceFill(['fee_status' => $data['decision'], 'fee_settled_at' => now()])->save();
+        ActivityLog::record($request->user(), 'cancellation_fee.'.$data['decision'], $payment, ['fee' => $payment->cancellation_fee]);
+        $this->toast($data['decision'] === 'paid' ? 'Fee marked as paid.' : 'Fee waived.');
 
         return back();
     }
