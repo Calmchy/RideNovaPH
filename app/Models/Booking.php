@@ -6,10 +6,7 @@ use App\Enums\BookingStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-<<<<<<< HEAD
-=======
 use Illuminate\Database\Eloquent\Relations\HasOne;
->>>>>>> pagaduan
 use Illuminate\Support\Str;
 
 class Booking extends Model
@@ -34,13 +31,10 @@ class Booking extends Model
             'cancelled_at' => 'datetime',
             'pickup_at' => 'datetime',
             'return_at' => 'datetime',
-<<<<<<< HEAD
-=======
             'pickup_lat' => 'float',
             'pickup_lng' => 'float',
             'return_lat' => 'float',
             'return_lng' => 'float',
->>>>>>> pagaduan
         ];
     }
 
@@ -80,14 +74,11 @@ class Booking extends Model
         return $this->belongsTo(User::class, 'passenger_id');
     }
 
-<<<<<<< HEAD
-=======
     public function payment(): HasOne
     {
         return $this->hasOne(Payment::class);
     }
 
->>>>>>> pagaduan
     public function reviews(): HasMany
     {
         return $this->hasMany(Review::class);
