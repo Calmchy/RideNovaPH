@@ -54,7 +54,11 @@ type Props = {
             receipt_no: string | null;
             paid_at: string | null;
             refund_reason: string | null;
+            cancellation_fee: string;
+            fee_status: string;
         } | null;
+        cancel_fee: number;
+        cancel_fee_percent: number;
         reviews: { by: string; rating: number; comment: string | null }[];
     };
     viewer_role: 'passenger' | 'driver' | 'admin' | null;
@@ -162,7 +166,13 @@ export default function BookingShow({
                     {abilities.cancel && (
                         <ReasonDialog
                             title="Cancel this booking?"
-                            description="The other side will be notified. Passengers can’t cancel close to departure."
+                            description={
+                                viewer_role === 'passenger' && b.cancel_fee > 0
+                                    ? `Heads up: the driver already approved, so a ${b.cancel_fee_percent}% cancellation fee of ${peso(b.cancel_fee)} applies. You can't book again until it is settled.`
+                                    : 'The other side will be notified and will see your reason. Cancelling after a driver approves may cost a fee.'
+                            }
+                            reasonRequired
+                            reasonLabel="Why are you cancelling?"
                             confirmLabel="Cancel booking"
                             destructive
                             onConfirm={(reason) => act('cancel', { reason })}
@@ -297,6 +307,15 @@ export default function BookingShow({
                                     {pay.receipt_no && (
                                         <p className="font-mono text-xs text-muted-foreground">
                                             Receipt {pay.receipt_no}
+                                        </p>
+                                    )}
+                                    {Number(pay.cancellation_fee) > 0 && (
+                                        <p className="rounded-lg bg-coral/10 p-2 text-xs">
+                                            Cancellation fee{' '}
+                                            {peso(pay.cancellation_fee)} ·{' '}
+                                            {pay.fee_status === 'due'
+                                                ? 'unpaid. Settle it with support before booking again.'
+                                                : pay.fee_status}
                                         </p>
                                     )}
                                     {pay.refund_reason && (

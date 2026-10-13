@@ -14,6 +14,7 @@ type Announcement = {
     city: string | null;
     city_id: number | null;
     exam_date: string | null;
+    image_url: string | null;
 };
 
 type Props = {
@@ -95,25 +96,35 @@ export default function Welcome({ banners, rides, announcements }: Props) {
                                                 ? `/bookings?tab=find&destination=${a.city_id}`
                                                 : '/bookings?tab=find'
                                         }
-                                        className="rounded-2xl border bg-card p-5 transition hover:border-ocean hover:shadow-md"
+                                        className="overflow-hidden rounded-2xl border bg-card transition hover:border-ocean hover:shadow-md"
                                     >
-                                        <p className="text-xs tracking-widest text-coral-ink uppercase">
-                                            {a.category}
-                                        </p>
-                                        <p className="mt-1 text-lg">
-                                            {a.title}
-                                        </p>
-                                        <p className="mt-1 text-sm text-muted-foreground">
-                                            {[
-                                                a.city,
-                                                a.exam_date &&
-                                                    fmtDate(a.exam_date),
-                                            ]
-                                                .filter(Boolean)
-                                                .join(' · ')}
-                                            {a.city_id &&
-                                                ' · Find rides to this city →'}
-                                        </p>
+                                        {a.image_url && (
+                                            <img
+                                                src={a.image_url}
+                                                alt=""
+                                                loading="lazy"
+                                                className="h-40 w-full object-cover"
+                                            />
+                                        )}
+                                        <div className="p-5">
+                                            <p className="text-xs tracking-widest text-coral-ink uppercase">
+                                                {a.category}
+                                            </p>
+                                            <p className="mt-1 text-lg">
+                                                {a.title}
+                                            </p>
+                                            <p className="mt-1 text-sm text-muted-foreground">
+                                                {[
+                                                    a.city,
+                                                    a.exam_date &&
+                                                        fmtDate(a.exam_date),
+                                                ]
+                                                    .filter(Boolean)
+                                                    .join(' · ')}
+                                                {a.city_id &&
+                                                    ' · Find rides to this city →'}
+                                            </p>
+                                        </div>
                                     </Link>
                                 ))}
                             </div>

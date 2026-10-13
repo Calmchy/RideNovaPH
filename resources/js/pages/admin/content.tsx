@@ -35,6 +35,7 @@ type Props = {
         id: number;
         title: string;
         body: string;
+        image_url: string | null;
         category: string;
         category_id: number;
         city_id: number | null;
@@ -64,6 +65,8 @@ export default function AdminContent({
         title: '',
         body: '',
         exam_date: '',
+        image: null as File | null,
+        remove_image: false,
     });
 
     // Which item is being edited (null = the form is in "add" mode), and which confirm dialog is open.
@@ -97,6 +100,8 @@ export default function AdminContent({
             title: a.title,
             body: a.body,
             exam_date: a.exam_date ?? '',
+            image: null,
+            remove_image: false,
         });
         note.clearErrors();
     };
@@ -120,7 +125,11 @@ export default function AdminContent({
         );
     };
     const saveNote = () => {
-        const done = { preserveScroll: true, onSuccess: () => cancelNote() };
+        const done = {
+            forceFormData: true, // needed because of the picture upload
+            preserveScroll: true,
+            onSuccess: () => cancelNote(),
+        };
 
         if (editNote) {
             note.put(`/admin/announcements/${editNote}`, done);
@@ -316,6 +325,14 @@ export default function AdminContent({
                                     key={a.id}
                                     className="flex items-center gap-3 p-4"
                                 >
+                                    {a.image_url && (
+                                        <img
+                                            src={a.image_url}
+                                            alt=""
+                                            className="h-12 w-16 rounded-lg object-cover"
+                                            loading="lazy"
+                                        />
+                                    )}
                                     <div className="min-w-0 flex-1">
                                         <p className="truncate font-medium">
                                             {a.title}
@@ -477,6 +494,40 @@ export default function AdminContent({
                                 className={inputCls}
                             />
                         </Field>
+                        <Field
+                            label="Picture (optional · JPG, PNG, WebP · max 5 MB)"
+                            error={note.errors.image}
+                        >
+                            <input
+                                key={note.data.image ? 'has' : 'none'}
+                                type="file"
+                                accept="image/jpeg,image/png,image/webp"
+                                onChange={(e) =>
+                                    note.setData(
+                                        'image',
+                                        e.target.files?.[0] ?? null,
+                                    )
+                                }
+                                className={inputCls}
+                            />
+                        </Field>
+                        {editNote &&
+                            announcements.find((x) => x.id === editNote)
+                                ?.image_url && (
+                                <label className="flex items-center gap-2 text-sm">
+                                    <input
+                                        type="checkbox"
+                                        checked={note.data.remove_image}
+                                        onChange={(e) =>
+                                            note.setData(
+                                                'remove_image',
+                                                e.target.checked,
+                                            )
+                                        }
+                                    />
+                                    Remove the current picture
+                                </label>
+                            )}
                         <div className="flex gap-2">
                             <Button type="submit" disabled={note.processing}>
                                 {editNote ? 'Save changes' : 'Post'}
@@ -529,12 +580,12 @@ export default function AdminContent({
                             type="button"
                             onClick={() => {
                                 if (confirm === 'banner') {
-saveBanner();
-}
+                                    saveBanner();
+                                }
 
                                 if (confirm === 'note') {
-saveNote();
-}
+                                    saveNote();
+                                }
 
                                 setConfirm(null);
                             }}

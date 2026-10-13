@@ -16,7 +16,7 @@ class Payment extends Model
 {
     protected $fillable = [
         'booking_id', 'receipt_no', 'method', 'status', 'amount', 'platform_fee',
-        'driver_earnings', 'paid_at', 'refunded_at', 'refund_reason', 'refunded_by',
+        'driver_earnings', 'cancellation_fee', 'fee_status', 'fee_settled_at', 'paid_at', 'refunded_at', 'refund_reason', 'refunded_by',
     ];
 
     protected function casts(): array
@@ -26,6 +26,8 @@ class Payment extends Model
             'amount' => 'decimal:2',
             'platform_fee' => 'decimal:2',
             'driver_earnings' => 'decimal:2',
+            'cancellation_fee' => 'decimal:2',
+            'fee_settled_at' => 'datetime',
             'paid_at' => 'datetime',
             'refunded_at' => 'datetime',
         ];

@@ -31,6 +31,11 @@ class SettingController extends Controller
             'platform_fee_percent' => ['required', 'numeric', 'between:0,50'],
             'cancellation_cutoff_hours' => ['required', 'integer', 'between:0,72'],
             'max_seats_per_booking' => ['required', 'integer', 'between:1,20'],
+            'max_active_bookings' => ['required', 'integer', 'between:0,20'],
+            'booking_min_gap_hours' => ['required', 'integer', 'between:0,48'],
+            'cancel_strike_limit' => ['required', 'integer', 'between:0,20'],
+            'cancel_strike_days' => ['required', 'integer', 'between:1,365'],
+            'cancellation_fee_percent' => ['required', 'numeric', 'between:0,100'],
             'require_id_for_booking' => ['required', 'boolean'],
             'support_email' => ['required', 'email', 'max:190'],
         ]);

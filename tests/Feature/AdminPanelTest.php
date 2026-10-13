@@ -101,7 +101,7 @@ test('refund: only paid payments, reason required, receipt kept, both sides noti
 
 test('settings are validated and saved; the fee applies to new bookings', function () {
     $admin = Scenario::admin();
-    $body = ['platform_fee_percent' => 15, 'cancellation_cutoff_hours' => 4, 'max_seats_per_booking' => 5, 'require_id_for_booking' => true, 'support_email' => 'help@ridenovaph.test'];
+    $body = ['platform_fee_percent' => 15, 'cancellation_cutoff_hours' => 4, 'max_seats_per_booking' => 5, 'max_active_bookings' => 3, 'booking_min_gap_hours' => 3, 'cancel_strike_limit' => 3, 'cancel_strike_days' => 30, 'cancellation_fee_percent' => 20, 'require_id_for_booking' => true, 'support_email' => 'help@ridenovaph.test'];
 
     $this->actingAs($admin)->put('/admin/settings', ['platform_fee_percent' => 90] + $body)->assertSessionHasErrors('platform_fee_percent');
     $this->actingAs($admin)->put('/admin/settings', $body)->assertSessionHasNoErrors();

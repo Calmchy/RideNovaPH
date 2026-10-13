@@ -24,7 +24,7 @@ class HomeController extends Controller
                 'link_url' => $b->link_url,
                 'image_url' => str_starts_with($b->image_path, 'http')
                     ? $b->image_path
-                    : Storage::disk('public')->url($b->image_path),
+                    : '/storage/'.$b->image_path,
             ]),
             'cities' => City::orderBy('name')->get(['id', 'name']),
             'rides' => Ride::with(RidePresenter::WITH)
@@ -39,6 +39,7 @@ class HomeController extends Controller
                     'city' => $a->city?->name,
                     'city_id' => $a->city_id,
                     'exam_date' => $a->exam_date?->toDateString(),
+                    'image_url' => $a->imageUrl(),
                 ]),
         ]);
     }

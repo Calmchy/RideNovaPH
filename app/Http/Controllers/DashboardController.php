@@ -43,6 +43,9 @@ class DashboardController extends Controller
                 'completed' => $user->bookings()->where('status', BookingStatus::Completed->value)->count(),
                 'spent' => (float) Payment::whereHas('booking', fn ($q) => $q->where('passenger_id', $user->id))
                     ->where('status', PaymentStatus::Paid->value)->sum('amount'),
+                // Passenger view: MY requests still waiting for a driver to approve.
+                'my_pending' => $user->bookings()->where('status', BookingStatus::Pending->value)->count(),
+                // Driver view: other people's requests waiting for ME (0 for a plain passenger).
                 'awaiting_my_approval' => Booking::whereHas('ride.vehicle', fn ($q) => $q->where('driver_id', $user->id))
                     ->where('status', BookingStatus::Pending->value)->count(),
                 'earned' => $isDriver
@@ -71,7 +74,7 @@ class DashboardController extends Controller
             'title' => $b->title,
             'caption' => $b->caption,
             'href' => $b->link_url ?: '/bookings?tab=find',
-            'image_url' => str_starts_with($b->image_path, 'http') ? $b->image_path : Storage::disk('public')->url($b->image_path),
+            'image_url' => str_starts_with($b->image_path, 'http') ? $b->image_path : '/storage/'.$b->image_path,
         ]);
 
         $notices = Announcement::upcoming()->with(['category', 'city'])->limit(5)->get()->map(fn (Announcement $a) => [
@@ -80,7 +83,7 @@ class DashboardController extends Controller
             'title' => $a->title,
             'caption' => collect([$a->city?->name, $a->exam_date?->format('M j, Y')])->filter()->implode(' · '),
             'href' => $a->city_id ? '/bookings?tab=find&destination='.$a->city_id : '/bookings?tab=find',
-            'image_url' => null,
+            'image_url' => $a->imageUrl(),
         ]);
 
         // Alternate banner / announcement so the show stays varied.
