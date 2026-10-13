@@ -13,10 +13,35 @@ export type Banner = {
 // Shown only until an admin uploads real photos (Admin > Banners). Pure CSS gradients,
 // so the page never depends on remote images.
 const FALLBACK = [
-    { id: -1, title: 'Palawan', caption: 'Lagoons, limestone cliffs and the clearest water in the country.', link_url: '/rides', g: 'from-teal-brand via-deep-2 to-deep' },
-    { id: -2, title: 'Siargao', caption: 'Island hopping, surf and sunsets at Cloud 9.', link_url: '/rides', g: 'from-coral/80 via-deep-2 to-deep' },
-    { id: -3, title: 'Banaue', caption: 'The Rice Terraces: 2,000 years of mountain farming.', link_url: '/rides', g: 'from-seafoam/70 via-teal-brand to-deep' },
-    { id: -4, title: 'Bohol', caption: 'Chocolate Hills, tarsiers and quiet white beaches.', link_url: '/rides', g: 'from-sand/80 via-teal-brand to-deep' },
+    {
+        id: -1,
+        title: 'Palawan',
+        caption:
+            'Lagoons, limestone cliffs and the clearest water in the country.',
+        link_url: '/bookings?tab=find',
+        g: 'from-deep via-ocean to-deep',
+    },
+    {
+        id: -2,
+        title: 'Siargao',
+        caption: 'Island hopping, surf and sunsets at Cloud 9.',
+        link_url: '/bookings?tab=find',
+        g: 'from-ocean via-deep to-deep',
+    },
+    {
+        id: -3,
+        title: 'Banaue',
+        caption: 'The Rice Terraces: 2,000 years of mountain farming.',
+        link_url: '/bookings?tab=find',
+        g: 'from-deep via-ocean/70 to-deep',
+    },
+    {
+        id: -4,
+        title: 'Bohol',
+        caption: 'Chocolate Hills, tarsiers and quiet white beaches.',
+        link_url: '/bookings?tab=find',
+        g: 'from-deep via-coral/40 to-deep',
+    },
 ];
 
 export default function BannerSlideshow({ banners }: { banners: Banner[] }) {
@@ -30,7 +55,9 @@ export default function BannerSlideshow({ banners }: { banners: Banner[] }) {
 
     // Auto-advance every 6s; stops on hover/focus and for users who prefer reduced motion.
     useEffect(() => {
-        const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        const reduce = window.matchMedia(
+            '(prefers-reduced-motion: reduce)',
+        ).matches;
 
         if (paused || reduce || slides.length < 2) {
             return;
@@ -58,20 +85,34 @@ export default function BannerSlideshow({ banners }: { banners: Banner[] }) {
                     className={`absolute inset-0 transition-opacity duration-1000 ${idx === i ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
                 >
                     {s.image_url ? (
-                        <img src={s.image_url} alt="" className="h-full w-full object-cover" />
+                        <img
+                            src={s.image_url}
+                            alt=""
+                            className="h-full w-full object-cover"
+                        />
                     ) : (
-                        <div className={`h-full w-full bg-gradient-to-br ${s.g}`} />
+                        <div
+                            className={`h-full w-full bg-gradient-to-br ${s.g}`}
+                        />
                     )}
                     <div className="absolute inset-0 bg-gradient-to-t from-deep via-deep/30 to-deep/50" />
                     <div className="absolute bottom-40 left-6 max-w-xl md:left-16">
-                        <p className="text-xs tracking-[0.3em] text-sand uppercase">Discover the Philippines</p>
-                        <h2 className="mt-3 font-serif text-5xl text-white md:text-7xl">{s.title}</h2>
-                        {s.caption && <p className="mt-4 text-lg text-white/80">{s.caption}</p>}
+                        <p className="text-xs tracking-[0.3em] text-sand uppercase">
+                            Discover the Philippines
+                        </p>
+                        <h2 className="mt-3 font-serif text-5xl text-white md:text-7xl">
+                            {s.title}
+                        </h2>
+                        {s.caption && (
+                            <p className="mt-4 text-lg text-white/80">
+                                {s.caption}
+                            </p>
+                        )}
                         {s.link_url && (
                             <Link
                                 href={s.link_url}
                                 tabIndex={idx === i ? 0 : -1}
-                                className="mt-6 inline-block rounded-full border border-sand/60 px-6 py-2.5 text-sm text-peach transition hover:bg-sand hover:text-deep"
+                                className="mt-6 inline-block rounded-full border border-sand/60 px-6 py-2.5 text-sm text-sand transition hover:bg-sand hover:text-deep"
                             >
                                 See rides →
                             </Link>
@@ -98,7 +139,10 @@ export default function BannerSlideshow({ banners }: { banners: Banner[] }) {
                     >
                         <ChevronRight className="size-6" />
                     </button>
-                    <div className="absolute bottom-28 left-6 flex gap-2 md:left-16" role="tablist">
+                    <div
+                        className="absolute bottom-28 left-6 flex gap-2 md:left-16"
+                        role="tablist"
+                    >
                         {slides.map((s, idx) => (
                             <button
                                 key={s.id}

@@ -1,5 +1,5 @@
 # Laravel-Project
-System Arch &amp; Integ
+System Integration & Architecture
 
 ## Members
 ### John Paul Lelis

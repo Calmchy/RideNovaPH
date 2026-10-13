@@ -12,6 +12,9 @@ use App\Models\Ride;
  */
 class RidePresenter
 {
+    /** Relations every card needs; use with Ride::with(RidePresenter::WITH). */
+    public const WITH = ['origin', 'destination', 'vehicle.model.make', 'vehicle.driver.user'];
+
     public static function card(Ride $ride): array
     {
         return [
@@ -30,6 +33,11 @@ class RidePresenter
         ];
     }
 
-    /** Relations every card needs; use with Ride::with(RidePresenter::WITH). */
-    public const WITH = ['origin', 'destination', 'vehicle.model.make', 'vehicle.driver.user'];
+    /** City centre as [lat, lng] for map centring, or null when not seeded. */
+    public static function coords(?\App\Models\City $city): ?array
+    {
+        return $city && $city->latitude !== null
+            ? ['lat' => (float) $city->latitude, 'lng' => (float) $city->longitude]
+            : null;
+    }
 }
