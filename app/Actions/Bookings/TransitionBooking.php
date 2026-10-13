@@ -19,7 +19,8 @@ use Illuminate\Validation\ValidationException;
  *
  * Side effects that belong to a move live here too, so no controller can forget them:
  *   completed -> the cash payment is settled and a receipt number is issued
- *   cancelled -> an unpaid payment is voided
+ *   cancelled -> an unpaid payment is voided; a passenger cancelling AFTER approval owes a cancellation fee
+ *                (and must always give a reason)
  *   every move -> the other party gets an in-app notification
  *
  * Seats are derived by query (see Ride::seatsLeft): cancelling simply stops the booking counting.
@@ -57,6 +58,12 @@ class TransitionBooking
                 throw ValidationException::withMessages(['status' => 'This trip has not departed yet.']);
             }
 
+            // A person cancelling must say why (shown to the other side and kept for admin review).
+            // System cancellations (actor = null, e.g. the driver cancelled the whole ride) are exempt.
+            if ($to === BookingStatus::Cancelled && $actor && mb_strlen(trim((string) $reason)) < 5) {
+                throw ValidationException::withMessages(['reason' => 'Please tell us why you are cancelling (at least 5 characters).']);
+            }
+
             // Passengers can't cancel at the last minute (the driver planned around them).
             if ($to === BookingStatus::Cancelled && ! $force && $actor && $actor->id === $locked->passenger_id) {
                 $cutoff = Setting::int('cancellation_cutoff_hours');
@@ -66,6 +73,8 @@ class TransitionBooking
                     ]);
                 }
             }
+
+            $wasCommitted = $locked->status !== BookingStatus::Pending; // approved or confirmed
 
             $locked->forceFill(match ($to) {
                 BookingStatus::Approved => ['status' => $to, 'approved_at' => now()],
@@ -84,7 +93,18 @@ class TransitionBooking
             }
 
             if ($to === BookingStatus::Cancelled && $locked->payment?->status === PaymentStatus::Pending) {
-                $locked->payment->forceFill(['status' => PaymentStatus::Void])->save();
+                $fields = ['status' => PaymentStatus::Void];
+
+                // Cancellation fee: only when the PASSENGER cancels after the driver already said yes
+                // (a pending request is free, and a driver/system cancellation never charges the passenger).
+                if (! $force && $actor && $actor->id === $locked->passenger_id && $wasCommitted) {
+                    $fee = self::feeFor($locked);
+                    if ($fee > 0) {
+                        $fields += ['cancellation_fee' => $fee, 'fee_status' => 'due'];
+                    }
+                }
+
+                $locked->payment->forceFill($fields)->save();
             }
 
             return $locked;
@@ -93,6 +113,22 @@ class TransitionBooking
         $this->notify($locked, $to, $actor);
 
         return $locked;
+    }
+
+    /**
+     * The fee a passenger would pay for cancelling this booking right now (peso, 2 decimals).
+     * 0 while the request is still pending, otherwise cancellation_fee_percent of the fare.
+     * Also used by the booking page to show the amount BEFORE the passenger confirms.
+     */
+    public static function feeFor(Booking $booking): float
+    {
+        if ($booking->status === BookingStatus::Pending) {
+            return 0.0;
+        }
+
+        $amount = (float) ($booking->payment?->amount ?? 0);
+
+        return round($amount * Setting::float('cancellation_fee_percent') / 100, 2);
     }
 
     /** Tell the OTHER side what happened. */
@@ -110,7 +146,11 @@ class TransitionBooking
             BookingStatus::Completed => $passenger->notify(new AppNotice('Trip completed', "Your receipt for {$ref} is ready. Leave a review for your driver.", $url)),
             BookingStatus::Cancelled => collect([$passenger, $driver])
                 ->reject(fn (User $u) => $actor && $u->id === $actor->id)
-                ->each(fn (User $u) => $u->notify(new AppNotice('Booking cancelled', "{$ref} was cancelled.", $url))),
+                ->each(fn (User $u) => $u->notify(new AppNotice(
+                    'Booking cancelled',
+                    "{$ref} was cancelled".($booking->cancellation_reason ? ": {$booking->cancellation_reason}" : '.'),
+                    $url,
+                ))),
             default => null,
         };
     }

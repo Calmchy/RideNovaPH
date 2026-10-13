@@ -11,7 +11,7 @@ class Announcement extends Model
 {
     protected $fillable = [
         'category_id', 'created_by', 'city_id', 'title', 'body',
-        'exam_date', 'is_published',
+        'exam_date', 'is_published', 'image_path',
     ];
 
     protected function casts(): array
@@ -20,6 +20,19 @@ class Announcement extends Model
             'exam_date' => 'date',
             'is_published' => 'boolean',
         ];
+    }
+
+    /**
+     * Public URL of the picture, or null. Relative ("/storage/...") on purpose so it works on any
+     * host/port and never depends on APP_URL.
+     */
+    public function imageUrl(): ?string
+    {
+        if (! $this->image_path) {
+            return null;
+        }
+
+        return str_starts_with($this->image_path, 'http') ? $this->image_path : '/storage/'.$this->image_path;
     }
 
     public function category(): BelongsTo

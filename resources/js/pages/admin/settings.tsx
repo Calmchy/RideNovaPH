@@ -19,6 +19,11 @@ export default function AdminSettings({ settings, recent_activity }: Props) {
         platform_fee_percent: settings.platform_fee_percent,
         cancellation_cutoff_hours: settings.cancellation_cutoff_hours,
         max_seats_per_booking: settings.max_seats_per_booking,
+        max_active_bookings: settings.max_active_bookings,
+        booking_min_gap_hours: settings.booking_min_gap_hours,
+        cancel_strike_limit: settings.cancel_strike_limit,
+        cancel_strike_days: settings.cancel_strike_days,
+        cancellation_fee_percent: settings.cancellation_fee_percent,
         require_id_for_booking: settings.require_id_for_booking === '1',
         support_email: settings.support_email,
     });
@@ -142,6 +147,111 @@ export default function AdminSettings({ settings, recent_activity }: Props) {
                                 </span>
                             </span>
                         </label>
+                    </div>
+                </Panel>
+                <Panel title="Abuse protection">
+                    <div className="grid gap-4 p-5 sm:grid-cols-2">
+                        <Field
+                            label="Max open bookings per passenger"
+                            hint="Pending, approved or confirmed at the same time. 0 = no limit."
+                            error={form.errors.max_active_bookings}
+                        >
+                            <input
+                                type="number"
+                                min={0}
+                                max={20}
+                                required
+                                value={form.data.max_active_bookings}
+                                onChange={(e) =>
+                                    form.setData(
+                                        'max_active_bookings',
+                                        e.target.value,
+                                    )
+                                }
+                                className={inputCls}
+                            />
+                        </Field>
+                        <Field
+                            label="Min hours between two bookings"
+                            hint="Stops one person holding rides that overlap. 0 = off."
+                            error={form.errors.booking_min_gap_hours}
+                        >
+                            <input
+                                type="number"
+                                min={0}
+                                max={48}
+                                required
+                                value={form.data.booking_min_gap_hours}
+                                onChange={(e) =>
+                                    form.setData(
+                                        'booking_min_gap_hours',
+                                        e.target.value,
+                                    )
+                                }
+                                className={inputCls}
+                            />
+                        </Field>
+                        <Field
+                            label="Cancellations before a block"
+                            hint="Booking pauses once reached. 0 = off."
+                            error={form.errors.cancel_strike_limit}
+                        >
+                            <input
+                                type="number"
+                                min={0}
+                                max={20}
+                                required
+                                value={form.data.cancel_strike_limit}
+                                onChange={(e) =>
+                                    form.setData(
+                                        'cancel_strike_limit',
+                                        e.target.value,
+                                    )
+                                }
+                                className={inputCls}
+                            />
+                        </Field>
+                        <Field
+                            label="…within this many days"
+                            hint="The window for the cancellation count."
+                            error={form.errors.cancel_strike_days}
+                        >
+                            <input
+                                type="number"
+                                min={1}
+                                max={365}
+                                required
+                                value={form.data.cancel_strike_days}
+                                onChange={(e) =>
+                                    form.setData(
+                                        'cancel_strike_days',
+                                        e.target.value,
+                                    )
+                                }
+                                className={inputCls}
+                            />
+                        </Field>
+                        <Field
+                            label="Cancellation fee (%)"
+                            hint="Charged when a passenger cancels AFTER the driver approved. Pending requests cancel free."
+                            error={form.errors.cancellation_fee_percent}
+                        >
+                            <input
+                                type="number"
+                                min={0}
+                                max={100}
+                                step="1"
+                                required
+                                value={form.data.cancellation_fee_percent}
+                                onChange={(e) =>
+                                    form.setData(
+                                        'cancellation_fee_percent',
+                                        e.target.value,
+                                    )
+                                }
+                                className={inputCls}
+                            />
+                        </Field>
                     </div>
                 </Panel>
                 <div>

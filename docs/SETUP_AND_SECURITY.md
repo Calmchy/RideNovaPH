@@ -44,3 +44,16 @@ Tailwind utilities: `bg-deep`, `text-ocean`, `bg-coral`, `bg-sand`, `bg-foam`.
 ## 5. Honest status
 Written in an environment without a Laravel runtime: checked with `php -l`, `tsc`, ESLint only.
 Migrations, Pest tests and page rendering have NOT been executed — run `php artisan test` and fix anything reported.
+
+## 6. Anti-scam rules (Admin > Settings > Abuse protection)
+| Rule | Default | Where enforced |
+|---|---|---|
+| Max open bookings per passenger | 3 | `ReserveSeat::assertWithinLimits` |
+| Min hours between two bookings (no overlapping trips) | 3 | same |
+| Cancellations in N days before booking is paused | 3 in 30 days | same |
+| Unpaid cancellation fee blocks booking | on | same |
+| Cancellation fee (only after the driver approved) | 20% of fare | `TransitionBooking::feeFor` |
+| Reason required for every manual cancellation | min 5 chars | `TransitionBooking` + `BookingController::transition` |
+
+Checks run inside a DB transaction with the passenger row locked, so parallel requests cannot slip past a limit.
+Blocked attempts are written to the activity log (`booking.blocked`). Admin settles a fee in Transactions (Fee paid / Waive, logged).

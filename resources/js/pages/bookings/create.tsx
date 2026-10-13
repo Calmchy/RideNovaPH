@@ -523,9 +523,12 @@ export default function BookingCreate({
                             {form.errors.agree}
                         </p>
                     )}
-                    {(errors.ride || errors.id || errors.seats) && (
+                    {(errors.ride ||
+                        errors.id ||
+                        errors.seats ||
+                        errors.limit) && (
                         <p className="text-sm text-destructive" role="alert">
-                            {errors.ride ?? errors.id}
+                            {errors.ride ?? errors.id ?? errors.limit}
                         </p>
                     )}
                     <Button

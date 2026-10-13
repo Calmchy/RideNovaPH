@@ -200,7 +200,12 @@ class BookingController extends Controller
                     'receipt_no' => $booking->payment->receipt_no,
                     'paid_at' => $booking->payment->paid_at?->toIso8601String(),
                     'refund_reason' => $booking->payment->refund_reason,
+                    'cancellation_fee' => $booking->payment->cancellation_fee,
+                    'fee_status' => $booking->payment->fee_status,
                 ] : null,
+                // What cancelling would cost the passenger RIGHT NOW (shown in the confirm dialog).
+                'cancel_fee' => TransitionBooking::feeFor($booking),
+                'cancel_fee_percent' => Setting::float('cancellation_fee_percent'),
                 'reviews' => $booking->reviews->map(fn ($r) => [
                     'by' => $r->reviewer_role->value, 'rating' => $r->rating, 'comment' => $r->comment,
                 ]),
@@ -220,7 +225,7 @@ class BookingController extends Controller
         $this->authorize($action, $booking->loadMissing('ride.vehicle'));
 
         $reason = $action === 'cancel'
-            ? $request->validate(['reason' => ['nullable', 'string', 'max:255']])['reason'] ?? null
+            ? $request->validate(['reason' => ['required', 'string', 'min:5', 'max:255']])['reason']
             : null;
 
         $transition->handle($booking, self::ACTIONS[$action], $reason, $request->user());

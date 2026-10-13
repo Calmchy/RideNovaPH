@@ -30,6 +30,9 @@ type P = {
     driver_earnings: string;
     paid_at: string | null;
     refund_reason: string | null;
+    cancellation_fee: string;
+    fee_status: string;
+    cancel_reason: string | null;
 };
 type Props = {
     payments: Paginated<P>;
@@ -186,6 +189,15 @@ export default function AdminTransactions({
                                                 {p.refund_reason}
                                             </span>
                                         )}
+                                        {Number(p.cancellation_fee) > 0 && (
+                                            <span className="mt-1 block max-w-48 text-xs text-muted-foreground">
+                                                Cancel fee{' '}
+                                                {peso(p.cancellation_fee)} (
+                                                {p.fee_status})
+                                                {p.cancel_reason &&
+                                                    ` · “${p.cancel_reason}”`}
+                                            </span>
+                                        )}
                                     </td>
                                     <td className={tdCls}>{peso(p.amount)}</td>
                                     <td className={tdCls}>
@@ -202,6 +214,46 @@ export default function AdminTransactions({
                                             : '—'}
                                     </td>
                                     <td className={tdCls}>
+                                        {p.fee_status === 'due' && (
+                                            <span className="mr-2 inline-flex gap-1">
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={() =>
+                                                        router.post(
+                                                            `/admin/transactions/${p.id}/fee`,
+                                                            {
+                                                                decision:
+                                                                    'paid',
+                                                            },
+                                                            {
+                                                                preserveScroll: true,
+                                                            },
+                                                        )
+                                                    }
+                                                >
+                                                    Fee paid
+                                                </Button>
+                                                <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    onClick={() =>
+                                                        router.post(
+                                                            `/admin/transactions/${p.id}/fee`,
+                                                            {
+                                                                decision:
+                                                                    'waived',
+                                                            },
+                                                            {
+                                                                preserveScroll: true,
+                                                            },
+                                                        )
+                                                    }
+                                                >
+                                                    Waive
+                                                </Button>
+                                            </span>
+                                        )}
                                         {p.status === 'paid' && (
                                             <ReasonDialog
                                                 title="Refund this payment?"

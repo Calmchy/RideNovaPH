@@ -27,6 +27,12 @@ class Setting extends Model
         'platform_fee_percent' => '10',        // % of each fare kept by the platform
         'cancellation_cutoff_hours' => '2',    // passengers can't cancel closer to departure than this
         'max_seats_per_booking' => '6',
+        // --- anti-abuse rules ---
+        'max_active_bookings' => '3',          // open bookings (pending/approved/confirmed) one passenger may hold at once
+        'booking_min_gap_hours' => '3',        // two open bookings can't depart closer together than this (one person, one place)
+        'cancel_strike_limit' => '3',          // this many cancellations inside the window blocks new bookings
+        'cancel_strike_days' => '30',          // the window for the line above
+        'cancellation_fee_percent' => '20',    // % of the fare charged when cancelling AFTER the driver approved
         'require_id_for_booking' => '1',       // 1 = approved ID needed to reserve (proposal rule)
         'support_email' => 'support@ridenovaph.test',
     ];
