@@ -6,13 +6,7 @@ use App\Enums\BookingStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-<<<<<<< .merge_file_CZ4mzf
-=======
-<<<<<<< HEAD
-=======
 use Illuminate\Database\Eloquent\Relations\HasOne;
->>>>>>> pagaduan
->>>>>>> .merge_file_knm2zG
 use Illuminate\Support\Str;
 
 class Booking extends Model
@@ -37,16 +31,10 @@ class Booking extends Model
             'cancelled_at' => 'datetime',
             'pickup_at' => 'datetime',
             'return_at' => 'datetime',
-<<<<<<< .merge_file_CZ4mzf
-=======
-<<<<<<< HEAD
-=======
             'pickup_lat' => 'float',
             'pickup_lng' => 'float',
             'return_lat' => 'float',
             'return_lng' => 'float',
->>>>>>> pagaduan
->>>>>>> .merge_file_knm2zG
         ];
     }
 
@@ -85,19 +73,12 @@ class Booking extends Model
     {
         return $this->belongsTo(User::class, 'passenger_id');
     }
-<<<<<<< .merge_file_CZ4mzf
 
-=======
-
-<<<<<<< HEAD
-=======
     public function payment(): HasOne
     {
         return $this->hasOne(Payment::class);
     }
 
->>>>>>> pagaduan
->>>>>>> .merge_file_knm2zG
     public function reviews(): HasMany
     {
         return $this->hasMany(Review::class);

@@ -25,15 +25,9 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property string $name
  * @property string $email
  * @property string|null $phone_number
-<<<<<<< .merge_file_2qdIB2
-=======
-<<<<<<< HEAD
-=======
  * @property string|null $address
  * @property string|null $emergency_contact_name
  * @property string|null $emergency_contact_phone
->>>>>>> pagaduan
->>>>>>> .merge_file_L4aqhm
  * @property string|null $profile_photo_path
  * @property AccountStatus $account_status
  * @property Carbon|null $email_verified_at
@@ -45,16 +39,8 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-<<<<<<< .merge_file_2qdIB2
-#[Fillable(['name', 'email', 'password'])]
-=======
-<<<<<<< HEAD
-#[Fillable(['name', 'email', 'password'])]
-=======
 // role_id / account_status are NEVER mass-assignable: they are set with forceFill() in trusted code only.
 #[Fillable(['name', 'email', 'password', 'phone_number', 'address', 'emergency_contact_name', 'emergency_contact_phone'])]
->>>>>>> pagaduan
->>>>>>> .merge_file_L4aqhm
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable implements PasskeyUser
 {
@@ -119,10 +105,6 @@ class User extends Authenticatable implements PasskeyUser
     {
         return $this->hasMany(Booking::class, 'passenger_id');
     }
-<<<<<<< .merge_file_2qdIB2
-=======
-<<<<<<< HEAD
-=======
 
     /** Is this a driver whose licence an admin has approved? Only they may publish rides. */
     public function isApprovedDriver(): bool
@@ -135,6 +117,4 @@ class User extends Authenticatable implements PasskeyUser
     {
         return $this->account_status === AccountStatus::Suspended;
     }
->>>>>>> pagaduan
->>>>>>> .merge_file_L4aqhm
 }
