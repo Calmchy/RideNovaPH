@@ -34,7 +34,8 @@ test('passengers cannot decide on ID documents or manage banners', function () {
 
 test('public pages load for guests', function () {
     $this->get('/')->assertOk();
-    $this->get('/rides')->assertOk();
+    // /rides is now merged into the single "Bookings" hub.
+    $this->get('/rides')->assertRedirect('/bookings');
 });
 
 test('booking actions require a signed-in user', function () {

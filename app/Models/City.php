@@ -10,7 +10,7 @@ class City extends Model
 {
     public $timestamps = false;
 
-    protected $fillable = ['province_id', 'name'];
+    protected $fillable = ['province_id', 'name', 'latitude', 'longitude'];
 
     public function province(): BelongsTo
     {

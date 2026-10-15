@@ -19,6 +19,7 @@ class Ride extends Model
         'vehicle_id', 'announcement_id', 'origin_city_id', 'destination_city_id',
         'pickup_point', 'dropoff_point', 'departure_at', 'seats_offered',
         'price_per_seat', 'notes', 'status',
+        'started_at', 'completed_at', 'cancelled_at', 'cancellation_reason',
     ];
 
     protected function casts(): array
@@ -27,6 +28,9 @@ class Ride extends Model
             'departure_at' => 'datetime',
             'price_per_seat' => 'decimal:2',
             'status' => RideStatus::class,
+            'started_at' => 'datetime',
+            'completed_at' => 'datetime',
+            'cancelled_at' => 'datetime',
         ];
     }
 
@@ -78,6 +82,17 @@ class Ride extends Model
             'seats_offered - COALESCE((select sum(b.seats_booked) from bookings b where b.ride_id = rides.id and b.status != ?), 0) > 0',
             [BookingStatus::Cancelled->value],
         );
+    }
+
+    /** Human-friendly trip state derived from status + timestamps: scheduled | on_the_road | completed | cancelled. */
+    public function tripStatus(): string
+    {
+        return match (true) {
+            $this->status === RideStatus::Cancelled => 'cancelled',
+            $this->status === RideStatus::Completed => 'completed',
+            $this->started_at !== null => 'on_the_road',
+            default => 'scheduled',
+        };
     }
 
     /** Seats still free. Calculated, never stored. */

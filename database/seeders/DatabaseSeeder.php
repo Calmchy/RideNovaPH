@@ -30,6 +30,9 @@ class DatabaseSeeder extends Seeder
                 'name' => 'RideNovaPH Admin',
                 'email' => 'admin@ridenovaph.test',
             ]);
+
+            // Demo driver, passenger, rides and announcements (local only).
+            $this->call(DemoSeeder::class);
         }
 
         if (env('ADMIN_EMAIL') && env('ADMIN_PASSWORD')) {

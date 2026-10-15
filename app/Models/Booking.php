@@ -6,6 +6,7 @@ use App\Enums\BookingStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Str;
 
 class Booking extends Model
@@ -14,6 +15,9 @@ class Booking extends Model
         'reference_no', 'ride_id', 'passenger_id', 'seats_booked', 'fare_per_seat',
         'status', 'approved_at', 'confirmed_at', 'completed_at', 'cancelled_at',
         'cancellation_reason',
+        'contact_name', 'contact_address', 'contact_email', 'contact_phone',
+        'pickup_location', 'pickup_lat', 'pickup_lng', 'pickup_at',
+        'return_location', 'return_lat', 'return_lng', 'return_at',
     ];
 
     protected function casts(): array
@@ -25,6 +29,12 @@ class Booking extends Model
             'confirmed_at' => 'datetime',
             'completed_at' => 'datetime',
             'cancelled_at' => 'datetime',
+            'pickup_at' => 'datetime',
+            'return_at' => 'datetime',
+            'pickup_lat' => 'float',
+            'pickup_lng' => 'float',
+            'return_lat' => 'float',
+            'return_lng' => 'float',
         ];
     }
 
@@ -62,6 +72,11 @@ class Booking extends Model
     public function passenger(): BelongsTo
     {
         return $this->belongsTo(User::class, 'passenger_id');
+    }
+
+    public function payment(): HasOne
+    {
+        return $this->hasOne(Payment::class);
     }
 
     public function reviews(): HasMany

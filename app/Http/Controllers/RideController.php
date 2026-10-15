@@ -2,41 +2,24 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\City;
 use App\Models\Review;
 use App\Models\Ride;
+use App\Models\Setting;
 use App\Support\RidePresenter;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class RideController extends Controller
 {
-    /** GET /rides : search by origin, destination and date. Every filter is validated, then bound by Eloquent (no raw SQL). */
-    public function index(Request $request): Response
+    /** GET /rides : the old public search now lives inside the Bookings hub (find tab). */
+    public function index(Request $request): RedirectResponse
     {
-        $filters = $request->validate([
-            'origin' => ['nullable', 'integer', 'exists:cities,id'],
-            'destination' => ['nullable', 'integer', 'exists:cities,id'],
-            'date' => ['nullable', 'date'],
-        ]);
-
-        $rides = Ride::with(RidePresenter::WITH)
-            ->available()->withSeatsLeft()
-            ->when($filters['origin'] ?? null, fn ($q, $v) => $q->where('origin_city_id', $v))
-            ->when($filters['destination'] ?? null, fn ($q, $v) => $q->where('destination_city_id', $v))
-            ->when($filters['date'] ?? null, fn ($q, $v) => $q->whereDate('departure_at', $v))
-            ->orderBy('departure_at')
-            ->simplePaginate(12)->withQueryString();
-
-        return Inertia::render('rides/index', [
-            'rides' => $rides->through(fn (Ride $r) => RidePresenter::card($r)),
-            'cities' => City::orderBy('name')->get(['id', 'name']),
-            'filters' => $filters,
-        ]);
+        return to_route('bookings.index', ['tab' => 'find'] + $request->only(['origin', 'destination', 'date']));
     }
 
-    /** GET /rides/{ride} : detail page with the driver's average rating and the viewer's own booking, if any. */
+    /** GET /rides/{ride} : public detail page with the driver's average rating and the viewer's own booking, if any. */
     public function show(Request $request, Ride $ride): Response
     {
         $ride->load(RidePresenter::WITH);
@@ -55,13 +38,16 @@ class RideController extends Controller
             'ride' => RidePresenter::card($ride) + [
                 'notes' => $ride->notes,
                 'status' => $ride->status->value,
+                'trip_status' => $ride->tripStatus(),
             ],
             'driver_rating' => [
                 'average' => $rating->total ? round((float) $rating->average, 1) : null,
                 'total' => (int) $rating->total,
             ],
             'my_booking_id' => $mine?->id,
-            'can_book' => $user !== null && $user->hasApprovedId() && $driverId !== $user->id,
+            'can_book' => $user !== null
+                && $driverId !== $user->id
+                && ($user->hasApprovedId() || ! Setting::bool('require_id_for_booking')),
             'has_approved_id' => $user?->hasApprovedId() ?? false,
         ]);
     }

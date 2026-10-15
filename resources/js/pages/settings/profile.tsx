@@ -1,126 +1,307 @@
-import { Form, Head, usePage } from '@inertiajs/react';
-import { Link } from '@inertiajs/react';
-import ProfileController from '@/actions/App/Http/Controllers/Settings/ProfileController';
+// Profile: verification status, editable personal info, and role-specific settings.
+// Saves with PATCH /settings/profile. The server only accepts whitelisted fields (never role or status).
+import { Head, Link, useForm, usePage } from '@inertiajs/react';
+import { BadgeCheck, Car, MailWarning } from 'lucide-react';
 import DeleteUser from '@/components/delete-user';
 import Heading from '@/components/heading';
 import InputError from '@/components/input-error';
+import { inputCls, Panel } from '@/components/kit';
+import { fmtDate, StatusBadge } from '@/components/lux';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import type { Auth } from '@/types';
 import { edit } from '@/routes/profile';
 import { send } from '@/routes/verification';
-import type { Auth } from '@/types';
 
-type PageProps = {
-    auth: Auth;
+type Props = {
+    mustVerifyEmail: boolean;
+    status?: string;
+    profile: {
+        phone_number: string | null;
+        address: string | null;
+        emergency_contact_name: string | null;
+        emergency_contact_phone: string | null;
+        role: string;
+        member_since: string;
+    };
+    verification: {
+        id_status: 'pending' | 'approved' | 'rejected' | null;
+        id_remarks: string | null;
+        driver_status: 'pending' | 'approved' | 'rejected' | null;
+        driver_remarks: string | null;
+        has_driver_profile: boolean;
+    };
+    driver: { bio: string | null; allows_luggage: boolean } | null;
 };
+
+function VerifyRow({
+    icon: Icon,
+    title,
+    status,
+    remarks,
+    href,
+    cta,
+}: {
+    icon: typeof BadgeCheck;
+    title: string;
+    status: string | null;
+    remarks: string | null;
+    href: string;
+    cta: string;
+}) {
+    return (
+        <div className="flex flex-wrap items-center justify-between gap-3 py-3">
+            <div className="flex items-start gap-3">
+                <Icon className="mt-0.5 size-5 text-ocean dark:text-foam" />
+                <div>
+                    <p className="text-sm font-medium">{title}</p>
+                    {remarks && (
+                        <p className="text-xs text-destructive">
+                            Reason: {remarks}
+                        </p>
+                    )}
+                </div>
+            </div>
+            <div className="flex items-center gap-3">
+                {status ? (
+                    <StatusBadge status={status} />
+                ) : (
+                    <span className="text-xs text-muted-foreground">
+                        Not submitted
+                    </span>
+                )}
+                {status !== 'approved' && status !== 'pending' && (
+                    <Button
+                        asChild
+                        size="sm"
+                        variant={
+                            status === 'rejected' ? 'destructive' : 'default'
+                        }
+                    >
+                        <Link href={href}>{cta}</Link>
+                    </Button>
+                )}
+                {(status === 'approved' || status === 'pending') && (
+                    <Button asChild size="sm" variant="ghost">
+                        <Link href={href}>Details</Link>
+                    </Button>
+                )}
+            </div>
+        </div>
+    );
+}
 
 export default function Profile({
     mustVerifyEmail,
     status,
-}: {
-    mustVerifyEmail: boolean;
-    status?: string;
-}) {
-    const { auth } = usePage<PageProps>().props;
+    profile,
+    verification,
+    driver,
+}: Props) {
+    const { auth } = usePage<{ auth: Auth }>().props;
+    const form = useForm({
+        name: auth.user.name,
+        email: auth.user.email,
+        phone_number: profile.phone_number ?? '',
+        address: profile.address ?? '',
+        emergency_contact_name: profile.emergency_contact_name ?? '',
+        emergency_contact_phone: profile.emergency_contact_phone ?? '',
+        bio: driver?.bio ?? '',
+        allows_luggage: driver?.allows_luggage ?? true,
+    });
+    const set =
+        <K extends keyof typeof form.data>(k: K) =>
+        (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+            form.setData(k, e.target.value as never);
 
     return (
         <>
             <Head title="Profile settings" />
-
             <h1 className="sr-only">Profile settings</h1>
 
-            <div className="space-y-6">
-                <Heading
-                    variant="small"
-                    title="Profile"
-                    description="Update your name and email address"
-                />
+            <div className="space-y-8">
+                <Panel title="Verification">
+                    <div className="divide-y px-5">
+                        <VerifyRow
+                            icon={BadgeCheck}
+                            title="Valid government ID"
+                            status={verification.id_status}
+                            remarks={verification.id_remarks}
+                            href="/identity"
+                            cta={
+                                verification.id_status === 'rejected'
+                                    ? 'Resubmit ID'
+                                    : 'Verify ID'
+                            }
+                        />
+                        {profile.role === 'driver' && (
+                            <VerifyRow
+                                icon={Car}
+                                title="Driver licence"
+                                status={verification.driver_status}
+                                remarks={verification.driver_remarks}
+                                href="/driver/apply"
+                                cta={
+                                    verification.driver_status === 'rejected'
+                                        ? 'Resubmit licence'
+                                        : 'Submit licence'
+                                }
+                            />
+                        )}
+                    </div>
+                </Panel>
 
-                <Form
-                    {...ProfileController.update.form()}
-                    options={{
-                        preserveScroll: true,
+                <form
+                    onSubmit={(e) => {
+                        e.preventDefault();
+                        form.patch('/settings/profile', {
+                            preserveScroll: true,
+                        });
                     }}
                     className="space-y-6"
                 >
-                    {({ processing, errors }) => (
-                        <>
-                            <div className="grid gap-2">
-                                <Label htmlFor="name">Name</Label>
+                    <Heading
+                        variant="small"
+                        title="Personal information"
+                        description={`${profile.role[0].toUpperCase()}${profile.role.slice(1)} account · member since ${fmtDate(profile.member_since)}`}
+                    />
 
-                                <Input
-                                    id="name"
-                                    className="mt-1 block w-full"
-                                    defaultValue={auth.user.name}
-                                    name="name"
-                                    required
-                                    autoComplete="name"
-                                    placeholder="Full name"
+                    <div className="grid gap-4 sm:grid-cols-2">
+                        {(
+                            [
+                                ['name', 'Full name', 'text', 'name', true],
+                                [
+                                    'email',
+                                    'Email address',
+                                    'email',
+                                    'username',
+                                    true,
+                                ],
+                                [
+                                    'phone_number',
+                                    'Mobile number',
+                                    'tel',
+                                    'tel',
+                                    false,
+                                ],
+                                [
+                                    'address',
+                                    'Home address',
+                                    'text',
+                                    'street-address',
+                                    false,
+                                ],
+                            ] as const
+                        ).map(([key, label, type, ac, req]) => (
+                            <label key={key} className="grid gap-1.5 text-sm">
+                                <span className="font-medium">{label}</span>
+                                <input
+                                    type={type}
+                                    required={req}
+                                    autoComplete={ac}
+                                    value={form.data[key]}
+                                    onChange={set(key)}
+                                    className={inputCls}
                                 />
+                                <InputError message={form.errors[key]} />
+                            </label>
+                        ))}
+                    </div>
 
-                                <InputError
-                                    className="mt-2"
-                                    message={errors.name}
-                                />
-                            </div>
-
-                            <div className="grid gap-2">
-                                <Label htmlFor="email">Email address</Label>
-
-                                <Input
-                                    id="email"
-                                    type="email"
-                                    className="mt-1 block w-full"
-                                    defaultValue={auth.user.email}
-                                    name="email"
-                                    required
-                                    autoComplete="username"
-                                    placeholder="Email address"
-                                />
-
-                                <InputError
-                                    className="mt-2"
-                                    message={errors.email}
-                                />
-                            </div>
-
-                            {mustVerifyEmail &&
-                                auth.user.email_verified_at === null && (
-                                    <div>
-                                        <p className="-mt-4 text-sm text-muted-foreground">
-                                            Your email address is unverified.{' '}
-                                            <Link
-                                                href={send()}
-                                                as="button"
-                                                className="text-foreground underline decoration-neutral-300 underline-offset-4 transition-colors duration-300 ease-out hover:decoration-current! dark:decoration-neutral-500"
-                                            >
-                                                Click here to re-send the
-                                                verification email.
-                                            </Link>
-                                        </p>
-
-                                        {status ===
-                                            'verification-link-sent' && (
-                                            <div className="mt-2 text-sm font-medium text-green-600">
-                                                A new verification link has been
-                                                sent to your email address.
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-
-                            <div className="flex items-center gap-4">
-                                <Button
-                                    disabled={processing}
-                                    data-test="update-profile-button"
+                    {mustVerifyEmail &&
+                        auth.user.email_verified_at === null && (
+                            <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                                <MailWarning className="size-4 text-coral" />{' '}
+                                Your email address is unverified.{' '}
+                                <Link
+                                    href={send()}
+                                    as="button"
+                                    className="underline underline-offset-4"
                                 >
-                                    Save
-                                </Button>
-                            </div>
+                                    Re-send the verification email
+                                </Link>
+                            </p>
+                        )}
+                    {status === 'verification-link-sent' && (
+                        <p className="text-sm font-medium text-ocean">
+                            A new verification link has been sent.
+                        </p>
+                    )}
+
+                    <Heading
+                        variant="small"
+                        title="Emergency contact"
+                        description="Used only if there is a problem during a trip."
+                    />
+                    <div className="grid gap-4 sm:grid-cols-2">
+                        {(
+                            [
+                                [
+                                    'emergency_contact_name',
+                                    'Contact name',
+                                    'text',
+                                ],
+                                [
+                                    'emergency_contact_phone',
+                                    'Contact mobile number',
+                                    'tel',
+                                ],
+                            ] as const
+                        ).map(([key, label, type]) => (
+                            <label key={key} className="grid gap-1.5 text-sm">
+                                <span className="font-medium">{label}</span>
+                                <input
+                                    type={type}
+                                    value={form.data[key]}
+                                    onChange={set(key)}
+                                    className={inputCls}
+                                />
+                                <InputError message={form.errors[key]} />
+                            </label>
+                        ))}
+                    </div>
+
+                    {driver && (
+                        <>
+                            <Heading
+                                variant="small"
+                                title="Driver settings"
+                                description="Shown to passengers on your rides."
+                            />
+                            <label className="grid gap-1.5 text-sm">
+                                <span className="font-medium">About you</span>
+                                <textarea
+                                    rows={3}
+                                    maxLength={280}
+                                    value={form.data.bio}
+                                    onChange={set('bio')}
+                                    className={inputCls}
+                                    placeholder="e.g. Friendly weekend driver, AC and charging ports"
+                                />
+                                <InputError message={form.errors.bio} />
+                            </label>
+                            <label className="flex items-center gap-2 text-sm">
+                                <input
+                                    type="checkbox"
+                                    checked={form.data.allows_luggage}
+                                    onChange={(e) =>
+                                        form.setData(
+                                            'allows_luggage',
+                                            e.target.checked,
+                                        )
+                                    }
+                                />
+                                I allow passengers to bring luggage
+                            </label>
                         </>
                     )}
-                </Form>
+
+                    <Button
+                        disabled={form.processing}
+                        data-test="update-profile-button"
+                    >
+                        {form.processing ? 'Saving…' : 'Save changes'}
+                    </Button>
+                </form>
             </div>
 
             <DeleteUser />
@@ -129,10 +310,5 @@ export default function Profile({
 }
 
 Profile.layout = {
-    breadcrumbs: [
-        {
-            title: 'Profile settings',
-            href: edit(),
-        },
-    ],
+    breadcrumbs: [{ title: 'Profile settings', href: edit() }],
 };

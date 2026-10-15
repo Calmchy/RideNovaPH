@@ -14,36 +14,51 @@ export type RideCardData = {
     driver_name: string;
 };
 
-/** Whole card is one big link, so the entire surface is clickable. */
+/** One ride. The title area opens the details page; the button goes straight to Review & Reserve. */
 export default function RideCard({ ride }: { ride: RideCardData }) {
     return (
-        <Link
-            href={`/rides/${ride.id}`}
-            className="group flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/5 p-6 transition hover:-translate-y-1 hover:border-amber-300/50 hover:bg-white/10"
-        >
-            <div className="flex items-start justify-between gap-3">
-                <h3 className="font-serif text-xl text-white">
-                    {ride.origin} <span className="text-amber-300">→</span> {ride.destination}
-                </h3>
-                <span className="shrink-0 rounded-full bg-amber-300/15 px-3 py-1 text-sm font-semibold text-amber-200">
-                    {peso(ride.price_per_seat)}
-                </span>
+        <div className="group flex flex-col gap-4 rounded-2xl border bg-card p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg">
+            <Link href={`/rides/${ride.id}`} className="space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                    <h3 className="font-serif text-xl">
+                        {ride.origin} <span className="text-coral">→</span>{' '}
+                        {ride.destination}
+                    </h3>
+                    <span className="shrink-0 rounded-full bg-sand/60 px-3 py-1 text-sm font-semibold text-deep dark:text-sand">
+                        {peso(ride.price_per_seat)}
+                    </span>
+                </div>
+                <ul className="space-y-1.5 text-sm text-muted-foreground">
+                    <li className="flex items-center gap-2">
+                        <CalendarClock className="size-4 text-ocean" />
+                        {fmtDateTime(ride.departure_at)}
+                    </li>
+                    <li className="flex items-center gap-2">
+                        <MapPin className="size-4 text-ocean" />
+                        {ride.pickup_point}
+                    </li>
+                    <li className="flex items-center gap-2">
+                        <Users className="size-4 text-ocean" />
+                        {ride.seats_left}{' '}
+                        {ride.seats_left === 1 ? 'seat' : 'seats'} left ·{' '}
+                        {ride.driver_name}
+                    </li>
+                </ul>
+            </Link>
+            <div className="mt-auto flex gap-2">
+                <Link
+                    href={`/rides/${ride.id}`}
+                    className="flex-1 rounded-lg border px-3 py-2 text-center text-sm hover:bg-muted"
+                >
+                    Details
+                </Link>
+                <Link
+                    href={`/rides/${ride.id}/book`}
+                    className="flex-1 rounded-lg bg-ocean px-3 py-2 text-center text-sm font-medium text-white hover:brightness-110"
+                >
+                    Reserve
+                </Link>
             </div>
-            <ul className="space-y-1.5 text-sm text-white/70">
-                <li className="flex items-center gap-2">
-                    <CalendarClock className="size-4 text-amber-300" />
-                    {fmtDateTime(ride.departure_at)}
-                </li>
-                <li className="flex items-center gap-2">
-                    <MapPin className="size-4 text-amber-300" />
-                    {ride.pickup_point}
-                </li>
-                <li className="flex items-center gap-2">
-                    <Users className="size-4 text-amber-300" />
-                    {ride.seats_left} {ride.seats_left === 1 ? 'seat' : 'seats'} left · {ride.driver_name}
-                </li>
-            </ul>
-            <span className="mt-auto text-sm text-amber-300 transition group-hover:translate-x-1">View ride →</span>
-        </Link>
+        </div>
     );
 }

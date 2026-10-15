@@ -37,14 +37,17 @@ class AppServiceProvider extends ServiceProvider
             app()->isProduction(),
         );
 
-        Password::defaults(fn (): ?Password => app()->isProduction()
-            ? Password::min(12)
-                ->mixedCase()
+        // Strong passwords everywhere (not only in production): at least 8 characters with
+        // upper + lower case letters, a number and a special character. The "uncompromised"
+        // check calls an external API, so it is only enforced in production.
+        Password::defaults(function (): Password {
+            $rule = Password::min(8)
                 ->letters()
+                ->mixedCase()
                 ->numbers()
-                ->symbols()
-                ->uncompromised()
-            : null,
-        );
+                ->symbols();
+
+            return app()->isProduction() ? $rule->uncompromised() : $rule;
+        });
     }
 }
