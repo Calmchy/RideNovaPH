@@ -28,12 +28,21 @@ export default function Login({ status, canResetPassword }: Props) {
                 {...store.form()}
                 resetOnSuccess={['password']}
                 className="flex flex-col gap-6"
+                transform={(data) => ({
+                    ...data,
+                    email: String(data.email ?? '').trim(),
+                })}
             >
                 {({ processing, errors }) => (
                     <>
                         <div className="grid gap-6">
                             <div className="grid gap-2">
-                                <Label htmlFor="email">Email address</Label>
+                                <Label htmlFor="email">
+                                    Email address{' '}
+                                    <span className="text-destructive" aria-hidden="true">
+                                        *
+                                    </span>
+                                </Label>
                                 <Input
                                     id="email"
                                     type="email"
@@ -43,13 +52,19 @@ export default function Login({ status, canResetPassword }: Props) {
                                     tabIndex={1}
                                     autoComplete="email"
                                     placeholder="email@example.com"
+                                    aria-invalid={!!errors.email}
                                 />
                                 <InputError message={errors.email} />
                             </div>
 
                             <div className="grid gap-2">
                                 <div className="flex items-center">
-                                    <Label htmlFor="password">Password</Label>
+                                    <Label htmlFor="password">
+                                        Password{' '}
+                                        <span className="text-destructive" aria-hidden="true">
+                                            *
+                                        </span>
+                                    </Label>
                                     {canResetPassword && (
                                         <TextLink
                                             href={request()}
@@ -67,6 +82,7 @@ export default function Login({ status, canResetPassword }: Props) {
                                     tabIndex={2}
                                     autoComplete="current-password"
                                     placeholder="Password"
+                                    aria-invalid={!!errors.password}
                                 />
                                 <InputError message={errors.password} />
                             </div>
