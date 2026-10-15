@@ -7,7 +7,7 @@ use Tests\Support\Scenario;
 beforeEach(fn () => Scenario::lookups());
 
 test('registration can create a passenger or a driver but never an admin', function () {
-    $base = ['name' => 'New Person', 'password' => 'Str0ng-Passw0rd!x', 'password_confirmation' => 'Str0ng-Passw0rd!x'];
+    $base = ['first_name' => 'New', 'last_name' => 'Person', 'password' => 'Str0ng-Passw0rd!x', 'password_confirmation' => 'Str0ng-Passw0rd!x'];
 
     $this->post('/register', $base + ['email' => 'd@example.com', 'account_type' => 'driver']);
     expect(User::where('email', 'd@example.com')->first()->role_id)->toBe(Role::DRIVER);
@@ -17,7 +17,7 @@ test('registration can create a passenger or a driver but never an admin', funct
     expect(User::where('email', 'a@example.com')->exists())->toBeFalse();
 
     // Mass-assignment attempt: role_id in the body is ignored.
-    $this->post('/register', $base + ['email' => 'p@example.com', 'role_id' => Role::ADMIN]);
+    $this->post('/register', $base + ['email' => 'p@example.com', 'account_type' => 'passenger', 'role_id' => Role::ADMIN]);
     expect(User::where('email', 'p@example.com')->first()->role_id)->toBe(Role::PASSENGER);
 });
 

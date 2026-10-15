@@ -4,9 +4,12 @@ namespace App\Providers;
 
 use App\Actions\Fortify\CreateNewUser;
 use App\Actions\Fortify\ResetUserPassword;
+use App\Models\User;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
@@ -41,6 +44,32 @@ class FortifyServiceProvider extends ServiceProvider
     {
         Fortify::resetUserPasswordsUsing(ResetUserPassword::class);
         Fortify::createUsersUsing(CreateNewUser::class);
+
+        // Login: validate the input first (blank / malformed values get a clear message),
+        // then check the credentials. A wrong email OR password returns the same generic
+        // "credentials do not match" error so the form never reveals which one was wrong.
+        Fortify::authenticateUsing(function (Request $request) {
+            $request->merge([
+                Fortify::username() => trim((string) $request->input(Fortify::username())),
+            ]);
+
+            Validator::make($request->only(Fortify::username(), 'password'), [
+                Fortify::username() => ['required', 'string', 'email', 'max:255'],
+                'password' => ['required', 'string'],
+            ], [
+                Fortify::username().'.required' => 'Email address is required.',
+                Fortify::username().'.email' => 'Enter a valid email address.',
+                'password.required' => 'Password is required.',
+            ])->validate();
+
+            $user = User::where(Fortify::username(), $request->input(Fortify::username()))->first();
+
+            if ($user && Hash::check($request->input('password'), $user->password)) {
+                return $user;
+            }
+
+            return null;
+        });
     }
 
     /**
