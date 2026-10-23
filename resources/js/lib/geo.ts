@@ -73,3 +73,67 @@ export function currentPosition(): Promise<LatLng> {
         );
     });
 }
+
+export type RouteInfo = {
+    /** polyline as [lat, lng] pairs, ready for Leaflet */
+    coords: [number, number][];
+    km: number;
+    min: number;
+};
+
+/**
+ * Driving route + road distance + travel time between two points, from the public OSRM demo server
+ * (no API key). Returns null when offline / rate-limited, so callers fall back to the server's
+ * straight-line estimate. For production traffic, host your own OSRM or use a paid routing API.
+ */
+export async function routeBetween(
+    a: LatLng,
+    b: LatLng,
+): Promise<RouteInfo | null> {
+    try {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 8000);
+        const res = await fetch(
+            `https://router.project-osrm.org/route/v1/driving/${a.lng},${a.lat};${b.lng},${b.lat}?overview=full&geometries=geojson`,
+            { signal: ctrl.signal },
+        );
+        clearTimeout(timer);
+
+        if (!res.ok) {
+            return null;
+        }
+
+        const json = (await res.json()) as {
+            routes?: {
+                distance: number;
+                duration: number;
+                geometry: { coordinates: [number, number][] };
+            }[];
+        };
+        const r = json.routes?.[0];
+
+        if (!r) {
+            return null;
+        }
+
+        return {
+            coords: r.geometry.coordinates.map(([lng, lat]) => [lat, lng]),
+            km: r.distance / 1000,
+            min: Math.max(1, Math.round(r.duration / 60)),
+        };
+    } catch {
+        return null;
+    }
+}
+
+/** Straight-line distance in km between two points (used to decide when to re-route). */
+export function distanceKm(a: LatLng, b: LatLng): number {
+    const rad = (d: number) => (d * Math.PI) / 180;
+    const h =
+        Math.sin(rad(b.lat - a.lat) / 2) ** 2 +
+        Math.cos(rad(a.lat)) *
+            Math.cos(rad(b.lat)) *
+            Math.sin(rad(b.lng - a.lng) / 2) ** 2;
+
+    return 6371.0088 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+}
