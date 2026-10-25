@@ -5,6 +5,7 @@ namespace App\Actions\Rides;
 use App\Actions\Bookings\TransitionBooking;
 use App\Enums\BookingStatus;
 use App\Enums\RideStatus;
+use App\Models\LiveLocation;
 use App\Models\Ride;
 use App\Models\User;
 use App\Notifications\AppNotice;
@@ -54,6 +55,7 @@ class UpdateTripStatus
             });
 
             $ride->forceFill(['status' => RideStatus::Completed, 'completed_at' => now()])->save();
+            LiveLocation::where('ride_id', $ride->id)->delete(); // trip over: erase everyone's stored position
         });
 
         return $ride;
@@ -75,6 +77,7 @@ class UpdateTripStatus
                 'cancelled_at' => now(),
                 'cancellation_reason' => $reason ? mb_substr($reason, 0, 255) : null,
             ])->save();
+            LiveLocation::where('ride_id', $ride->id)->delete();
         });
 
         return $ride;

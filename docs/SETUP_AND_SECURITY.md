@@ -57,3 +57,23 @@ Migrations, Pest tests and page rendering have NOT been executed — run `php ar
 
 Checks run inside a DB transaction with the passenger row locked, so parallel requests cannot slip past a limit.
 Blocked attempts are written to the activity log (`booking.blocked`). Admin settles a fee in Transactions (Fee paid / Waive, logged).
+
+## 7. Live GPS tracking (driver <-> passenger)
+Open a CONFIRMED booking within 2 h of departure (or after the driver starts the trip): the "Live tracking" panel appears for both people.
+
+| Piece | File |
+|---|---|
+| Latest positions table (one row per ride+user, overwritten on every ping) | `live_locations` migration, `App\Models\LiveLocation` |
+| Who may share / window rule / arrival detection (150 m) | `App\Actions\Tracking\RecordLocation` |
+| JSON endpoints (read, ping, stop, "I've arrived") | `App\Http\Controllers\TrackingController` |
+| Distance + ETA maths (server fallback) | `App\Support\Geo` |
+| Map, route, polling, GPS watch, arrival alert | `resources/js/components/live-tracking.tsx` |
+| Road route + ETA (OSRM demo server, no key) | `routeBetween()` in `resources/js/lib/geo.ts` |
+
+Flow: phone GPS -> `POST /tracking/rides/{ride}/ping` (every ~4 s) -> DB -> the other phone polls `GET /bookings/{booking}/tracking` (every 5 s).
+Settings keys: `tracking_window_hours` (2), `arrival_radius_m` (150).
+
+Privacy: opt-in per device ("Share my location"); each side only receives the OTHER side's position; nothing before the
+window / after the trip; "Stop sharing" and trip completion/cancellation delete the stored positions; no movement history is kept.
+Production note: the OSRM demo server is for light use. For real traffic host OSRM yourself or switch `routeBetween()` to a paid routing API.
+Browsers only give GPS to pages on HTTPS or localhost.

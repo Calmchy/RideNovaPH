@@ -4,6 +4,7 @@ import { Head, Link, router } from '@inertiajs/react';
 import { Check, Copy, Receipt } from 'lucide-react';
 import { useState } from 'react';
 import { Panel, ReasonDialog } from '@/components/kit';
+import LiveTracking from '@/components/live-tracking';
 import { fmtDateTime, peso, Stars, StatusBadge } from '@/components/lux';
 import TripMap from '@/components/trip-map';
 import { Button } from '@/components/ui/button';
@@ -61,6 +62,7 @@ type Props = {
         cancel_fee_percent: number;
         reviews: { by: string; rating: number; comment: string | null }[];
     };
+    tracking: { ride_id: number; role: 'driver' | 'passenger' } | null;
     viewer_role: 'passenger' | 'driver' | 'admin' | null;
     abilities: {
         approve: boolean;
@@ -81,6 +83,7 @@ export default function BookingShow({
     booking: b,
     viewer_role,
     abilities,
+    tracking,
 }: Props) {
     const [copied, setCopied] = useState(false);
     const [rating, setRating] = useState(5);
@@ -379,6 +382,15 @@ export default function BookingShow({
                         )}
                     </div>
                 </Panel>
+
+                {/* Real-time GPS: only sent by the server while the trip is confirmed and the tracking window is open. */}
+                {tracking && (
+                    <LiveTracking
+                        bookingId={b.id}
+                        rideId={tracking.ride_id}
+                        role={tracking.role}
+                    />
+                )}
 
                 {b.reviews.length > 0 && (
                     <section className="space-y-3">

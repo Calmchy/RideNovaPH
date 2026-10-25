@@ -27,6 +27,7 @@ class Booking extends Model
             'fare_per_seat' => 'decimal:2',
             'approved_at' => 'datetime',
             'confirmed_at' => 'datetime',
+            'driver_arrived_at' => 'datetime',
             'completed_at' => 'datetime',
             'cancelled_at' => 'datetime',
             'pickup_at' => 'datetime',

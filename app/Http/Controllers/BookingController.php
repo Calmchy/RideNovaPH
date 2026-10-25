@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Actions\Bookings\ReserveSeat;
 use App\Actions\Bookings\TransitionBooking;
+use App\Actions\Tracking\RecordLocation;
 use App\Enums\BookingStatus;
 use App\Enums\RideStatus;
 use App\Http\Requests\StoreBookingRequest;
@@ -210,6 +211,11 @@ class BookingController extends Controller
                     'by' => $r->reviewer_role->value, 'rating' => $r->rating, 'comment' => $r->comment,
                 ]),
             ],
+            // Live GPS panel: only for the two people on the trip, only while the booking is confirmed
+            // and the tracking window is open. The JSON itself is served by TrackingController.
+            'tracking' => $role && $booking->status === BookingStatus::Confirmed && RecordLocation::windowOpen($booking->ride)
+                ? ['ride_id' => $booking->ride_id, 'role' => $role]
+                : null,
             'viewer_role' => $role ?? ($user->isAdmin() ? 'admin' : null),
             // Only offer buttons the policy would actually allow. The server re-checks on every request.
             'abilities' => collect(array_keys(self::ACTIONS))
