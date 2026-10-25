@@ -27,13 +27,19 @@ class Scenario
         $user = User::factory()->create();
 
         if ($idApproved) {
-            IdentityDocument::create([
-                'user_id' => $user->id, 'id_type_id' => IdType::first()->id,
-                'front_image_path' => 'identity-documents/x.png', 'status' => ApprovalStatus::Approved,
-            ]);
+            self::approveId($user);
         }
 
         return $user;
+    }
+
+    /** Give a user an approved valid ID (the booking gate needs one, whatever the role). */
+    public static function approveId(User $user): void
+    {
+        IdentityDocument::create([
+            'user_id' => $user->id, 'id_type_id' => IdType::first()->id,
+            'front_image_path' => 'identity-documents/x.png', 'status' => ApprovalStatus::Approved,
+        ]);
     }
 
     public static function admin(): User

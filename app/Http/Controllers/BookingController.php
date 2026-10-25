@@ -116,7 +116,7 @@ class BookingController extends Controller
         if (Setting::bool('require_id_for_booking') && ! $user->hasApprovedId()) {
             $this->toast('Verify your ID first, then you can reserve a seat.', 'warning');
 
-            return to_route('identity.create');
+              return to_route('profile.edit');
         }
 
         if ($ride->status !== RideStatus::Open || $ride->departure_at->isPast() || $ride->started_at || $ride->seatsLeft() < 1) {

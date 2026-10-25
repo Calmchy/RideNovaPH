@@ -25,6 +25,7 @@ use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\RideController;
 use App\Http\Controllers\TransactionController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\TrackingController;
 
 /*
 |--------------------------------------------------------------------------
@@ -74,6 +75,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Old static mock page: send people to the real search instead.
     Route::redirect('/booking', '/bookings');
+
+    // Live GPS tracking between a driver and the passengers of one ride (JSON, polled every few seconds).
+    Route::get('/bookings/{booking}/tracking', [TrackingController::class, 'show'])->middleware('throttle:90,1')->name('tracking.show');
+    Route::post('/tracking/rides/{ride}/ping', [TrackingController::class, 'ping'])->middleware('throttle:90,1')->name('tracking.ping');
+    Route::delete('/tracking/rides/{ride}/ping', [TrackingController::class, 'stop'])->name('tracking.stop');
+    Route::post('/bookings/{booking}/arrived', [TrackingController::class, 'arrived'])->middleware('throttle:30,1')->name('tracking.arrived');
 });
 
 // ---- Drivers (role checked server-side by the 'driver' middleware) ----

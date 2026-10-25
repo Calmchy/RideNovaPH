@@ -19,6 +19,7 @@ function reserve($passenger, $ride, array $form = []): Booking
 
 test('a verified passenger can reserve a seat and gets a reference and a pending payment', function () {
     $driver = Scenario::driver();
+    Scenario::approveId($driver);
     $ride = Scenario::ride($driver);
     $passenger = Scenario::passenger();
 

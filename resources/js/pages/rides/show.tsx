@@ -131,7 +131,7 @@ export default function RideShow({
                                     Log in to reserve
                                 </Link>
                             ) : !has_approved_id && !can_book ? (
-                                <Link href="/identity" className={primary}>
+                                  <Link href="/settings/profile" className={primary}>
                                     Verify your ID to book
                                 </Link>
                             ) : can_book ? (
