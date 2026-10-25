@@ -61,7 +61,9 @@ test('ID rejection needs a reason, shows it to the user, and the user can resubm
     $this->actingAs($admin)->patch("/admin/identity-documents/{$doc->id}", ['decision' => 'rejected', 'remarks' => 'Photo is blurry'])->assertSessionHasNoErrors();
 
     expect($doc->fresh()->remarks)->toBe('Photo is blurry')->and($user->hasApprovedId())->toBeFalse();
-    $this->actingAs($user)->get('/identity')->assertInertia(fn ($p) => $p->where('remarks', 'Photo is blurry')->where('status', 'rejected'));
+    $this->actingAs($user)->get('/settings/profile')->assertInertia(fn ($p) => $p->where('verification.id_remarks', 'Photo is blurry')->where('verification.id_status', 'rejected'));
+    // The old /identity address now just lands on the profile page.
+    $this->actingAs($user)->get('/identity')->assertRedirect('/settings/profile');
 
     // A decided document cannot be decided twice.
     $this->actingAs($admin)->patch("/admin/identity-documents/{$doc->id}", ['decision' => 'approved'])->assertStatus(409);

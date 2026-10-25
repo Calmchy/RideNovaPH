@@ -52,6 +52,7 @@ export default function DashboardSlideshow({ slides }: { slides: Slide[] }) {
     const items = slides.length ? slides : FALLBACK;
     const [i, setI] = useState(0);
     const [paused, setPaused] = useState(false);
+    const [touchX, setTouchX] = useState<number | null>(null); // swipe start (phones)
     const go = (n: number) => setI((n + items.length) % items.length);
 
     useEffect(() => {
@@ -76,7 +77,20 @@ export default function DashboardSlideshow({ slides }: { slides: Slide[] }) {
             onMouseLeave={() => setPaused(false)}
             onFocusCapture={() => setPaused(true)}
             onBlurCapture={() => setPaused(false)}
-            className="relative min-w-0 overflow-hidden rounded-2xl bg-deep text-white shadow-sm"
+            onTouchStart={(e) => setTouchX(e.touches[0].clientX)}
+            onTouchEnd={(e) => {
+                if (touchX === null) {
+                    return;
+                }
+
+                const dx = e.changedTouches[0].clientX - touchX;
+                setTouchX(null);
+
+                if (Math.abs(dx) > 50) {
+                    go(dx < 0 ? i + 1 : i - 1);
+                }
+            }}
+            className="relative min-w-0 touch-pan-y overflow-hidden rounded-2xl bg-deep text-white shadow-sm"
         >
             <div
                 className="flex transition-transform duration-700 ease-out"

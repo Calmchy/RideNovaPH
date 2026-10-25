@@ -39,7 +39,7 @@ export default function SettingsLayout({ children }: PropsWithChildren) {
             />
 
             <div className="flex flex-col lg:flex-row lg:space-x-12">
-                <aside className="w-full max-w-xl lg:w-48">
+                <aside className="w-full max-w-xl lg:sticky lg:top-24 lg:w-48 lg:self-start">
                     <nav
                         className="flex flex-col space-y-1 space-x-0"
                         aria-label="Settings"

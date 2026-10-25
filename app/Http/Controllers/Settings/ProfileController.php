@@ -6,6 +6,7 @@ use App\Enums\ApprovalStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Settings\ProfileDeleteRequest;
 use App\Http\Requests\Settings\ProfileUpdateRequest;
+use App\Models\IdType;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -44,6 +45,16 @@ class ProfileController extends Controller
                 'bio' => $driver?->bio,
                 'allows_luggage' => $driver?->allows_luggage ?? true,
             ] : null,
+            // For the ID upload form that lives inside the Verification panel.
+            'id_types' => IdType::orderBy('name')->get(['id', 'name']),
+            // Full history so a rejected user can see what was wrong each time.
+            'id_history' => $user->identityDocuments()->with('idType')->latest()->limit(10)->get()->map(fn ($d) => [
+                'id' => $d->id,
+                'id_type' => $d->idType->name,
+                'status' => $d->status->value,
+                'remarks' => $d->remarks,
+                'submitted_at' => $d->created_at->toIso8601String(),
+            ]),
         ]);
     }
 

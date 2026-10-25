@@ -2,8 +2,12 @@
 // Saves with PATCH /settings/profile. The server only accepts whitelisted fields (never role or status).
 import { Head, Link, useForm, usePage } from '@inertiajs/react';
 import { BadgeCheck, Car, MailWarning } from 'lucide-react';
+import { useState } from 'react';
+import type { ReactNode } from 'react';
 import DeleteUser from '@/components/delete-user';
 import Heading from '@/components/heading';
+import IdVerification from '@/components/id-verification';
+import type { IdHistoryItem } from '@/components/id-verification';
 import InputError from '@/components/input-error';
 import { inputCls, Panel } from '@/components/kit';
 import { fmtDate, StatusBadge } from '@/components/lux';
@@ -31,6 +35,8 @@ type Props = {
         has_driver_profile: boolean;
     };
     driver: { bio: string | null; allows_luggage: boolean } | null;
+    id_types: { id: number; name: string }[];
+    id_history: IdHistoryItem[];
 };
 
 function VerifyRow({
@@ -40,14 +46,26 @@ function VerifyRow({
     remarks,
     href,
     cta,
+    onToggle,
+    children,
 }: {
     icon: typeof BadgeCheck;
     title: string;
     status: string | null;
     remarks: string | null;
-    href: string;
+    href?: string;
     cta: string;
+    // When given, the button opens/closes `children` right here instead of going to another page.
+    onToggle?: () => void;
+    children?: ReactNode;
 }) {
+    const variant =
+        status === 'approved' || status === 'pending'
+            ? 'ghost'
+            : status === 'rejected'
+              ? 'destructive'
+              : 'default';
+
     return (
         <div className="flex flex-wrap items-center justify-between gap-3 py-3">
             <div className="flex items-start gap-3">
@@ -69,23 +87,22 @@ function VerifyRow({
                         Not submitted
                     </span>
                 )}
-                {status !== 'approved' && status !== 'pending' && (
+                {onToggle ? (
                     <Button
-                        asChild
+                        type="button"
                         size="sm"
-                        variant={
-                            status === 'rejected' ? 'destructive' : 'default'
-                        }
+                        variant={variant}
+                        onClick={onToggle}
                     >
-                        <Link href={href}>{cta}</Link>
+                        {cta}
                     </Button>
-                )}
-                {(status === 'approved' || status === 'pending') && (
-                    <Button asChild size="sm" variant="ghost">
-                        <Link href={href}>Details</Link>
+                ) : (
+                    <Button asChild size="sm" variant={variant}>
+                        <Link href={href ?? '#'}>{cta}</Link>
                     </Button>
                 )}
             </div>
+            {children && <div className="w-full">{children}</div>}
         </div>
     );
 }
@@ -96,8 +113,14 @@ export default function Profile({
     profile,
     verification,
     driver,
+    id_types,
+    id_history,
 }: Props) {
     const { auth } = usePage<{ auth: Auth }>().props;
+    // The ID form opens by itself when action is needed (never submitted, or rejected).
+    const idNeedsAction =
+        verification.id_status === null || verification.id_status === 'rejected';
+    const [idOpen, setIdOpen] = useState(idNeedsAction);
     const form = useForm({
         name: auth.user.name,
         email: auth.user.email,
@@ -119,36 +142,51 @@ export default function Profile({
             <h1 className="sr-only">Profile settings</h1>
 
             <div className="space-y-8">
-                <Panel title="Verification">
-                    <div className="divide-y px-5">
-                        <VerifyRow
-                            icon={BadgeCheck}
-                            title="Valid government ID"
-                            status={verification.id_status}
-                            remarks={verification.id_remarks}
-                            href="/identity"
-                            cta={
-                                verification.id_status === 'rejected'
-                                    ? 'Resubmit ID'
-                                    : 'Verify ID'
-                            }
-                        />
-                        {profile.role === 'driver' && (
+                <div id="verification" className="scroll-mt-20">
+                    <Panel title="Verification">
+                        <div className="divide-y px-5">
                             <VerifyRow
-                                icon={Car}
-                                title="Driver licence"
-                                status={verification.driver_status}
-                                remarks={verification.driver_remarks}
-                                href="/driver/apply"
+                                icon={BadgeCheck}
+                                title="Valid government ID"
+                                status={verification.id_status}
+                                remarks={verification.id_remarks}
+                                onToggle={() => setIdOpen((o) => !o)}
                                 cta={
-                                    verification.driver_status === 'rejected'
-                                        ? 'Resubmit licence'
-                                        : 'Submit licence'
+                                    idOpen
+                                        ? 'Hide'
+                                        : idNeedsAction
+                                          ? verification.id_status === 'rejected'
+                                              ? 'Resubmit ID'
+                                              : 'Verify ID'
+                                          : 'Details'
                                 }
-                            />
-                        )}
-                    </div>
-                </Panel>
+                            >
+                                {idOpen && (
+                                    <IdVerification
+                                        id_types={id_types}
+                                        status={verification.id_status}
+                                        remarks={verification.id_remarks}
+                                        history={id_history}
+                                    />
+                                )}
+                            </VerifyRow>
+                            {profile.role === 'driver' && (
+                                <VerifyRow
+                                    icon={Car}
+                                    title="Driver licence"
+                                    status={verification.driver_status}
+                                    remarks={verification.driver_remarks}
+                                    href="/driver/apply"
+                                    cta={
+                                        verification.driver_status === 'rejected'
+                                            ? 'Resubmit licence'
+                                            : 'Submit licence'
+                                    }
+                                />
+                            )}
+                        </div>
+                    </Panel>
+                </div>
 
                 <form
                     onSubmit={(e) => {

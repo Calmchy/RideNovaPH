@@ -86,7 +86,7 @@ class IdentityReviewController extends Controller
         $document->user->notify(new AppNotice(
             $data['decision'] === 'approved' ? 'ID verified' : 'ID rejected',
             $data['decision'] === 'approved' ? 'Your ID is verified. You can now book rides.' : "Reason: {$data['remarks']}. Please upload a new photo.",
-            '/identity',
+            '/settings/profile',
         ));
         ActivityLog::record($request->user(), "identity.{$data['decision']}", $document, ['remarks' => $data['remarks'] ?? null]);
         $this->toast("ID {$data['decision']}.");

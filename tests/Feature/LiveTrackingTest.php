@@ -59,9 +59,11 @@ test('strangers cannot read or send positions', function () {
     [, , $ride, $booking] = confirmedTrip();
     $stranger = Scenario::passenger();
 
+    // A guest first: actingAs() below stays in effect for the rest of the test.
+    $this->getJson("/bookings/{$booking->id}/tracking")->assertUnauthorized();
+
     $this->actingAs($stranger)->getJson("/bookings/{$booking->id}/tracking")->assertForbidden();
     $this->actingAs($stranger)->postJson("/tracking/rides/{$ride->id}/ping", ['lat' => 10.7, 'lng' => 125.0])->assertForbidden();
-    $this->getJson("/bookings/{$booking->id}/tracking")->assertUnauthorized();
 });
 
 test('coordinates are validated', function () {
@@ -109,7 +111,7 @@ test('driver arriving within 150 m of the pin marks arrival once and notifies th
     expect($passenger->notifications()->where('data->title', 'Your driver has arrived')->count())->toBe(1);
 
     $json = $this->actingAs($passenger)->getJson("/bookings/{$booking->id}/tracking")->json();
-    expect($json['arrived'])->toBeTrue()->and($json['metrics']['to_pickup_km'])->toBe(0.0);
+    expect($json['arrived'])->toBeTrue()->and($json['metrics']['to_pickup_km'])->toEqual(0); // JSON turns 0.0 into 0
 });
 
 test('the driver can press "I have arrived"; a passenger cannot', function () {
