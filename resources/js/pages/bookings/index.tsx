@@ -1,7 +1,7 @@
 // The ONE "Bookings" page: Find a ride | My bookings | Requests (drivers).
 // Every filter below is a real GET request handled by BookingController@index.
 import { Head, Link, router } from '@inertiajs/react';
-import { Eye, Receipt } from 'lucide-react';
+import { Eye, Plus, Receipt } from 'lucide-react';
 import {
     EmptyState,
     FilterBar,
@@ -134,6 +134,17 @@ export default function BookingsIndex({
                 <PageHeader
                     title="Bookings"
                     description="Find a seat, manage your reservations and keep your reference numbers in one place."
+                    // Drivers get a shortcut so they don't have to switch to the Driver area first.
+                    // The server still checks the driver role + approval on /driver/rides/create.
+                    actions={
+                        is_driver ? (
+                            <Button asChild>
+                                <Link href="/driver/rides/create">
+                                    <Plus /> Publish a ride
+                                </Link>
+                            </Button>
+                        ) : undefined
+                    }
                 />
 
                 <nav

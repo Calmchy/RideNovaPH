@@ -74,6 +74,13 @@ class TransitionBooking
                 }
             }
 
+            // ANTI-SCAM: once the driver has marked the booking PAID, nobody can cancel it: not the
+            // passenger, not the driver, not the system (e.g. a "cancel whole ride" sweep). Only an
+            // admin can step in (then refund from Transactions). This stops "take the cash, then cancel".
+            if ($to === BookingStatus::Cancelled && $locked->payment?->status === PaymentStatus::Paid && ! $actor?->isAdmin()) {
+                throw ValidationException::withMessages(['status' => 'This booking is already paid, so it can no longer be cancelled. Contact support if something went wrong.']);
+            }
+
             $wasCommitted = $locked->status !== BookingStatus::Pending; // approved or confirmed
 
             $locked->forceFill(match ($to) {

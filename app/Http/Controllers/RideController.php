@@ -39,6 +39,8 @@ class RideController extends Controller
                 'notes' => $ride->notes,
                 'status' => $ride->status->value,
                 'trip_status' => $ride->tripStatus(),
+                'vehicle_photos' => $ride->vehicle->gallery(),
+                'vehicle_description' => $ride->vehicle->description,
             ],
             'driver_rating' => [
                 'average' => $rating->total ? round((float) $rating->average, 1) : null,

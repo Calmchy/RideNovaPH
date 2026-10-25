@@ -6,6 +6,9 @@ import { useState } from 'react';
 import { Panel, ReasonDialog } from '@/components/kit';
 import LiveTracking from '@/components/live-tracking';
 import { fmtDateTime, peso, Stars, StatusBadge } from '@/components/lux';
+import PartnerCard from '@/components/partner-card';
+import type { Partner } from '@/components/partner-card';
+import SlideToConfirm from '@/components/slide-to-confirm';
 import TripMap from '@/components/trip-map';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -63,6 +66,7 @@ type Props = {
         reviews: { by: string; rating: number; comment: string | null }[];
     };
     tracking: { ride_id: number; role: 'driver' | 'passenger' } | null;
+    partner: Partner | null;
     viewer_role: 'passenger' | 'driver' | 'admin' | null;
     abilities: {
         approve: boolean;
@@ -70,6 +74,7 @@ type Props = {
         complete: boolean;
         cancel: boolean;
         review: boolean;
+        collect: boolean;
     };
 };
 
@@ -84,6 +89,7 @@ export default function BookingShow({
     viewer_role,
     abilities,
     tracking,
+    partner,
 }: Props) {
     const [copied, setCopied] = useState(false);
     const [rating, setRating] = useState(5);
@@ -195,6 +201,27 @@ export default function BookingShow({
                     )}
                 </div>
 
+                {/* Driver only: slide (not click) to confirm the cash was received, so it can't happen by accident. */}
+                {abilities.collect && (
+                    <div className="grid gap-2 rounded-2xl border bg-card p-4">
+                        <p className="text-sm text-muted-foreground">
+                            Received the cash ({peso(b.payment?.amount ?? b.total_fare)})
+                            from the passenger? Slide to mark this booking as
+                            paid. Both of you will be notified.
+                        </p>
+                        <SlideToConfirm
+                            label="Slide to mark as PAID"
+                            onConfirm={(reset) =>
+                                router.patch(
+                                    `/bookings/${b.id}/paid`,
+                                    {},
+                                    { preserveScroll: true, onError: reset },
+                                )
+                            }
+                        />
+                    </div>
+                )}
+
                 {b.status === 'cancelled' ? (
                     <p className="rounded-xl border border-coral/40 bg-coral/10 p-4 text-sm">
                         Cancelled
@@ -236,6 +263,9 @@ export default function BookingShow({
                         ))}
                     </ol>
                 )}
+
+                {/* The other person on this booking: driver for the passenger, passenger for the driver */}
+                {partner && <PartnerCard partner={partner} />}
 
                 <div className="grid gap-6 md:grid-cols-2">
                     <Panel title="Trip">
@@ -465,3 +495,4 @@ export default function BookingShow({
         </>
     );
 }
+

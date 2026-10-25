@@ -4,6 +4,7 @@ namespace App\Actions\Rides;
 
 use App\Actions\Bookings\TransitionBooking;
 use App\Enums\BookingStatus;
+use App\Enums\PaymentStatus;
 use App\Enums\RideStatus;
 use App\Models\LiveLocation;
 use App\Models\Ride;
@@ -48,6 +49,11 @@ class UpdateTripStatus
             $ride->bookings()->with('ride')->get()->each(function ($b) {
                 if ($b->status === BookingStatus::Confirmed) {
                     $this->transition->handle($b, BookingStatus::Completed);
+                } elseif ($b->status === BookingStatus::Approved && $b->payment?->status === PaymentStatus::Paid) {
+                    // The passenger paid in person but never tapped "confirm": they clearly showed up.
+                    // Close it as completed instead of cancelling a paid booking.
+                    $this->transition->handle($b, BookingStatus::Confirmed);
+                    $this->transition->handle($b->fresh(), BookingStatus::Completed);
                 } elseif (in_array($b->status, [BookingStatus::Pending, BookingStatus::Approved], true)) {
                     // Never confirmed by the passenger before the trip: close it as a no-show.
                     $this->transition->handle($b, BookingStatus::Cancelled, 'Not confirmed before the trip.', null, true);
@@ -64,6 +70,12 @@ class UpdateTripStatus
     public function cancel(Ride $ride, ?string $reason, ?User $actor): Ride
     {
         $this->mustBeOpen($ride);
+
+        // A driver can't cancel a ride that already has paid passengers (admins can, then refund).
+        if (! $actor?->isAdmin() && $ride->bookings()->whereHas('payment', fn ($q) => $q->where('status', PaymentStatus::Paid->value))
+            ->whereIn('status', [BookingStatus::Approved->value, BookingStatus::Confirmed->value])->exists()) {
+            throw ValidationException::withMessages(['trip' => 'Passengers have already paid for this ride, so it can no longer be cancelled. Contact support if needed.']);
+        }
 
         DB::transaction(function () use ($ride, $reason, $actor) {
             $ride->bookings()->get()->each(function ($b) use ($reason, $actor) {

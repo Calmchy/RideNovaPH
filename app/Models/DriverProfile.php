@@ -14,7 +14,7 @@ class DriverProfile extends Model
     public $incrementing = false;
 
     protected $fillable = [
-        'user_id', 'license_number', 'license_expiry', 'license_image_path',
+        'user_id', 'license_number', 'license_expiry', 'license_image_path', 'license_back_image_path',
         'status', 'reviewed_by', 'reviewed_at', 'remarks', 'bio', 'allows_luggage',
     ];
 

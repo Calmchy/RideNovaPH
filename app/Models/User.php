@@ -8,6 +8,7 @@ use App\Enums\ApprovalStatus;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -46,6 +47,14 @@ class User extends Authenticatable implements PasskeyUser
 {
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable, PasskeyAuthenticatable, TwoFactorAuthenticatable;
+
+    /** The profile picture URL is sent to React as `auth.user.avatar` (null until the user uploads one). */
+    protected $appends = ['avatar'];
+
+    protected function avatar(): Attribute
+    {
+        return Attribute::get(fn () => $this->profile_photo_path ? '/storage/'.$this->profile_photo_path : null);
+    }
 
     /**
      * Get the attributes that should be cast.
