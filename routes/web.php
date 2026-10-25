@@ -23,6 +23,7 @@ use App\Http\Controllers\IdentityDocumentController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\RideController;
+use App\Http\Controllers\TrackingController;
 use App\Http\Controllers\TransactionController;
 use Illuminate\Support\Facades\Route;
 
@@ -63,6 +64,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->where('action', 'approve|confirm|complete|cancel')->middleware('throttle:30,1')->name('bookings.transition');
     Route::get('/bookings/{booking}/receipt', [TransactionController::class, 'receipt'])->name('bookings.receipt');
     Route::post('/bookings/{booking}/reviews', [ReviewController::class, 'store'])->middleware('throttle:10,1')->name('reviews.store');
+
+    // Live GPS tracking between a driver and the passengers of one ride (JSON, polled every few seconds).
+    Route::get('/bookings/{booking}/tracking', [TrackingController::class, 'show'])->middleware('throttle:90,1')->name('tracking.show');
+    Route::post('/tracking/rides/{ride}/ping', [TrackingController::class, 'ping'])->middleware('throttle:90,1')->name('tracking.ping');
+    Route::delete('/tracking/rides/{ride}/ping', [TrackingController::class, 'stop'])->name('tracking.stop');
+    Route::post('/bookings/{booking}/arrived', [TrackingController::class, 'arrived'])->middleware('throttle:30,1')->name('tracking.arrived');
 
     // Payments / receipts
     Route::get('/transactions', [TransactionController::class, 'index'])->name('transactions.index');
@@ -122,6 +129,7 @@ Route::middleware(['auth', 'verified', 'admin'])->prefix('admin')->group(functio
     Route::get('/transactions', [AdminTransactionController::class, 'index'])->name('admin.transactions');
     Route::get('/transactions/export', [AdminTransactionController::class, 'export'])->name('admin.transactions.export');
     Route::post('/transactions/{payment}/refund', [AdminTransactionController::class, 'refund'])->name('admin.transactions.refund');
+    Route::post('/transactions/{payment}/fee', [AdminTransactionController::class, 'settleFee'])->name('admin.transactions.fee');
 
     Route::get('/reports', [ReportController::class, 'index'])->name('admin.reports');
     Route::get('/reports/export/{type}', [ReportController::class, 'export'])->where('type', 'bookings|users')->name('admin.reports.export');
@@ -131,20 +139,13 @@ Route::middleware(['auth', 'verified', 'admin'])->prefix('admin')->group(functio
 
     Route::get('/content', [ContentController::class, 'index'])->name('admin.content');
     Route::post('/banners', [BannerController::class, 'store'])->name('admin.banners.store');
+    Route::post('/banners/{banner}', [BannerController::class, 'update'])->name('admin.banners.update');
     Route::patch('/banners/{banner}', [BannerController::class, 'toggle'])->name('admin.banners.toggle');
     Route::delete('/banners/{banner}', [BannerController::class, 'destroy'])->name('admin.banners.destroy');
     Route::post('/announcements', [ContentController::class, 'storeAnnouncement'])->name('admin.announcements.store');
+    Route::put('/announcements/{announcement}', [ContentController::class, 'updateAnnouncement'])->name('admin.announcements.update');
     Route::patch('/announcements/{announcement}', [ContentController::class, 'toggleAnnouncement'])->name('admin.announcements.toggle');
     Route::delete('/announcements/{announcement}', [ContentController::class, 'destroyAnnouncement'])->name('admin.announcements.destroy');
-
-    // ----Announcement Pictures ----
-    Route::post('/banners', [BannerController::class, 'store'])->name('admin.banners.store');
-    Route::post('/announcements', [ContentController::class, 'storeAnnouncement'])->name('admin.announcements.store');
-    Route::post('/banners/{banner}', [BannerController::class, 'update'])->name('admin.banners.update');
-    Route::put('/announcements/{announcement}', [ContentController::class, 'updateAnnouncement'])->name('admin.announcements.update');
-
-    // ---- Rides(Abuse-protection) ----
-   Route::post('/transactions/{payment}/fee', [AdminTransactionController::class, 'settleFee'])->name('admin.transactions.fee');
 });
 
 require __DIR__.'/settings.php';

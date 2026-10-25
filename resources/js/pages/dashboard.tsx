@@ -95,7 +95,7 @@ export default function Dashboard({
         ...(auth.isDriver
             ? [{ title: 'Driver hub', href: '/driver', icon: Car }]
             : []),
-        { title: 'Verify ID', href: '/identity', icon: BadgeCheck },
+        { title: 'Verify ID', href: '/settings/profile', icon: BadgeCheck },
         { title: 'Profile', href: '/settings/profile', icon: UserCog },
     ];
 
@@ -234,7 +234,7 @@ export default function Dashboard({
                 {/* Right: verification + top drivers */}
                 <aside className="min-w-0 space-y-6">
                     <Link
-                        href="/identity"
+                        href="/settings/profile"
                         className={cn(
                             'block rounded-2xl border p-5 transition hover:shadow-md',
                             idCopy.tone,
