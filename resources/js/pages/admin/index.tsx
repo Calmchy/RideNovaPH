@@ -126,7 +126,7 @@ export default function AdminIndex({ stats, queues, chart, recent }: Props) {
                 />
             </div>
 
-            <div className="grid gap-6 lg:grid-cols-[1fr_1.4fr]">
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
                 <Panel title="Bookings, last 7 days">
                     <div
                         className="flex h-44 items-end gap-2 p-5"

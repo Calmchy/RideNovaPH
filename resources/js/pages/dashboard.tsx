@@ -102,9 +102,9 @@ export default function Dashboard({
     return (
         <>
             <Head title="Dashboard" />
-            <div className="mx-auto grid w-full max-w-7xl gap-6 p-4 md:p-8 lg:grid-cols-[13rem_1fr_19rem]">
+            <div className="mx-auto grid w-full max-w-7xl grid-cols-1 gap-6 p-4 pb-24 md:p-8 md:pb-8 lg:grid-cols-[13rem_minmax(0,1fr)_19rem]">
                 {/* Left: dark quick menu */}
-                <aside className="h-fit rounded-2xl bg-deep p-3 text-foam shadow-sm lg:sticky lg:top-6">
+                <aside className="h-fit min-w-0 rounded-2xl bg-deep p-3 text-foam shadow-sm lg:sticky lg:top-6">
                     <p className="px-3 pt-2 pb-3 text-[11px] tracking-widest text-foam/60 uppercase">
                         Quick menu
                     </p>
@@ -232,7 +232,7 @@ export default function Dashboard({
                 </div>
 
                 {/* Right: verification + top drivers */}
-                <aside className="space-y-6">
+                <aside className="min-w-0 space-y-6">
                     <Link
                         href="/identity"
                         className={cn(
