@@ -41,10 +41,10 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     const [open, setOpen] = useState(false);
 
     return (
-        <div className="min-h-screen bg-background lg:grid lg:grid-cols-[16rem_1fr]">
+        <div className="min-h-screen bg-background lg:grid lg:grid-cols-[16rem_minmax(0,1fr)]">
             <aside
                 className={cn(
-                    'fixed inset-y-0 left-0 z-40 w-64 -translate-x-full overflow-y-auto bg-sidebar p-4 text-sidebar-foreground transition-transform lg:static lg:translate-x-0',
+                    'fixed inset-y-0 left-0 z-40 w-64 -translate-x-full overflow-y-auto bg-sidebar p-4 text-sidebar-foreground transition-transform lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 lg:self-start',
                     open && 'translate-x-0',
                 )}
             >
@@ -103,7 +103,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             )}
 
             <div className="min-w-0">
-                <div className="flex h-14 items-center justify-between border-b bg-card px-4">
+                <div className="sticky top-0 z-20 flex h-14 items-center justify-between border-b bg-card/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-card/80">
                     <button
                         onClick={() => setOpen(true)}
                         aria-label="Open menu"

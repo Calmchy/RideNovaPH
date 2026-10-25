@@ -25,12 +25,9 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property string $name
  * @property string $email
  * @property string|null $phone_number
-<<<<<<< HEAD
-=======
  * @property string|null $address
  * @property string|null $emergency_contact_name
  * @property string|null $emergency_contact_phone
->>>>>>> pagaduan
  * @property string|null $profile_photo_path
  * @property AccountStatus $account_status
  * @property Carbon|null $email_verified_at
