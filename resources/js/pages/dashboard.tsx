@@ -1,156 +1,305 @@
-import { Head, Link, router } from '@inertiajs/react';
-import { useEffect } from 'react';
-import { PlaceholderPattern } from '@/components/ui/placeholder-pattern';
-import { dashboard } from '@/routes';
-import { Search, ArrowRight, UserRound, CarTaxiFront, Book} from 'lucide-react';
+// Dashboard in the "Grand Taxi" layout: dark quick-menu on the left, slideshow + stats + trips in the
+// middle, top drivers and verification status on the right.
+import { Head, Link } from '@inertiajs/react';
+import { usePage } from '@inertiajs/react';
+import {
+    BadgeCheck,
+    Banknote,
+    CalendarCheck,
+    Car,
+    ReceiptText,
+    Route,
+    Star,
+    UserCog,
+} from 'lucide-react';
+import DashboardSlideshow from '@/components/dashboard-slideshow';
+import type { Slide } from '@/components/dashboard-slideshow';
+import { EmptyState, StatCard } from '@/components/kit';
+import { fmtDateTime, peso, StatusBadge } from '@/components/lux';
+import { cn } from '@/lib/utils';
 
-export default function Dashboard() {
-    
+type Props = {
+    slides: Slide[];
+    id_status: 'pending' | 'approved' | 'rejected' | null;
+    stats: {
+        upcoming: number;
+        completed: number;
+        spent: number;
+        my_pending: number;
+        awaiting_my_approval: number;
+        earned: number | null;
+        active_rides: number | null;
+    };
+    upcoming: {
+        id: number;
+        reference_no: string;
+        status: string;
+        route: string;
+        departure_at: string;
+    }[];
+    drivers: {
+        id: number;
+        name: string;
+        rating: number | null;
+        reviews: number;
+        next_ride: { id: number; route: string; departure_at: string } | null;
+    }[];
+};
+
+const ID_COPY = {
+    none: {
+        title: 'Verify your ID',
+        text: 'Upload a valid ID to start booking rides.',
+        cta: 'Upload ID',
+        tone: 'bg-coral/15',
+    },
+    pending: {
+        title: 'ID under review',
+        text: 'An admin is checking your ID.',
+        cta: 'View status',
+        tone: 'bg-sand/40',
+    },
+    approved: {
+        title: 'ID verified',
+        text: 'You can reserve seats on any ride.',
+        cta: 'View status',
+        tone: 'bg-foam/40',
+    },
+    rejected: {
+        title: 'ID needs a new upload',
+        text: 'Your last upload was not accepted.',
+        cta: 'Upload again',
+        tone: 'bg-coral/15',
+    },
+} as const;
+
+export default function Dashboard({
+    slides,
+    id_status,
+    stats,
+    upcoming,
+    drivers,
+}: Props) {
+    const { auth } = usePage().props;
+    const idCopy = ID_COPY[id_status ?? 'none'];
+
+    const menu = [
+        {
+            title: 'Bookings',
+            href: '/bookings',
+            icon: CalendarCheck,
+            badge: stats.awaiting_my_approval,
+        },
+        { title: 'Find a ride', href: '/bookings?tab=find', icon: Route },
+        { title: 'Transactions', href: '/transactions', icon: ReceiptText },
+        ...(auth.isDriver
+            ? [{ title: 'Driver hub', href: '/driver', icon: Car }]
+            : []),
+        { title: 'Verify ID', href: '/identity', icon: BadgeCheck },
+        { title: 'Profile', href: '/settings/profile', icon: UserCog },
+    ];
+
     return (
-        <> 
+        <>
             <Head title="Dashboard" />
-            <div className="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">
-                <div className="relative min-h-[80vh] flex-1 overflow-hidden rounded-xl border border-sidebar-border/70 dark:border-sidebar-border">
-                    <img
-                        src="/background.jpg"
-                        alt="Van in the mountains"
-                        className="absolute inset-0 h-full w-full object-cover"
-                    />
-                    <div className="absolute inset-0 bg-black/30" />
+            <div className="mx-auto grid w-full max-w-7xl gap-6 p-4 md:p-8 lg:grid-cols-[13rem_1fr_19rem]">
+                {/* Left: dark quick menu */}
+                <aside className="h-fit rounded-2xl bg-deep p-3 text-foam shadow-sm lg:sticky lg:top-6">
+                    <p className="px-3 pt-2 pb-3 text-[11px] tracking-widest text-foam/60 uppercase">
+                        Quick menu
+                    </p>
+                    <nav
+                        className="flex gap-1 overflow-x-auto lg:flex-col"
+                        aria-label="Quick menu"
+                    >
+                        {menu.map((m) => (
+                            <Link
+                                key={m.title}
+                                href={m.href}
+                                className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm whitespace-nowrap transition hover:bg-ocean/40 hover:text-white"
+                            >
+                                <m.icon className="size-4 text-sand" />
+                                {m.title}
+                                {(m.badge ?? 0) > 0 && (
+                                    <span className="ml-auto rounded-full bg-coral px-1.5 text-[11px] font-bold text-deep">
+                                        {m.badge}
+                                    </span>
+                                )}
+                            </Link>
+                        ))}
+                    </nav>
+                </aside>
 
-                    <div className="relative flex h-full flex-col">
-                        <nav className="flex items-center justify-between px-6 py-6 md:px-10">
-                            <div className="flex items-center gap-2 text-white">
-                                
-                              
-                            </div>
+                {/* Middle */}
+                <div className="min-w-0 space-y-6">
+                    <header>
+                        <p className="text-xs tracking-[0.3em] text-coral-ink uppercase">
+                            Welcome back
+                        </p>
+                        <h1 className="mt-1 font-serif text-3xl md:text-4xl">
+                            {auth.user?.name?.split(' ')[0]}, where to next?
+                        </h1>
+                    </header>
 
-                            <div className="hidden items-center rounded-full bg-white/10 px-3 py-2 backdrop-blur-sm md:flex">
-                                <input
-                                    type="text"
-                                    placeholder="Search"
-                                    className="w-32 bg-transparent text-sm text-white placeholder-white/70 outline-none"
-                                />
-                                <Search className="h-4 w-4 text-white" />
-                            </div>
-                        </nav>
+                    <DashboardSlideshow slides={slides} />
 
-                        <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
-                            <h1 className="max-w-3xl text-3xl font-extrabold uppercase tracking-wide text-white sm:text-4xl md:text-5xl">
-                                Set Your Travel Destination
-                            </h1>
-                            <div  />
-
-                            {/* <div className="mt-10 flex w-full max-w-2xl flex-col gap-3 rounded-full bg-white/10 p-2 backdrop-blur-md sm:flex-row sm:items-center">
-                                <div className="flex-1 rounded-full px-6 py-3 text-left">
-                                    <p className="text-xs uppercase tracking-wide text-white/70">
-                                        Location
-                                    </p>
-                                    <input
-                                        type="text"
-                                        placeholder="Where from?"
-                                        className="w-full bg-transparent text-sm text-white placeholder-white/60 outline-none"
-                                    />
-                                </div>
-                                <div className="hidden h-8 w-px bg-white/30 sm:block" />
-                                <div className="flex-1 rounded-full px-6 py-3 text-left">
-                                    <p className="text-xs uppercase tracking-wide text-white/70">
-                                        Pick Up Date
-                                    </p>
-                                    <input
-                                        type="date"
-                                        className="w-full bg-transparent text-sm text-white outline-none [color-scheme:dark]"
-                                    />
-                                </div>
-                                <div className="hidden h-8 w-px bg-white/30 sm:block" />
-                                <div className="flex-1 rounded-full px-6 py-3 text-left">
-                                    <p className="text-xs uppercase tracking-wide text-white/70">
-                                        Return Date
-                                    </p>
-                                    <input
-                                        type="date"
-                                        className="w-full bg-transparent text-sm text-white outline-none [color-scheme:dark]"
-                                    />
-                                </div> 
-                            </div>*/}
-
-                            
-                                                        <Link
-                            href="/booking"
-                            className="mt-16 mb-10 inline-flex items-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-semibold tracking-wide text-neutral-900 uppercase"
-                        >
-                            BOOK NOW!
-                            <ArrowRight className="h-4 w-4" />
-                        </Link>
-                           
-                        </div>
+                    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                        <StatCard
+                            label="Upcoming trips"
+                            value={stats.upcoming}
+                            icon={CalendarCheck}
+                        />
+                        <StatCard
+                            label="Completed"
+                            value={stats.completed}
+                            icon={Route}
+                            tone="foam"
+                        />
+                        <StatCard
+                            label="Total spent"
+                            value={peso(stats.spent)}
+                            icon={Banknote}
+                            tone="sand"
+                        />
+                        {stats.earned !== null ? (
+                            // Drivers: earnings, plus how many passenger requests need their answer.
+                            <StatCard
+                                label="Driver earnings"
+                                value={peso(stats.earned)}
+                                hint={`${stats.active_rides} open ride(s) · ${stats.awaiting_my_approval} request(s) to approve`}
+                                icon={Car}
+                                tone="deep"
+                            />
+                        ) : (
+                            // Passengers: their own bookings still waiting for a driver.
+                            <StatCard
+                                label="Awaiting driver"
+                                value={stats.my_pending}
+                                hint="Your requests pending approval"
+                                icon={BadgeCheck}
+                                tone="coral"
+                            />
+                        )}
                     </div>
+
+                    <section>
+                        <div className="mb-3 flex items-center justify-between">
+                            <h2 className="font-serif text-2xl">
+                                Your upcoming trips
+                            </h2>
+                            <Link
+                                href="/bookings?tab=mine"
+                                className="text-sm text-ocean hover:underline dark:text-foam"
+                            >
+                                All bookings →
+                            </Link>
+                        </div>
+                        {upcoming.length ? (
+                            <div className="divide-y overflow-hidden rounded-2xl border bg-card">
+                                {upcoming.map((b) => (
+                                    <Link
+                                        key={b.id}
+                                        href={`/bookings/${b.id}`}
+                                        className="flex flex-wrap items-center justify-between gap-3 p-4 transition hover:bg-muted/50"
+                                    >
+                                        <div>
+                                            <p className="font-medium">
+                                                {b.route}
+                                            </p>
+                                            <p className="text-sm text-muted-foreground">
+                                                {fmtDateTime(b.departure_at)} ·{' '}
+                                                <span className="font-mono text-xs">
+                                                    {b.reference_no}
+                                                </span>
+                                            </p>
+                                        </div>
+                                        <StatusBadge status={b.status} />
+                                    </Link>
+                                ))}
+                            </div>
+                        ) : (
+                            <EmptyState>
+                                No upcoming trips.{' '}
+                                <Link
+                                    href="/bookings?tab=find"
+                                    className="text-ocean underline dark:text-foam"
+                                >
+                                    Find a ride
+                                </Link>
+                            </EmptyState>
+                        )}
+                    </section>
                 </div>
+
+                {/* Right: verification + top drivers */}
+                <aside className="space-y-6">
+                    <Link
+                        href="/identity"
+                        className={cn(
+                            'block rounded-2xl border p-5 transition hover:shadow-md',
+                            idCopy.tone,
+                        )}
+                    >
+                        <BadgeCheck className="size-6 text-ocean dark:text-foam" />
+                        <p className="mt-2 font-semibold">{idCopy.title}</p>
+                        <p className="text-sm text-muted-foreground">
+                            {idCopy.text}
+                        </p>
+                        <p className="mt-2 text-sm font-medium text-ocean dark:text-foam">
+                            {idCopy.cta} →
+                        </p>
+                    </Link>
+
+                    <section className="rounded-2xl border bg-card p-5 shadow-sm">
+                        <h2 className="mb-3 font-semibold">Top drivers</h2>
+                        {drivers.length ? (
+                            <ul className="space-y-4">
+                                {drivers.map((d) => (
+                                    <li
+                                        key={d.id}
+                                        className="flex items-start gap-3"
+                                    >
+                                        <span className="grid size-10 shrink-0 place-items-center rounded-full bg-deep text-sm font-semibold text-sand">
+                                            {d.name.slice(0, 1)}
+                                        </span>
+                                        <div className="min-w-0 text-sm">
+                                            <p className="font-medium">
+                                                {d.name}
+                                            </p>
+                                            <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                                                <Star className="size-3 text-sand" />
+                                                {d.rating ?? 'New'}
+                                                {d.reviews > 0 &&
+                                                    ` (${d.reviews})`}
+                                            </p>
+                                            {d.next_ride ? (
+                                                <Link
+                                                    href={`/rides/${d.next_ride.id}`}
+                                                    className="mt-1 block truncate text-xs text-ocean hover:underline dark:text-foam"
+                                                >
+                                                    {d.next_ride.route} ·{' '}
+                                                    {fmtDateTime(
+                                                        d.next_ride
+                                                            .departure_at,
+                                                    )}
+                                                </Link>
+                                            ) : (
+                                                <p className="text-xs text-muted-foreground">
+                                                    No open rides
+                                                </p>
+                                            )}
+                                        </div>
+                                    </li>
+                                ))}
+                            </ul>
+                        ) : (
+                            <p className="text-sm text-muted-foreground">
+                                No drivers yet.
+                            </p>
+                        )}
+                    </section>
+                </aside>
             </div>
-            <div className="grid gap-6 rounded-xl border border-sidebar-border/70 bg-white p-6 dark:border-sidebar-border dark:bg-neutral-900 md:grid-cols-3">
-  
-    <div className="flex flex-col items-center rounded-xl border border-neutral-200 p-6 text-center dark:border-neutral-800">
-        <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-100 dark:bg-red-600/10">
-         
-                <UserRound  className='mb-4 w-20 h-20'/>
-        </div>
-        <h3 className="text-lg font-bold uppercase tracking-wide text-neutral-900 dark:text-white">
-            
-            First Time Renter
-        </h3>
-        <p className="mt-2 text-sm text-neutral-500 dark:text-neutral-400">
-            If this is your first time booking with us
-        </p>
-        <button className="mt-6 w-full rounded-md bg-neutral-800 py-3 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-neutral-700">
-            How to Book a Ride
-        </button>
-    </div>
-
-    
-    <div className="flex flex-col items-center rounded-xl border border-neutral-200 p-6 text-center dark:border-neutral-800">
-        <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-100 dark:bg-red-500/10">
-           
-           <CarTaxiFront className='mb-4 w-20 h-20' />
-        </div>
-        <h3 className="text-lg font-bold uppercase tracking-wide text-neutral-900 dark:text-white">
-            New Vehicles
-        </h3>
-        <p className="mt-2 text-sm text-neutral-500 dark:text-neutral-400">
-            See the newest vans added to our fleet
-        </p>
-        <button className="mt-6 w-full rounded-md bg-neutral-800 py-3 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-neutral-700">
-            Search Our Fleet
-        </button>
-    </div>
-
-
-    <div className="flex flex-col items-center rounded-xl border border-neutral-200 p-6 text-center dark:border-neutral-800">
-        <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-100 dark:bg-red-500/10">
-           <Book className='mb-4 w-20 h-20' />
-            
-        </div>
-        <h3 className="text-lg font-bold uppercase tracking-wide text-neutral-900 dark:text-white">
-            Book a Ride
-        </h3>
-        <p className="mt-2 text-sm text-neutral-500 dark:text-neutral-400">
-            Reserve a van for your next trip, hassle-free
-        </p>
-        <button className="mt-6 w-full rounded-md bg-neutral-800 py-3 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-neutral-700">
-            Find a Ride
-        </button>
-    </div>
-    
-</div>
-
         </>
     );
 }
-
-Dashboard.layout = {
-    breadcrumbs: [
-        {
-            title: 'Dashboard',
-            href: dashboard(),
-        },
-    ],
-};

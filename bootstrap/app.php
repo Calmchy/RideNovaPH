@@ -16,9 +16,14 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
+        $middleware->alias([
+            'admin' => \App\Http\Middleware\EnsureAdmin::class,
+            'driver' => \App\Http\Middleware\EnsureDriver::class,
+        ]);
 
         $middleware->web(append: [
             HandleAppearance::class,
+            \App\Http\Middleware\EnsureActiveAccount::class,
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,
         ]);

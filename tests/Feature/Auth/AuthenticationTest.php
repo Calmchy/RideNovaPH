@@ -22,6 +22,27 @@ test('users can authenticate using the login screen', function () {
     $response->assertRedirect(route('dashboard', absolute: false));
 });
 
+test('login rejects blank and malformed values with clear messages', function () {
+    $this->post(route('login.store'), ['email' => '   ', 'password' => ''])
+        ->assertSessionHasErrors(['email', 'password']);
+
+    $this->post(route('login.store'), ['email' => 'not-an-email', 'password' => 'secret'])
+        ->assertSessionHasErrors('email');
+
+    $this->assertGuest();
+});
+
+test('login ignores surrounding spaces in the email', function () {
+    $user = User::factory()->create();
+
+    $this->post(route('login.store'), [
+        'email' => '  '.$user->email.'  ',
+        'password' => 'password',
+    ]);
+
+    $this->assertAuthenticated();
+});
+
 test('users with two factor enabled are redirected to two factor challenge', function () {
     $this->skipUnlessFortifyHas(Features::twoFactorAuthentication());
 

@@ -20,8 +20,9 @@ class ChatbotIntent extends Model
     }
 
     /**
-     * Find the reply for a user's message (Query 10). Matches whole words so
-     * a short keyword like "id" doesn't fire inside "paid".
+     * Find the reply for a user's message.
+     * Whole-word matching (so "id" never fires inside "paid"), and when several
+     * intents match, the one with the MOST matching keywords wins.
      */
     public static function replyFor(string $message): ?string
     {
@@ -31,9 +32,17 @@ class ChatbotIntent extends Model
             return null;
         }
 
-        return static::query()
-            ->where('is_active', true)
-            ->whereHas('keywords', fn ($q) => $q->whereIn('keyword', $words))
-            ->value('answer');
+        // Count matching keywords per intent with a plain GROUP BY (portable on SQLite and MySQL),
+        // then take the best active intent. Ties go to the oldest intent.
+        $best = ChatbotKeyword::query()
+            ->whereIn('keyword', $words)
+            ->whereIn('intent_id', static::query()->where('is_active', true)->select('id'))
+            ->selectRaw('intent_id, COUNT(*) as matched')
+            ->groupBy('intent_id')
+            ->orderByDesc('matched')
+            ->orderBy('intent_id')
+            ->first();
+
+        return $best ? static::query()->whereKey($best->intent_id)->value('answer') : null;
     }
 }
