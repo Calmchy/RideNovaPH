@@ -139,9 +139,9 @@ Route::middleware(['auth', 'verified', 'admin'])->prefix('admin')->group(functio
 
     // ----Announcement Pictures ----
     Route::post('/banners', [BannerController::class, 'store'])->name('admin.banners.store');
-Route::post('/announcements', [ContentController::class, 'storeAnnouncement'])->name('admin.announcements.store');
-Route::post('/banners/{banner}', [BannerController::class, 'update'])->name('admin.banners.update');
-Route::put('/announcements/{announcement}', [ContentController::class, 'updateAnnouncement'])->name('admin.announcements.update');
+    Route::post('/announcements', [ContentController::class, 'storeAnnouncement'])->name('admin.announcements.store');
+    Route::post('/banners/{banner}', [BannerController::class, 'update'])->name('admin.banners.update');
+    Route::put('/announcements/{announcement}', [ContentController::class, 'updateAnnouncement'])->name('admin.announcements.update');
 
     // ---- Rides(Abuse-protection) ----
    Route::post('/transactions/{payment}/fee', [AdminTransactionController::class, 'settleFee'])->name('admin.transactions.fee');

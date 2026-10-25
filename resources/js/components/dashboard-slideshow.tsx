@@ -76,7 +76,7 @@ export default function DashboardSlideshow({ slides }: { slides: Slide[] }) {
             onMouseLeave={() => setPaused(false)}
             onFocusCapture={() => setPaused(true)}
             onBlurCapture={() => setPaused(false)}
-            className="relative overflow-hidden rounded-2xl bg-deep text-white shadow-sm"
+            className="relative min-w-0 overflow-hidden rounded-2xl bg-deep text-white shadow-sm"
         >
             <div
                 className="flex transition-transform duration-700 ease-out"
@@ -89,7 +89,7 @@ export default function DashboardSlideshow({ slides }: { slides: Slide[] }) {
                         tabIndex={n === i ? 0 : -1}
                         aria-hidden={n !== i}
                         className={cn(
-                            'relative block min-h-48 w-full shrink-0 bg-gradient-to-br p-6 md:min-h-56 md:p-8',
+                            'relative block min-h-48 w-full shrink-0 bg-gradient-to-br p-5 pb-10 sm:p-6 sm:pb-10 md:min-h-56 md:p-8 md:pb-10',
                             GRADIENTS[n % GRADIENTS.length],
                         )}
                         style={
@@ -125,14 +125,14 @@ export default function DashboardSlideshow({ slides }: { slides: Slide[] }) {
                     <button
                         onClick={() => go(i - 1)}
                         aria-label="Previous slide"
-                        className="absolute top-1/2 left-2 -translate-y-1/2 rounded-full bg-deep/60 p-1.5 hover:bg-deep"
+                        className="absolute top-1/2 left-2 hidden -translate-y-1/2 rounded-full bg-deep/60 p-1.5 hover:bg-deep sm:block"
                     >
                         <ChevronLeft className="size-5" />
                     </button>
                     <button
                         onClick={() => go(i + 1)}
                         aria-label="Next slide"
-                        className="absolute top-1/2 right-2 -translate-y-1/2 rounded-full bg-deep/60 p-1.5 hover:bg-deep"
+                        className="absolute top-1/2 right-2 hidden -translate-y-1/2 rounded-full bg-deep/60 p-1.5 hover:bg-deep sm:block"
                     >
                         <ChevronRight className="size-5" />
                     </button>

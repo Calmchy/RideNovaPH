@@ -56,7 +56,7 @@ export default function RideShow({
                         <ArrowLeft className="size-4" /> All rides
                     </Link>
 
-                    <div className="grid gap-8 md:grid-cols-[1fr_340px]">
+                    <div className="grid grid-cols-1 gap-8 md:grid-cols-[minmax(0,1fr)_340px]">
                         <section className="space-y-6">
                             <h1 className="font-serif text-4xl md:text-5xl">
                                 {ride.origin}{' '}

@@ -75,7 +75,7 @@ export default function AdminDrivers({
                     {drivers.data.map((d) => (
                         <li
                             key={d.id}
-                            className="grid gap-3 rounded-2xl border bg-card p-4 md:grid-cols-[1fr_auto]"
+                            className="grid gap-3 rounded-2xl border bg-card p-4 md:grid-cols-[minmax(0,1fr)_auto]"
                         >
                             <div>
                                 <p className="font-medium">

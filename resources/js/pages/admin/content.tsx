@@ -146,87 +146,86 @@ export default function AdminContent({
                 description="What visitors see in the slideshow and the announcements board."
             />
 
-            <div className="grid gap-6 lg:grid-cols-[1fr_22rem]">
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
                 <Panel title="Slideshow banners">
                     {banners.length ? (
                         <ul className="divide-y">
                             {banners.map((b) => (
                                 <li
                                     key={b.id}
-                                    className="flex items-center gap-4 p-4"
+                                    className="flex flex-wrap items-center gap-x-3 gap-y-2 p-4 sm:flex-nowrap sm:gap-4"
                                 >
                                     <img
                                         src={b.image_url}
                                         alt=""
-                                        className="h-14 w-24 rounded-lg object-cover"
+                                        className="h-16 w-24 shrink-0 rounded-lg object-cover sm:h-14"
                                         loading="lazy"
                                     />
                                     <div className="min-w-0 flex-1">
-                                        <p className="truncate font-medium">
-                                            {b.title}
-                                        </p>
-                                        <p className="truncate text-xs text-muted-foreground">
+                                        <p className="truncate font-medium">{b.title}</p>
+                                        <p className="line-clamp-2 text-xs text-muted-foreground sm:truncate">
                                             {b.caption}
                                         </p>
                                     </div>
-                                    <StatusBadge
-                                        status={b.is_active ? 'active' : 'void'}
-                                    />
-                                    <Button
-                                        size="icon"
-                                        variant="ghost"
-                                        aria-label="Edit banner"
-                                        onClick={() => startEditBanner(b)}
-                                    >
-                                        <Pencil />
-                                    </Button>
-                                    <Button
-                                        size="icon"
-                                        variant="ghost"
-                                        aria-label={
-                                            b.is_active
-                                                ? 'Hide banner'
-                                                : 'Show banner'
-                                        }
-                                        onClick={() =>
-                                            router.patch(
-                                                `/admin/banners/${b.id}`,
-                                                {},
-                                                { preserveScroll: true },
-                                            )
-                                        }
-                                    >
-                                        {b.is_active ? <EyeOff /> : <Eye />}
-                                    </Button>
-                                    <ReasonDialog
-                                        title="Delete this banner?"
-                                        askReason={false}
-                                        confirmLabel="Delete"
-                                        destructive
-                                        onConfirm={() =>
-                                            router.delete(
-                                                `/admin/banners/${b.id}`,
-                                                { preserveScroll: true },
-                                            )
-                                        }
-                                        trigger={
-                                            <Button
-                                                size="icon"
-                                                variant="ghost"
-                                                aria-label="Delete banner"
-                                            >
-                                                <Trash2 />
-                                            </Button>
-                                        }
-                                    />
+                                    <div className="flex w-full items-center gap-1 sm:w-auto">
+                                        <span className="mr-auto sm:mr-2">
+                                            <StatusBadge
+                                                status={b.is_active ? 'active' : 'void'}
+                                            />
+                                        </span>
+                                        <Button
+                                            size="icon"
+                                            variant="ghost"
+                                            aria-label="Edit banner"
+                                            onClick={() => startEditBanner(b)}
+                                        >
+                                            <Pencil />
+                                        </Button>
+                                        <Button
+                                            size="icon"
+                                            variant="ghost"
+                                            aria-label={
+                                                b.is_active ? 'Hide banner' : 'Show banner'
+                                            }
+                                            onClick={() =>
+                                                router.patch(
+                                                    `/admin/banners/${b.id}`,
+                                                    {},
+                                                    { preserveScroll: true },
+                                                )
+                                            }
+                                        >
+                                            {b.is_active ? <EyeOff /> : <Eye />}
+                                        </Button>
+                                        <ReasonDialog
+                                            title="Delete this banner?"
+                                            askReason={false}
+                                            confirmLabel="Delete"
+                                            destructive
+                                            onConfirm={() =>
+                                                router.delete(`/admin/banners/${b.id}`, {
+                                                    preserveScroll: true,
+                                                })
+                                            }
+                                            trigger={
+                                                <Button
+                                                    size="icon"
+                                                    variant="ghost"
+                                                    aria-label="Delete banner"
+                                                >
+                                                    <Trash2 />
+                                                </Button>
+                                            }
+                                        />
+                                    </div>
                                 </li>
                             ))}
                         </ul>
                     ) : (
                         <div className="p-5">
                             <EmptyState>
-                                No banners yet. The dashboard shows default
-                                slides until you add one.
+                                No banners yet. The dashboard shows default slides until you
+                                add one.
                             </EmptyState>
                         </div>
                     )}
@@ -316,90 +315,87 @@ export default function AdminContent({
                 </Panel>
             </div>
 
-            <div className="grid gap-6 lg:grid-cols-[1fr_22rem]">
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
                 <Panel title="Announcements & exam schedules">
                     {announcements.length ? (
                         <ul className="divide-y">
                             {announcements.map((a) => (
                                 <li
                                     key={a.id}
-                                    className="flex items-center gap-3 p-4"
+                                    className="flex flex-wrap items-center gap-x-3 gap-y-2 p-4 sm:flex-nowrap"
                                 >
                                     {a.image_url && (
                                         <img
                                             src={a.image_url}
                                             alt=""
-                                            className="h-12 w-16 rounded-lg object-cover"
+                                            className="h-14 w-20 shrink-0 rounded-lg object-cover sm:h-12 sm:w-16"
                                             loading="lazy"
                                         />
                                     )}
                                     <div className="min-w-0 flex-1">
-                                        <p className="truncate font-medium">
-                                            {a.title}
-                                        </p>
+                                        <p className="truncate font-medium">{a.title}</p>
                                         <p className="text-xs text-muted-foreground">
                                             {[
                                                 a.category,
                                                 a.city,
-                                                a.exam_date &&
-                                                    fmtDate(a.exam_date),
+                                                a.exam_date && fmtDate(a.exam_date),
                                             ]
                                                 .filter(Boolean)
                                                 .join(' · ')}
                                         </p>
                                     </div>
-                                    <StatusBadge
-                                        status={
-                                            a.is_published ? 'active' : 'void'
-                                        }
-                                    />
-                                    <Button
-                                        size="icon"
-                                        variant="ghost"
-                                        aria-label="Edit announcement"
-                                        onClick={() => startEditNote(a)}
-                                    >
-                                        <Pencil />
-                                    </Button>
-                                    <Button
-                                        size="icon"
-                                        variant="ghost"
-                                        aria-label={
-                                            a.is_published
-                                                ? 'Unpublish'
-                                                : 'Publish'
-                                        }
-                                        onClick={() =>
-                                            router.patch(
-                                                `/admin/announcements/${a.id}`,
-                                                {},
-                                                { preserveScroll: true },
-                                            )
-                                        }
-                                    >
-                                        {a.is_published ? <EyeOff /> : <Eye />}
-                                    </Button>
-                                    <ReasonDialog
-                                        title="Delete this announcement?"
-                                        askReason={false}
-                                        confirmLabel="Delete"
-                                        destructive
-                                        onConfirm={() =>
-                                            router.delete(
-                                                `/admin/announcements/${a.id}`,
-                                                { preserveScroll: true },
-                                            )
-                                        }
-                                        trigger={
-                                            <Button
-                                                size="icon"
-                                                variant="ghost"
-                                                aria-label="Delete announcement"
-                                            >
-                                                <Trash2 />
-                                            </Button>
-                                        }
-                                    />
+                                    <div className="flex w-full items-center gap-1 sm:w-auto">
+                                        <span className="mr-auto sm:mr-2">
+                                            <StatusBadge
+                                                status={a.is_published ? 'active' : 'void'}
+                                            />
+                                        </span>
+                                        <Button
+                                            size="icon"
+                                            variant="ghost"
+                                            aria-label="Edit announcement"
+                                            onClick={() => startEditNote(a)}
+                                        >
+                                            <Pencil />
+                                        </Button>
+                                        <Button
+                                            size="icon"
+                                            variant="ghost"
+                                            aria-label={
+                                                a.is_published ? 'Unpublish' : 'Publish'
+                                            }
+                                            onClick={() =>
+                                                router.patch(
+                                                    `/admin/announcements/${a.id}`,
+                                                    {},
+                                                    { preserveScroll: true },
+                                                )
+                                            }
+                                        >
+                                            {a.is_published ? <EyeOff /> : <Eye />}
+                                        </Button>
+                                        <ReasonDialog
+                                            title="Delete this announcement?"
+                                            askReason={false}
+                                            confirmLabel="Delete"
+                                            destructive
+                                            onConfirm={() =>
+                                                router.delete(
+                                                    `/admin/announcements/${a.id}`,
+                                                    { preserveScroll: true },
+                                                )
+                                            }
+                                            trigger={
+                                                <Button
+                                                    size="icon"
+                                                    variant="ghost"
+                                                    aria-label="Delete announcement"
+                                                >
+                                                    <Trash2 />
+                                                </Button>
+                                            }
+                                        />
+                                    </div>
                                 </li>
                             ))}
                         </ul>
