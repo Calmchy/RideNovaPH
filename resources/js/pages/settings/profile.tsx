@@ -1,12 +1,14 @@
-// Profile: verification status, editable personal info, and role-specific settings.
+// Profile: picture + verification badges, my documents, editable personal info, and role-specific settings.
 // Saves with PATCH /settings/profile. The server only accepts whitelisted fields (never role or status).
 import { Head, Link, useForm, usePage } from '@inertiajs/react';
-import { BadgeCheck, Car, MailWarning } from 'lucide-react';
+import { MailWarning } from 'lucide-react';
 import DeleteUser from '@/components/delete-user';
 import Heading from '@/components/heading';
 import InputError from '@/components/input-error';
-import { inputCls, Panel } from '@/components/kit';
-import { fmtDate, StatusBadge } from '@/components/lux';
+import { inputCls } from '@/components/kit';
+import { fmtDate } from '@/components/lux';
+import { DocumentsPanel, ProfilePhotoPanel } from '@/components/profile-documents';
+import type { ProfileDocuments } from '@/components/profile-documents';
 import { Button } from '@/components/ui/button';
 import type { Auth } from '@/types';
 import { edit } from '@/routes/profile';
@@ -30,71 +32,16 @@ type Props = {
         driver_remarks: string | null;
         has_driver_profile: boolean;
     };
+    documents: ProfileDocuments;
     driver: { bio: string | null; allows_luggage: boolean } | null;
 };
-
-function VerifyRow({
-    icon: Icon,
-    title,
-    status,
-    remarks,
-    href,
-    cta,
-}: {
-    icon: typeof BadgeCheck;
-    title: string;
-    status: string | null;
-    remarks: string | null;
-    href: string;
-    cta: string;
-}) {
-    return (
-        <div className="flex flex-wrap items-center justify-between gap-3 py-3">
-            <div className="flex items-start gap-3">
-                <Icon className="mt-0.5 size-5 text-ocean dark:text-foam" />
-                <div>
-                    <p className="text-sm font-medium">{title}</p>
-                    {remarks && (
-                        <p className="text-xs text-destructive">
-                            Reason: {remarks}
-                        </p>
-                    )}
-                </div>
-            </div>
-            <div className="flex items-center gap-3">
-                {status ? (
-                    <StatusBadge status={status} />
-                ) : (
-                    <span className="text-xs text-muted-foreground">
-                        Not submitted
-                    </span>
-                )}
-                {status !== 'approved' && status !== 'pending' && (
-                    <Button
-                        asChild
-                        size="sm"
-                        variant={
-                            status === 'rejected' ? 'destructive' : 'default'
-                        }
-                    >
-                        <Link href={href}>{cta}</Link>
-                    </Button>
-                )}
-                {(status === 'approved' || status === 'pending') && (
-                    <Button asChild size="sm" variant="ghost">
-                        <Link href={href}>Details</Link>
-                    </Button>
-                )}
-            </div>
-        </div>
-    );
-}
 
 export default function Profile({
     mustVerifyEmail,
     status,
     profile,
     verification,
+    documents,
     driver,
 }: Props) {
     const { auth } = usePage<{ auth: Auth }>().props;
@@ -119,36 +66,16 @@ export default function Profile({
             <h1 className="sr-only">Profile settings</h1>
 
             <div className="space-y-8">
-                <Panel title="Verification">
-                    <div className="divide-y px-5">
-                        <VerifyRow
-                            icon={BadgeCheck}
-                            title="Valid government ID"
-                            status={verification.id_status}
-                            remarks={verification.id_remarks}
-                            href="/identity"
-                            cta={
-                                verification.id_status === 'rejected'
-                                    ? 'Resubmit ID'
-                                    : 'Verify ID'
-                            }
-                        />
-                        {profile.role === 'driver' && (
-                            <VerifyRow
-                                icon={Car}
-                                title="Driver licence"
-                                status={verification.driver_status}
-                                remarks={verification.driver_remarks}
-                                href="/driver/apply"
-                                cta={
-                                    verification.driver_status === 'rejected'
-                                        ? 'Resubmit licence'
-                                        : 'Submit licence'
-                                }
-                            />
-                        )}
-                    </div>
-                </Panel>
+                <ProfilePhotoPanel
+                    idStatus={verification.id_status}
+                    driverStatus={verification.driver_status}
+                    isDriver={profile.role === 'driver'}
+                />
+
+                <DocumentsPanel
+                    documents={documents}
+                    isDriver={profile.role === 'driver'}
+                />
 
                 <form
                     onSubmit={(e) => {

@@ -53,12 +53,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Valid-ID upload (rate limited: uploads are expensive and a brute-force target).
     Route::get('/identity', [IdentityDocumentController::class, 'create'])->name('identity.create');
     Route::post('/identity', [IdentityDocumentController::class, 'store'])->middleware('throttle:5,1')->name('identity.store');
+    Route::post('/identity/photos', [IdentityDocumentController::class, 'photos'])
+        ->middleware('throttle:10,1')->name('identity.photos');
 
     // Bookings hub: find a ride + my reservations + (drivers) incoming requests
     Route::get('/bookings', [BookingController::class, 'index'])->name('bookings.index');
     Route::get('/rides/{ride}/book', [BookingController::class, 'create'])->name('bookings.create');
     Route::post('/rides/{ride}/book', [BookingController::class, 'store'])->middleware('throttle:10,1')->name('bookings.store');
     Route::get('/bookings/{booking}', [BookingController::class, 'show'])->name('bookings.show');
+    Route::patch('/bookings/{booking}/paid', [BookingController::class, 'collect'])->middleware('throttle:30,1')->name('bookings.paid');
     Route::patch('/bookings/{booking}/{action}', [BookingController::class, 'transition'])
         ->where('action', 'approve|confirm|complete|cancel')->middleware('throttle:30,1')->name('bookings.transition');
     Route::get('/bookings/{booking}/receipt', [TransactionController::class, 'receipt'])->name('bookings.receipt');
@@ -82,11 +85,17 @@ Route::middleware(['auth', 'verified', 'driver'])->prefix('driver')->name('drive
 
     Route::get('/apply', [DriverApplicationController::class, 'create'])->name('apply');
     Route::post('/apply', [DriverApplicationController::class, 'store'])->middleware('throttle:5,1')->name('apply.store');
+    Route::post('/license/photos', [DriverApplicationController::class, 'replacePhotos'])
+        ->middleware('throttle:10,1')->name('license.photos');
 
     Route::get('/vehicles', [VehicleController::class, 'index'])->name('vehicles.index');
     Route::post('/vehicles', [VehicleController::class, 'store'])->middleware('throttle:20,1')->name('vehicles.store');
     Route::patch('/vehicles/{vehicle}', [VehicleController::class, 'update'])->name('vehicles.update');
     Route::delete('/vehicles/{vehicle}', [VehicleController::class, 'destroy'])->name('vehicles.destroy');
+    Route::post('/vehicles/{vehicle}/cor', [VehicleController::class, 'cor'])->middleware('throttle:20,1')->name('vehicles.cor');
+    Route::post('/vehicles/{vehicle}/photos/{slot}', [VehicleController::class, 'photo'])
+        ->where('slot', 'front|back|interior')->middleware('throttle:20,1')->name('vehicles.photo');
+    Route::patch('/vehicles/{vehicle}/description', [VehicleController::class, 'description'])->name('vehicles.description');
 
     Route::get('/rides', [DriverRideController::class, 'index'])->name('rides.index');
     Route::get('/rides/create', [DriverRideController::class, 'create'])->name('rides.create');
@@ -106,7 +115,9 @@ Route::middleware(['auth', 'verified', 'admin'])->prefix('admin')->group(functio
     Route::patch('/users/{user}', [AdminUserController::class, 'update'])->name('admin.users.update');
 
     Route::get('/drivers', [AdminDriverController::class, 'index'])->name('admin.drivers');
-    Route::get('/drivers/{driver}/license', [AdminDriverController::class, 'license'])->name('admin.drivers.license');
+    Route::get('/drivers/{driver}/license/{side?}', [AdminDriverController::class, 'license'])
+        ->where('side', 'front|back')->name('admin.drivers.license');
+    Route::get('/vehicles/{vehicle}/cor', [AdminDriverController::class, 'cor'])->name('admin.vehicles.cor');
     Route::patch('/drivers/{driver}', [AdminDriverController::class, 'decide'])->name('admin.drivers.decide');
 
     Route::get('/identity', [IdentityReviewController::class, 'index'])->name('admin.identity');

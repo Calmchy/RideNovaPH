@@ -4,6 +4,8 @@ import { usePage } from '@inertiajs/react';
 import { ArrowLeft } from 'lucide-react';
 import { fmtDateTime, peso } from '@/components/lux';
 import SiteHeader from '@/components/site-header';
+import VehicleBanner from '@/components/vehicle-banner';
+import type { VehiclePhoto } from '@/components/vehicle-banner';
 
 type Props = {
     ride: {
@@ -20,6 +22,8 @@ type Props = {
         notes: string | null;
         status: string;
         trip_status: string;
+        vehicle_photos: VehiclePhoto[];
+        vehicle_description: string | null;
     };
     driver_rating: { average: number | null; total: number };
     my_booking_id: number | null;
@@ -92,6 +96,12 @@ export default function RideShow({
                                     </div>
                                 ))}
                             </dl>
+                            {ride.vehicle_photos.some((p) => p.url) && (
+                                <VehicleBanner
+                                    photos={ride.vehicle_photos}
+                                    description={ride.vehicle_description}
+                                />
+                            )}
                             {ride.notes && (
                                 <p className="rounded-2xl border bg-card p-5 text-muted-foreground">
                                     {ride.notes}

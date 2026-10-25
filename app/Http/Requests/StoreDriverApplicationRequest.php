@@ -21,6 +21,7 @@ class StoreDriverApplicationRequest extends FormRequest
             'license_expiry' => ['required', 'date', 'after:today'],
             // Real image check, no SVG (it can carry scripts).
             'license_image' => ['required', File::image()->types(['jpg', 'jpeg', 'png'])->max(4 * 1024)],
+            'license_back_image' => ['required', File::image()->types(['jpg', 'jpeg', 'png'])->max(4 * 1024)],
             'consent' => ['accepted'],
         ];
     }
@@ -28,6 +29,8 @@ class StoreDriverApplicationRequest extends FormRequest
     public function messages(): array
     {
         return [
+            'license_image.required' => 'Upload the FRONT of your driver’s licence.',
+            'license_back_image.required' => 'Upload the BACK of your driver’s licence.',
             'license_expiry.after' => 'An expired licence cannot be accepted.',
             'consent.accepted' => 'You must agree to the data privacy notice to upload your licence.',
         ];

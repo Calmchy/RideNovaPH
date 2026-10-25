@@ -21,11 +21,13 @@ export default function DriverApply({
         license_number: string;
         license_expiry: string;
         license_image: File | null;
+        license_back_image: File | null;
         consent: boolean;
     }>({
         license_number: license_number ?? '',
         license_expiry: '',
         license_image: null,
+        license_back_image: null,
         consent: false,
     });
     const locked = status === 'pending' || status === 'approved';
@@ -37,7 +39,7 @@ export default function DriverApply({
                 <header>
                     <h1 className="font-serif text-3xl">Driver licence</h1>
                     <p className="mt-2 text-sm text-muted-foreground">
-                        Upload your professional/non-professional driver’s
+                        Upload the front and back of your professional/non-professional driver’s
                         licence. An admin reviews it before you can publish
                         rides. You also need an approved personal ID (Profile →
                         Verification).
@@ -103,7 +105,7 @@ export default function DriverApply({
                         </label>
                         <label className="grid gap-1.5 text-sm">
                             <span className="font-medium">
-                                Photo of licence (JPG or PNG, max 4 MB)
+                                Front of licence (JPG or PNG, max 4 MB)
                             </span>
                             <input
                                 required
@@ -118,6 +120,26 @@ export default function DriverApply({
                                 className={inputCls}
                             />
                             <InputError message={form.errors.license_image} />
+                        </label>
+                        <label className="grid gap-1.5 text-sm">
+                            <span className="font-medium">
+                                Back of licence (JPG or PNG, max 4 MB)
+                            </span>
+                            <input
+                                required
+                                type="file"
+                                accept="image/jpeg,image/png"
+                                onChange={(e) =>
+                                    form.setData(
+                                        'license_back_image',
+                                        e.target.files?.[0] ?? null,
+                                    )
+                                }
+                                className={inputCls}
+                            />
+                            <InputError
+                                message={form.errors.license_back_image}
+                            />
                         </label>
                         <label className="flex items-start gap-3 text-sm">
                             <input

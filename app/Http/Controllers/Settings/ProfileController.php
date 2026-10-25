@@ -10,6 +10,9 @@ use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rules\File;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -19,7 +22,7 @@ class ProfileController extends Controller
     public function edit(Request $request): Response
     {
         $user = $request->user();
-        $latestId = $user->identityDocuments()->latest()->first();
+        $latestId = $user->identityDocuments()->with('idType')->latest()->first();
         $driver = $user->driverProfile;
 
         return Inertia::render('settings/profile', [
@@ -39,6 +42,29 @@ class ProfileController extends Controller
                 'driver_status' => $driver?->status->value,
                 'driver_remarks' => $driver?->status === ApprovalStatus::Rejected ? $driver->remarks : null,
                 'has_driver_profile' => $driver !== null,
+            ],
+            // The user's OWN uploads, shown back to them. URLs point at owner-only streaming routes.
+            'documents' => [
+                'id' => $latestId ? [
+                    'type' => $latestId->idType->name,
+                    'status' => $latestId->status->value,
+                    'front' => "/settings/documents/id/front?v={$latestId->updated_at->timestamp}",
+                    'back' => $latestId->back_image_path ? "/settings/documents/id/back?v={$latestId->updated_at->timestamp}" : null,
+                ] : null,
+                'licence' => $driver ? [
+                    'status' => $driver->status->value,
+                    'expiry' => $driver->license_expiry->toDateString(),
+                    'front' => $driver->license_image_path ? "/settings/documents/licence/front?v={$driver->updated_at->timestamp}" : null,
+                    'back' => $driver->license_back_image_path ? "/settings/documents/licence/back?v={$driver->updated_at->timestamp}" : null,
+                ] : null,
+                'vehicles' => $driver
+                    ? $driver->vehicles()->with('model.make')->latest()->get()->map(fn ($v) => [
+                        'id' => $v->id,
+                        'name' => $v->model->make->name.' '.$v->model->name,
+                        'plate_number' => $v->plate_number,
+                        'cor_url' => $v->cor_image_path ? "/settings/documents/cor/{$v->id}?v={$v->updated_at->timestamp}" : null,
+                    ])->values()
+                    : [],
             ],
             'driver' => $user->isDriver() ? [
                 'bio' => $driver?->bio,
@@ -73,6 +99,46 @@ class ProfileController extends Controller
         $this->toast(__('Profile updated.'));
 
         return to_route('profile.edit');
+    }
+
+    /** POST /settings/profile/photo : the signed-in user changes THEIR OWN picture (public disk, shown in the app header). */
+    public function photo(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'photo' => ['required', File::image()->types(['jpg', 'jpeg', 'png', 'webp'])->max(3 * 1024)],
+        ], ['photo.required' => 'Choose a photo to upload.']);
+
+        $user = $request->user();
+        $file = $request->file('photo');
+        $old = $user->profile_photo_path;
+
+        // Random name; extension from the detected MIME type, never from the user's filename.
+        $user->forceFill([
+            'profile_photo_path' => $file->storeAs('avatars', Str::uuid().'.'.$file->guessExtension(), 'public'),
+        ])->save();
+
+        if ($old) {
+            Storage::disk('public')->delete($old);
+        }
+
+        $this->toast('Profile picture updated.');
+
+        return back();
+    }
+
+    /** DELETE /settings/profile/photo */
+    public function removePhoto(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+
+        if ($user->profile_photo_path) {
+            Storage::disk('public')->delete($user->profile_photo_path);
+            $user->forceFill(['profile_photo_path' => null])->save();
+        }
+
+        $this->toast('Profile picture removed.');
+
+        return back();
     }
 
     /**

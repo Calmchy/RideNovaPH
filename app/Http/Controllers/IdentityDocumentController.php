@@ -4,10 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Enums\ApprovalStatus;
 use App\Http\Requests\StoreIdentityDocumentRequest;
+use App\Models\ActivityLog;
 use App\Models\IdType;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rules\File;
 use Inertia\Inertia;
 use Inertia\Response;
 use Illuminate\Validation\ValidationException;
@@ -65,5 +68,67 @@ class IdentityDocumentController extends Controller
         $this->toast('ID submitted. An admin will review it shortly.');
 
         return to_route('identity.create');
+    }
+
+    /**
+     * POST /identity/photos : replace the FRONT and/or BACK photo of the user's current ID (or add the optional back)
+     * in one request. PENDING stays pending. APPROVED goes back to pending for a fresh admin check.
+     * REJECTED is fixed by submitting the ID again on the Verify ID page.
+     */
+    public function photos(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+        $document = $user->identityDocuments()->latest()->first();
+        abort_unless($document, 404);
+
+        if ($document->status === ApprovalStatus::Rejected) {
+            $this->toast('Your ID was rejected. Use “Resubmit ID” to upload new photos.', 'warning');
+
+            return back();
+        }
+
+        $image = File::image()->types(['jpg', 'jpeg', 'png'])->max(4 * 1024);
+        $request->validate([
+            'front_photo' => ['required_without:back_photo', 'nullable', $image],
+            'back_photo' => ['required_without:front_photo', 'nullable', $image],
+        ], [
+            'front_photo.required_without' => 'Choose at least one new photo.',
+            'back_photo.required_without' => 'Choose at least one new photo.',
+        ]);
+
+        $wasApproved = $document->status === ApprovalStatus::Approved;
+        $changes = [];
+        $replaced = [];
+
+        foreach (['front_photo' => 'front_image_path', 'back_photo' => 'back_image_path'] as $field => $column) {
+            if ($file = $request->file($field)) {
+                $replaced[] = $document->{$column};
+                $changes[$column] = $file->storeAs('identity-documents', Str::uuid().'.'.$file->guessExtension(), 'local');
+            }
+        }
+
+        $document->forceFill($changes + [
+            'status' => ApprovalStatus::Pending,
+            'remarks' => null,
+            'reviewed_by' => null,
+            'reviewed_at' => null,
+        ])->save();
+
+        foreach (array_filter($replaced) as $old) {
+            Storage::disk('local')->delete($old);
+        }
+
+        ActivityLog::record($user, 'identity.photos_replaced', $document, ['sides' => array_keys($changes)]);
+
+        if ($wasApproved) {
+            User::where('role_id', Role::ADMIN)->get()->each->notify(
+                new AppNotice('ID to re-check', "{$user->name} replaced ID photos.", '/admin/identity?status=pending'),
+            );
+            $this->toast('Photos replaced. An admin will re-check your ID.');
+        } else {
+            $this->toast('Photos replaced.');
+        }
+
+        return back();
     }
 }
