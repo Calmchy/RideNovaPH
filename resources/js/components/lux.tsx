@@ -8,6 +8,14 @@ export const fmtDateTime = (iso: string) =>
         timeStyle: 'short',
     });
 
+/**
+ * Hover "lift" for cards: rises and tilts back slightly in 3D, with a deeper shadow.
+ * `will-change` keeps it smooth; users who prefer reduced motion get no movement.
+ * (Kept as one string so Tailwind sees every class and every card looks the same.)
+ */
+export const LIFT_3D =
+    'transition-[transform,box-shadow,border-color] duration-300 ease-out will-change-transform hover:z-10 hover:border-ocean hover:shadow-2xl hover:shadow-black/40 hover:[transform:perspective(900px)_translateY(-10px)_rotateX(4deg)] motion-reduce:transition-none motion-reduce:hover:transform-none';
+
 export const fmtDate = (iso: string) =>
     new Date(iso).toLocaleDateString('en-PH', { dateStyle: 'medium' });
 
@@ -32,6 +40,10 @@ const STATUS_STYLE: Record<string, string> = {
     approved: 'bg-foam/70 text-deep dark:bg-foam/20 dark:text-foam',
     on_the_road: 'bg-foam/70 text-deep dark:bg-foam/20 dark:text-foam',
     active: 'bg-foam/70 text-deep dark:bg-foam/20 dark:text-foam',
+    // charter: driver named a price (waiting for the passenger) / passenger agreed
+    quoted: 'bg-sand/60 text-deep dark:text-sand',
+    accepted: 'bg-ocean/15 text-ocean dark:text-foam',
+    declined: 'bg-coral/20 text-coral-ink dark:text-coral',
     // agreed: ocean tint
     confirmed: 'bg-ocean/15 text-ocean dark:text-foam',
     // done / money in: solid ocean

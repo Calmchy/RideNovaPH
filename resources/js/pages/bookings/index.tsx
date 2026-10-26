@@ -122,6 +122,7 @@ export default function BookingsIndex({
             ? [{ id: 'requests', label: 'Requests', badge: pending_requests }]
             : []),
     ];
+    // "Hire a driver" lives on its own page (/charters) but sits in the same tab row.
     const cityOptions = (cities ?? []).map((c) => ({
         value: c.id,
         label: c.name,
@@ -171,6 +172,12 @@ export default function BookingsIndex({
                             ) : null}
                         </Link>
                     ))}
+                    <Link
+                        href="/charters"
+                        className="-mb-px flex items-center gap-2 border-b-2 border-transparent px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground"
+                    >
+                        Hire a driver
+                    </Link>
                 </nav>
 
                 {tab === 'find' && rides && (

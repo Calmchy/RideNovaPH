@@ -26,6 +26,7 @@ use App\Http\Controllers\RideController;
 use App\Http\Controllers\TrackingController;
 use App\Http\Controllers\TransactionController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\CharterController;
 
 /*
 |--------------------------------------------------------------------------
@@ -58,6 +59,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->middleware('throttle:10,1')->name('identity.photos');
 
     // Bookings hub: find a ride + my reservations + (drivers) incoming requests
+    Route::get('/charters', [CharterController::class, 'index'])->name('charters.index');
+Route::get('/charters/new', [CharterController::class, 'create'])->name('charters.create');
+Route::post('/charters', [CharterController::class, 'store'])->middleware('throttle:10,1')->name('charters.store');
+Route::get('/charters/{charter}', [CharterController::class, 'show'])->name('charters.show');
+Route::patch('/charters/{charter}/quote', [CharterController::class, 'quote'])->middleware('throttle:20,1')->name('charters.quote');
+Route::patch('/charters/{charter}/{action}', [CharterController::class, 'transition'])->where('action', 'accept|decline|cancel|complete')->middleware('throttle:30,1')->name('charters.transition');
+Route::get('/charters/{charter}/messages', [CharterController::class, 'messages'])->name('charters.messages');
+Route::post('/charters/{charter}/messages', [CharterController::class, 'send'])->middleware('throttle:30,1')->name('charters.send');
+
+Route::patch('/availability', [CharterController::class, 'availability'])->name('availability');
+    
+
     Route::get('/bookings', [BookingController::class, 'index'])->name('bookings.index');
     Route::get('/rides/{ride}/book', [BookingController::class, 'create'])->name('bookings.create');
     Route::post('/rides/{ride}/book', [BookingController::class, 'store'])->middleware('throttle:10,1')->name('bookings.store');
@@ -94,7 +107,7 @@ Route::middleware(['auth', 'verified', 'driver'])->prefix('driver')->name('drive
     Route::post('/apply', [DriverApplicationController::class, 'store'])->middleware('throttle:5,1')->name('apply.store');
     Route::post('/license/photos', [DriverApplicationController::class, 'replacePhotos'])
         ->middleware('throttle:10,1')->name('license.photos');
-
+          
     Route::get('/vehicles', [VehicleController::class, 'index'])->name('vehicles.index');
     Route::post('/vehicles', [VehicleController::class, 'store'])->middleware('throttle:20,1')->name('vehicles.store');
     Route::patch('/vehicles/{vehicle}', [VehicleController::class, 'update'])->name('vehicles.update');

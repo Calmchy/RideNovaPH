@@ -3,11 +3,13 @@
 namespace App\Http\Controllers\Driver;
 
 use App\Actions\Rides\PublishRide;
+use App\Actions\Rides\UpdateRide;
 use App\Actions\Rides\UpdateTripStatus;
 use App\Enums\BookingStatus;
 use App\Enums\RideStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreRideRequest;
+use App\Http\Requests\UpdateRideRequest;
 use App\Models\Announcement;
 use App\Models\City;
 use App\Models\Ride;
@@ -65,8 +67,75 @@ class RideController extends Controller
             'vehicles' => Vehicle::with('model.make')->where('driver_id', $request->user()->id)->get()
                 ->map(fn ($v) => ['id' => $v->id, 'label' => $v->model->make->name.' '.$v->model->name.' · '.$v->plate_number, 'seat_capacity' => $v->seat_capacity]),
             'cities' => City::orderBy('name')->get(['id', 'name']),
-            'announcements' => Announcement::upcoming()->limit(20)->get(['id', 'title', 'exam_date']),
+            'announcements' => $this->eventOptions(),
+            'ride' => null,
+            'locked' => false,
         ]);
+    }
+
+    /**
+     * GET /driver/rides/{ride}/edit : the same form as publishing, pre-filled.
+     * `locked` tells the form which fields are frozen because passengers already booked.
+     */
+    public function edit(Request $request, Ride $ride): Response|RedirectResponse
+    {
+        $this->owned($request, $ride);
+
+        if ($ride->tripStatus() !== 'scheduled') {
+            $this->toast('Only a ride that has not started can be edited.', 'warning');
+
+            return to_route('driver.rides.show', $ride);
+        }
+
+        $booked = (int) $ride->bookings()->where('status', '!=', BookingStatus::Cancelled->value)->sum('seats_booked');
+
+        return Inertia::render('driver/rides/create', [
+            'vehicles' => Vehicle::with('model.make')->where('driver_id', $request->user()->id)->get()
+                ->map(fn ($v) => ['id' => $v->id, 'label' => $v->model->make->name.' '.$v->model->name.' · '.$v->plate_number, 'seat_capacity' => $v->seat_capacity]),
+            'cities' => City::orderBy('name')->get(['id', 'name']),
+            'announcements' => $this->eventOptions($ride->announcement_id),
+            'ride' => [
+                'id' => $ride->id,
+                'vehicle_id' => (string) $ride->vehicle_id,
+                'origin_city_id' => (string) $ride->origin_city_id,
+                'destination_city_id' => (string) $ride->destination_city_id,
+                'pickup_point' => $ride->pickup_point,
+                'dropoff_point' => $ride->dropoff_point ?? '',
+                'departure_at' => $ride->departure_at->format('Y-m-d\TH:i'),
+                'seats_offered' => (string) $ride->seats_offered,
+                'price_per_seat' => (string) $ride->price_per_seat,
+                'notes' => $ride->notes ?? '',
+                'announcement_id' => $ride->announcement_id ? (string) $ride->announcement_id : '',
+                'event_name' => $ride->event_name ?? '',
+                'seats_booked' => $booked,
+            ],
+            'locked' => $booked > 0,
+        ]);
+    }
+
+    /** PATCH /driver/rides/{ride} */
+    public function update(UpdateRideRequest $request, Ride $ride, UpdateRide $update): RedirectResponse
+    {
+        $this->owned($request, $ride);
+        $update->handle($request->user(), $ride, $request->validated());
+        $this->toast('Ride updated.');
+
+        return to_route('driver.rides.show', $ride);
+    }
+
+    /**
+     * Events a ride can be linked to: every published announcement that is undated or not past
+     * (so whatever an admin posts shows up here), plus the ride's current one when editing.
+     * Only the event NAME is sent (no city), as the form shows just the event.
+     *
+     * @return array<int, array{id: int, title: string}>
+     */
+    private function eventOptions(?int $include = null): array
+    {
+        return Announcement::forRides()->limit(30)->get()
+            ->when($include, fn ($c) => $c->contains('id', $include) ? $c : $c->push(Announcement::find($include))->filter())
+            ->map(fn (Announcement $a) => ['id' => $a->id, 'title' => $a->eventName()])
+            ->values()->all();
     }
 
     /** POST /driver/rides */
@@ -99,6 +168,7 @@ class RideController extends Controller
                 'seats_taken' => (int) $ride->seats_taken,
                 'vehicle' => $ride->vehicle->model->make->name.' '.$ride->vehicle->model->name.' · '.$ride->vehicle->plate_number,
                 'notes' => $ride->notes,
+                'event' => $ride->eventLabel(),
                 'trip_status' => $ride->tripStatus(),
                 'started_at' => $ride->started_at?->toIso8601String(),
                 'completed_at' => $ride->completed_at?->toIso8601String(),

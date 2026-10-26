@@ -4,8 +4,6 @@ import { usePage } from '@inertiajs/react';
 import { ArrowLeft } from 'lucide-react';
 import { fmtDateTime, peso } from '@/components/lux';
 import SiteHeader from '@/components/site-header';
-import VehicleBanner from '@/components/vehicle-banner';
-import type { VehiclePhoto } from '@/components/vehicle-banner';
 
 type Props = {
     ride: {
@@ -22,8 +20,6 @@ type Props = {
         notes: string | null;
         status: string;
         trip_status: string;
-        vehicle_photos: VehiclePhoto[];
-        vehicle_description: string | null;
     };
     driver_rating: { average: number | null; total: number };
     my_booking_id: number | null;
@@ -60,7 +56,7 @@ export default function RideShow({
                         <ArrowLeft className="size-4" /> All rides
                     </Link>
 
-                    <div className="grid grid-cols-1 gap-8 md:grid-cols-[minmax(0,1fr)_340px]">
+                    <div className="grid gap-8 md:grid-cols-[1fr_340px]">
                         <section className="space-y-6">
                             <h1 className="font-serif text-4xl md:text-5xl">
                                 {ride.origin}{' '}
@@ -96,14 +92,8 @@ export default function RideShow({
                                     </div>
                                 ))}
                             </dl>
-                            {ride.vehicle_photos.some((p) => p.url) && (
-                                <VehicleBanner
-                                    photos={ride.vehicle_photos}
-                                    description={ride.vehicle_description}
-                                />
-                            )}
                             {ride.notes && (
-                                <p className="rounded-2xl border bg-card p-5 text-muted-foreground">
+                                <p className="rounded-2xl border bg-card p-5 whitespace-pre-line text-muted-foreground">
                                     {ride.notes}
                                 </p>
                             )}
@@ -141,7 +131,7 @@ export default function RideShow({
                                     Log in to reserve
                                 </Link>
                             ) : !has_approved_id && !can_book ? (
-                                  <Link href="/settings/profile" className={primary}>
+                                <Link href="/identity" className={primary}>
                                     Verify your ID to book
                                 </Link>
                             ) : can_book ? (
