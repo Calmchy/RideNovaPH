@@ -17,6 +17,7 @@ import type { Slide } from '@/components/dashboard-slideshow';
 import { EmptyState, StatCard } from '@/components/kit';
 import { fmtDateTime, peso, StatusBadge } from '@/components/lux';
 import { cn } from '@/lib/utils';
+import AvailableDriversCard from '@/components/available-drivers-card';
 
 type Props = {
     slides: Slide[];
@@ -250,54 +251,8 @@ export default function Dashboard({
                         </p>
                     </Link>
 
-                    <section className="rounded-2xl border bg-card p-5 shadow-sm">
-                        <h2 className="mb-3 font-semibold">Top drivers</h2>
-                        {drivers.length ? (
-                            <ul className="space-y-4">
-                                {drivers.map((d) => (
-                                    <li
-                                        key={d.id}
-                                        className="flex items-start gap-3"
-                                    >
-                                        <span className="grid size-10 shrink-0 place-items-center rounded-full bg-deep text-sm font-semibold text-sand">
-                                            {d.name.slice(0, 1)}
-                                        </span>
-                                        <div className="min-w-0 text-sm">
-                                            <p className="font-medium">
-                                                {d.name}
-                                            </p>
-                                            <p className="flex items-center gap-1 text-xs text-muted-foreground">
-                                                <Star className="size-3 text-sand" />
-                                                {d.rating ?? 'New'}
-                                                {d.reviews > 0 &&
-                                                    ` (${d.reviews})`}
-                                            </p>
-                                            {d.next_ride ? (
-                                                <Link
-                                                    href={`/rides/${d.next_ride.id}`}
-                                                    className="mt-1 block truncate text-xs text-ocean hover:underline dark:text-foam"
-                                                >
-                                                    {d.next_ride.route} ·{' '}
-                                                    {fmtDateTime(
-                                                        d.next_ride
-                                                            .departure_at,
-                                                    )}
-                                                </Link>
-                                            ) : (
-                                                <p className="text-xs text-muted-foreground">
-                                                    No open rides
-                                                </p>
-                                            )}
-                                        </div>
-                                    </li>
-                                ))}
-                            </ul>
-                        ) : (
-                            <p className="text-sm text-muted-foreground">
-                                No drivers yet.
-                            </p>
-                        )}
-                    </section>
+                    {/* Available Drivers */}
+                    <AvailableDriversCard drivers={drivers} />
                 </aside>
             </div>
         </>

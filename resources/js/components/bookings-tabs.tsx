@@ -7,7 +7,7 @@ export default function BookingsTabs({
     active,
     isDriver,
 }: {
-    active: 'hire';
+    active: 'hire' | 'reviews';
     isDriver: boolean;
 }) {
     const tabs = [
@@ -23,6 +23,7 @@ export default function BookingsTabs({
               ]
             : []),
         { id: 'hire', label: 'Hire a driver', href: '/charters' },
+        { id: 'reviews', label: 'Review history', href: '/reviews' },
     ];
 
     return (

@@ -378,6 +378,12 @@ export default function BookingsIndex({
                             </EmptyState>
                         )}
                         <Pager page={bookings} />
+                                <Link
+                            href="/reviews"
+                            className="-mb-px flex items-center gap-2 border-b-2 border-transparent px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground"
+                        >
+                            Review history
+                        </Link>
                     </>
                 )}
             </div>

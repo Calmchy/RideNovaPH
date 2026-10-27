@@ -16,6 +16,7 @@ use App\Models\Ride;
 use App\Models\Setting;
 use App\Support\PartnerProfile;
 use App\Support\RidePresenter;
+use App\Support\DriverReviews;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -119,7 +120,7 @@ class BookingController extends Controller
         if (Setting::bool('require_id_for_booking') && ! $user->hasApprovedId()) {
             $this->toast('Verify your ID first, then you can reserve a seat.', 'warning');
 
-              return to_route('profile.edit');
+            return to_route('identity.create');
         }
 
         if ($ride->status !== RideStatus::Open || $ride->departure_at->isPast() || $ride->started_at || $ride->seatsLeft() < 1) {
@@ -210,8 +211,17 @@ class BookingController extends Controller
                 // What cancelling would cost the passenger RIGHT NOW (shown in the confirm dialog).
                 'cancel_fee' => TransitionBooking::feeFor($booking),
                 'cancel_fee_percent' => Setting::float('cancellation_fee_percent'),
+                // Each review carries its author (name shown with an avatar). Only the two people on
+                // this booking (and admins) can open this page, so full names are fine here.
                 'reviews' => $booking->reviews->map(fn ($r) => [
-                    'by' => $r->reviewer_role->value, 'rating' => $r->rating, 'comment' => $r->comment,
+                    'id' => $r->id,
+                    'by' => $r->reviewer_role->value,
+                    'name' => $r->reviewer_role->value === 'passenger'
+                        ? $booking->passenger->name
+                        : $booking->ride->vehicle->driver->user->name,
+                    'rating' => $r->rating,
+                    'comment' => $r->comment,
+                    'at' => $r->created_at?->toIso8601String(),
                 ]),
             ],
             // Live GPS panel: only for the two people on the trip, only while the booking is confirmed
@@ -222,6 +232,12 @@ class BookingController extends Controller
             // The OTHER person's safe profile (driver for the passenger, passenger for the driver).
             // Admins are neither party, so they get none here (they have the admin user pages).
             'partner' => $role ? PartnerProfile::for($booking, $role) : null,
+            // Ratings panel (public info about the driver of this trip).
+            'driver_reviews' => [
+                'driver_id' => $booking->ride->vehicle->driver_id,
+                'summary' => DriverReviews::summary($booking->ride->vehicle->driver_id),
+                'list' => DriverReviews::for($booking->ride->vehicle->driver_id, 5),
+            ],
             'viewer_role' => $role ?? ($user->isAdmin() ? 'admin' : null),
             // Only offer buttons the policy would actually allow. The server re-checks on every request.
             'abilities' => collect(array_keys(self::ACTIONS))

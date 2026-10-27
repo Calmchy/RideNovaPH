@@ -531,7 +531,7 @@ export default function LiveTracking({
 
             <div
                 ref={box}
-                className="h-80 w-full rounded-xl border"
+                className="relative z-0 h-80 w-full rounded-xl border"
                 role="application"
                 aria-label="Live map"
             />

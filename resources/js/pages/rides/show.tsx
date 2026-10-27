@@ -3,6 +3,8 @@ import { Head, Link } from '@inertiajs/react';
 import { usePage } from '@inertiajs/react';
 import { ArrowLeft } from 'lucide-react';
 import { fmtDateTime, peso } from '@/components/lux';
+import ReviewsPanel from '@/components/reviews-panel';
+import type { PublicReview, RatingSummary } from '@/components/reviews-panel';
 import SiteHeader from '@/components/site-header';
 
 type Props = {
@@ -22,6 +24,9 @@ type Props = {
         trip_status: string;
     };
     driver_rating: { average: number | null; total: number };
+    reviews: PublicReview[];
+    rating_summary: RatingSummary;
+    driver_id: number;
     my_booking_id: number | null;
     can_book: boolean;
     has_approved_id: boolean;
@@ -30,6 +35,9 @@ type Props = {
 export default function RideShow({
     ride,
     driver_rating,
+    reviews,
+    rating_summary,
+    driver_id,
     my_booking_id,
     can_book,
     has_approved_id,
@@ -97,6 +105,11 @@ export default function RideShow({
                                     {ride.notes}
                                 </p>
                             )}
+                            <ReviewsPanel
+                                reviews={reviews}
+                                summary={rating_summary}
+                                historyHref={`/drivers/${driver_id}/reviews`}
+                            />
                         </section>
 
                         <aside className="h-fit space-y-4 rounded-3xl bg-deep p-6 text-white shadow-lg">

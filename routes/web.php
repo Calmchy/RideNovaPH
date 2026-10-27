@@ -12,6 +12,7 @@ use App\Http\Controllers\Admin\SettingController;
 use App\Http\Controllers\Admin\TransactionController as AdminTransactionController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\BookingController;
+use App\Http\Controllers\CharterController;
 use App\Http\Controllers\ChatbotController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Driver\DashboardController as DriverDashboardController;
@@ -26,7 +27,7 @@ use App\Http\Controllers\RideController;
 use App\Http\Controllers\TrackingController;
 use App\Http\Controllers\TransactionController;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\CharterController;
+use App\Http\Controllers\DriverDirectoryController;
 
 /*
 |--------------------------------------------------------------------------
@@ -43,12 +44,17 @@ use App\Http\Controllers\CharterController;
 Route::get('/', HomeController::class)->name('home');
 Route::get('/rides', [RideController::class, 'index'])->name('rides.index');   // redirects into Bookings > Find
 Route::get('/rides/{ride}', [RideController::class, 'show'])->name('rides.show');
+Route::get('/drivers/{user}/reviews', [DriverDirectoryController::class, 'reviews'])->name('drivers.reviews');
+
 
 // Nova, the help bot. Open to guests (rate limited so it can't be used to hammer the DB).
 Route::post('/chatbot', ChatbotController::class)->middleware('throttle:20,1')->name('chatbot');
 
 // ---- Signed-in users ----
 Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('/reviews', [ReviewController::class, 'history'])->name('reviews.history');
+    Route::get('/drivers', [DriverDirectoryController::class, 'index'])->name('drivers.index');
+    Route::get('/drivers/{user}', [DriverDirectoryController::class, 'show'])->name('drivers.show');        
     Route::get('dashboard', DashboardController::class)->name('dashboard');
     Route::inertia('/about', 'about')->name('about');
 
@@ -58,19 +64,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/identity/photos', [IdentityDocumentController::class, 'photos'])
         ->middleware('throttle:10,1')->name('identity.photos');
 
-    // Bookings hub: find a ride + my reservations + (drivers) incoming requests
+    // Group charter: hire a whole vehicle. Literal paths (/charters/new) are declared before {charter}.
     Route::get('/charters', [CharterController::class, 'index'])->name('charters.index');
-Route::get('/charters/new', [CharterController::class, 'create'])->name('charters.create');
-Route::post('/charters', [CharterController::class, 'store'])->middleware('throttle:10,1')->name('charters.store');
-Route::get('/charters/{charter}', [CharterController::class, 'show'])->name('charters.show');
-Route::patch('/charters/{charter}/quote', [CharterController::class, 'quote'])->middleware('throttle:20,1')->name('charters.quote');
-Route::patch('/charters/{charter}/{action}', [CharterController::class, 'transition'])->where('action', 'accept|decline|cancel|complete')->middleware('throttle:30,1')->name('charters.transition');
-Route::get('/charters/{charter}/messages', [CharterController::class, 'messages'])->name('charters.messages');
-Route::post('/charters/{charter}/messages', [CharterController::class, 'send'])->middleware('throttle:30,1')->name('charters.send');
+    Route::get('/charters/new', [CharterController::class, 'create'])->name('charters.create');
+    Route::post('/charters', [CharterController::class, 'store'])->middleware('throttle:10,1')->name('charters.store');
+    Route::get('/charters/{charter}', [CharterController::class, 'show'])->name('charters.show');
+    Route::patch('/charters/{charter}/quote', [CharterController::class, 'quote'])->middleware('throttle:20,1')->name('charters.quote');
+    Route::patch('/charters/{charter}/{action}', [CharterController::class, 'transition'])
+        ->where('action', 'accept|decline|cancel|complete')->middleware('throttle:30,1')->name('charters.transition');
+    Route::get('/charters/{charter}/messages', [CharterController::class, 'messages'])->name('charters.messages');
+    Route::post('/charters/{charter}/messages', [CharterController::class, 'send'])->middleware('throttle:30,1')->name('charters.send');
 
-Route::patch('/availability', [CharterController::class, 'availability'])->name('availability');
-    
-
+    // Bookings hub: find a ride + my reservations + (drivers) incoming requests
     Route::get('/bookings', [BookingController::class, 'index'])->name('bookings.index');
     Route::get('/rides/{ride}/book', [BookingController::class, 'create'])->name('bookings.create');
     Route::post('/rides/{ride}/book', [BookingController::class, 'store'])->middleware('throttle:10,1')->name('bookings.store');
@@ -107,7 +112,10 @@ Route::middleware(['auth', 'verified', 'driver'])->prefix('driver')->name('drive
     Route::post('/apply', [DriverApplicationController::class, 'store'])->middleware('throttle:5,1')->name('apply.store');
     Route::post('/license/photos', [DriverApplicationController::class, 'replacePhotos'])
         ->middleware('throttle:10,1')->name('license.photos');
-          
+
+    // Driver's on/off switch for the "Hire a driver" banner.
+    Route::patch('/availability', [CharterController::class, 'availability'])->name('availability');
+
     Route::get('/vehicles', [VehicleController::class, 'index'])->name('vehicles.index');
     Route::post('/vehicles', [VehicleController::class, 'store'])->middleware('throttle:20,1')->name('vehicles.store');
     Route::patch('/vehicles/{vehicle}', [VehicleController::class, 'update'])->name('vehicles.update');
@@ -121,6 +129,7 @@ Route::middleware(['auth', 'verified', 'driver'])->prefix('driver')->name('drive
     Route::get('/rides/create', [DriverRideController::class, 'create'])->name('rides.create');
     Route::post('/rides', [DriverRideController::class, 'store'])->middleware('throttle:20,1')->name('rides.store');
     Route::get('/rides/{ride}', [DriverRideController::class, 'show'])->name('rides.show');
+   
     Route::patch('/rides/{ride}/start', [DriverRideController::class, 'start'])->name('rides.start');
     Route::patch('/rides/{ride}/complete', [DriverRideController::class, 'complete'])->name('rides.complete');
     Route::patch('/rides/{ride}/cancel', [DriverRideController::class, 'cancel'])->name('rides.cancel');

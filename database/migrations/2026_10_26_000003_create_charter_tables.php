@@ -14,11 +14,15 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('driver_profiles', function (Blueprint $table) {
-            $table->boolean('available_for_hire')->default(true);
-        });
+        // Each step checks first, so re-running after a half-finished attempt is safe.
+        if (! Schema::hasColumn('driver_profiles', 'available_for_hire')) {
+            Schema::table('driver_profiles', function (Blueprint $table) {
+                $table->boolean('available_for_hire')->default(true);
+            });
+        }
 
-        Schema::create('charter_requests', function (Blueprint $table) {
+        if (! Schema::hasTable('charter_requests')) {
+            Schema::create('charter_requests', function (Blueprint $table) {
             $table->id();
             $table->string('reference_no', 30)->unique();
             $table->foreignId('passenger_id')->constrained('users')->cascadeOnDelete();
@@ -44,9 +48,11 @@ return new class extends Migration
 
             $table->index(['driver_id', 'status']);
             $table->index(['passenger_id', 'status']);
-        });
+            });
+        }
 
-        Schema::create('charter_messages', function (Blueprint $table) {
+        if (! Schema::hasTable('charter_messages')) {
+            Schema::create('charter_messages', function (Blueprint $table) {
             $table->id();
             $table->foreignId('charter_request_id')->constrained('charter_requests')->cascadeOnDelete();
             $table->foreignId('user_id')->constrained('users')->cascadeOnDelete();
@@ -54,15 +60,18 @@ return new class extends Migration
             $table->timestamps();
 
             $table->index(['charter_request_id', 'id']);
-        });
+            });
+        }
     }
 
     public function down(): void
     {
         Schema::dropIfExists('charter_messages');
         Schema::dropIfExists('charter_requests');
-        Schema::table('driver_profiles', function (Blueprint $table) {
-            $table->dropColumn('available_for_hire');
-        });
+        if (Schema::hasColumn('driver_profiles', 'available_for_hire')) {
+            Schema::table('driver_profiles', function (Blueprint $table) {
+                $table->dropColumn('available_for_hire');
+            });
+        }
     }
 };
