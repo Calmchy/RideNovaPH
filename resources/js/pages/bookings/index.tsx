@@ -1,7 +1,7 @@
 // The ONE "Bookings" page: Find a ride | My bookings | Requests (drivers).
 // Every filter below is a real GET request handled by BookingController@index.
 import { Head, Link, router } from '@inertiajs/react';
-import { Eye, Receipt } from 'lucide-react';
+import { Eye, Plus, Receipt } from 'lucide-react';
 import {
     EmptyState,
     FilterBar,
@@ -122,6 +122,7 @@ export default function BookingsIndex({
             ? [{ id: 'requests', label: 'Requests', badge: pending_requests }]
             : []),
     ];
+    // "Hire a driver" lives on its own page (/charters) but sits in the same tab row.
     const cityOptions = (cities ?? []).map((c) => ({
         value: c.id,
         label: c.name,
@@ -134,6 +135,17 @@ export default function BookingsIndex({
                 <PageHeader
                     title="Bookings"
                     description="Find a seat, manage your reservations and keep your reference numbers in one place."
+                    // Drivers get a shortcut so they don't have to switch to the Driver area first.
+                    // The server still checks the driver role + approval on /driver/rides/create.
+                    actions={
+                        is_driver ? (
+                            <Button asChild>
+                                <Link href="/driver/rides/create">
+                                    <Plus /> Publish a ride
+                                </Link>
+                            </Button>
+                        ) : undefined
+                    }
                 />
 
                 <nav
@@ -160,6 +172,12 @@ export default function BookingsIndex({
                             ) : null}
                         </Link>
                     ))}
+                    <Link
+                        href="/charters"
+                        className="-mb-px flex items-center gap-2 border-b-2 border-transparent px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground"
+                    >
+                        Hire a driver
+                    </Link>
                 </nav>
 
                 {tab === 'find' && rides && (
@@ -360,6 +378,12 @@ export default function BookingsIndex({
                             </EmptyState>
                         )}
                         <Pager page={bookings} />
+                                <Link
+                            href="/reviews"
+                            className="-mb-px flex items-center gap-2 border-b-2 border-transparent px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground"
+                        >
+                            Review history
+                        </Link>
                     </>
                 )}
             </div>

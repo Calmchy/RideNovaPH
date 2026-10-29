@@ -13,7 +13,7 @@ use App\Models\Ride;
 class RidePresenter
 {
     /** Relations every card needs; use with Ride::with(RidePresenter::WITH). */
-    public const WITH = ['origin', 'destination', 'vehicle.model.make', 'vehicle.driver.user'];
+    public const WITH = ['origin', 'destination', 'vehicle.model.make', 'vehicle.driver.user', 'announcement'];
 
     public static function card(Ride $ride): array
     {
@@ -30,6 +30,7 @@ class RidePresenter
                 $ride->vehicle->model->make->name.' '.$ride->vehicle->model->name.' · '.$ride->vehicle->color
             ),
             'driver_name' => $ride->vehicle->driver->user->name,
+            'event' => $ride->eventLabel(),
         ];
     }
 

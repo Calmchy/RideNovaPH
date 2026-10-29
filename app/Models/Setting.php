@@ -35,6 +35,7 @@ class Setting extends Model
         'tracking_window_hours' => '2',        // live GPS opens this many hours before departure (or when the driver starts the trip)
         'arrival_radius_m' => '150',           // driver this close to the pinned pick-up = "arrived"
         'cancellation_fee_percent' => '20',    // % of the fare charged when cancelling AFTER the driver approved
+        'max_open_charters' => '3',            // open group-charter requests one passenger may hold at once
         'require_id_for_booking' => '1',       // 1 = approved ID needed to reserve (proposal rule)
         'support_email' => 'support@ridenovaph.test',
     ];

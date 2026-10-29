@@ -99,22 +99,15 @@ class DashboardController extends Controller
         return $out;
     }
 
-    /** Top approved drivers with their passenger rating and next open ride. */
+    /**
+     * Verified drivers for the dashboard card. Alphabetical, NOT ranked by rating, so drivers
+     * don't compete for the top spot. Each shows the route they are on (their next open ride).
+     */
     private function drivers(): array
     {
-        $ratings = DB::table('reviews')
-            ->join('bookings', 'bookings.id', '=', 'reviews.booking_id')
-            ->join('rides', 'rides.id', '=', 'bookings.ride_id')
-            ->join('vehicles', 'vehicles.id', '=', 'rides.vehicle_id')
-            ->where('reviews.reviewer_role', 'passenger')
-            ->groupBy('vehicles.driver_id')
-            ->selectRaw('vehicles.driver_id as driver_id, AVG(reviews.rating) as average, COUNT(*) as total')
-            ->get()->keyBy('driver_id');
-
-        return DriverProfile::with('user:id,name')
-            ->where('status', ApprovalStatus::Approved->value)->limit(12)->get()
-            ->map(function (DriverProfile $p) use ($ratings) {
-                $r = $ratings->get($p->user_id);
+        return DriverDirectoryController::verifiedDrivers()->with('user:id,name')->get()
+            ->sortBy(fn (DriverProfile $p) => mb_strtolower($p->user->name))->take(5)->values()
+            ->map(function (DriverProfile $p) {
                 $next = Ride::with(['origin', 'destination'])->available()
                     ->whereHas('vehicle', fn ($q) => $q->where('driver_id', $p->user_id))
                     ->orderBy('departure_at')->first();
@@ -122,15 +115,12 @@ class DashboardController extends Controller
                 return [
                     'id' => $p->user_id,
                     'name' => $p->user->name,
-                    'rating' => $r ? round((float) $r->average, 1) : null,
-                    'reviews' => $r ? (int) $r->total : 0,
                     'next_ride' => $next ? [
                         'id' => $next->id,
                         'route' => $next->origin->name.' → '.$next->destination->name,
                         'departure_at' => $next->departure_at->toIso8601String(),
                     ] : null,
                 ];
-            })
-            ->sortByDesc(fn ($d) => $d['rating'] ?? 0)->take(5)->values()->all();
+            })->all();
     }
 }
