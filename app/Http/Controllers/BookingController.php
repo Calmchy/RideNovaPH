@@ -4,15 +4,19 @@ namespace App\Http\Controllers;
 
 use App\Actions\Bookings\ReserveSeat;
 use App\Actions\Bookings\TransitionBooking;
+use App\Actions\Payments\CollectPayment;
 use App\Actions\Tracking\RecordLocation;
 use App\Enums\BookingStatus;
+use App\Enums\PaymentStatus;
 use App\Enums\RideStatus;
 use App\Http\Requests\StoreBookingRequest;
 use App\Models\Booking;
 use App\Models\City;
 use App\Models\Ride;
 use App\Models\Setting;
+use App\Support\PartnerProfile;
 use App\Support\RidePresenter;
+use App\Support\DriverReviews;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -116,7 +120,7 @@ class BookingController extends Controller
         if (Setting::bool('require_id_for_booking') && ! $user->hasApprovedId()) {
             $this->toast('Verify your ID first, then you can reserve a seat.', 'warning');
 
-              return to_route('profile.edit');
+            return to_route('identity.create');
         }
 
         if ($ride->status !== RideStatus::Open || $ride->departure_at->isPast() || $ride->started_at || $ride->seatsLeft() < 1) {
@@ -163,7 +167,7 @@ class BookingController extends Controller
     {
         $this->authorize('view', $booking);
         $user = $request->user();
-        $booking->load(['ride' => fn ($q) => $q->with(RidePresenter::WITH), 'passenger:id,name', 'reviews', 'payment']);
+        $booking->load(['ride' => fn ($q) => $q->with(RidePresenter::WITH), 'passenger:id,name,phone_number,created_at', 'reviews', 'payment']);
         $role = $booking->roleOf($user); // passenger | driver | null (admin)
 
         return Inertia::render('bookings/show', [
@@ -207,8 +211,17 @@ class BookingController extends Controller
                 // What cancelling would cost the passenger RIGHT NOW (shown in the confirm dialog).
                 'cancel_fee' => TransitionBooking::feeFor($booking),
                 'cancel_fee_percent' => Setting::float('cancellation_fee_percent'),
+                // Each review carries its author (name shown with an avatar). Only the two people on
+                // this booking (and admins) can open this page, so full names are fine here.
                 'reviews' => $booking->reviews->map(fn ($r) => [
-                    'by' => $r->reviewer_role->value, 'rating' => $r->rating, 'comment' => $r->comment,
+                    'id' => $r->id,
+                    'by' => $r->reviewer_role->value,
+                    'name' => $r->reviewer_role->value === 'passenger'
+                        ? $booking->passenger->name
+                        : $booking->ride->vehicle->driver->user->name,
+                    'rating' => $r->rating,
+                    'comment' => $r->comment,
+                    'at' => $r->created_at?->toIso8601String(),
                 ]),
             ],
             // Live GPS panel: only for the two people on the trip, only while the booking is confirmed
@@ -216,12 +229,39 @@ class BookingController extends Controller
             'tracking' => $role && $booking->status === BookingStatus::Confirmed && RecordLocation::windowOpen($booking->ride)
                 ? ['ride_id' => $booking->ride_id, 'role' => $role]
                 : null,
+            // The OTHER person's safe profile (driver for the passenger, passenger for the driver).
+            // Admins are neither party, so they get none here (they have the admin user pages).
+            'partner' => $role ? PartnerProfile::for($booking, $role) : null,
+            // Ratings panel (public info about the driver of this trip).
+            'driver_reviews' => [
+                'driver_id' => $booking->ride->vehicle->driver_id,
+                'summary' => DriverReviews::summary($booking->ride->vehicle->driver_id),
+                'list' => DriverReviews::for($booking->ride->vehicle->driver_id, 5),
+            ],
             'viewer_role' => $role ?? ($user->isAdmin() ? 'admin' : null),
             // Only offer buttons the policy would actually allow. The server re-checks on every request.
             'abilities' => collect(array_keys(self::ACTIONS))
                 ->mapWithKeys(fn ($a) => [$a => $user->can($a, $booking) && $this->legal($booking, $a)])
-                ->all() + ['review' => $user->can('review', $booking)],
+                ->all() + [
+                    'review' => $user->can('review', $booking),
+                    // Driver's "Mark as paid": only while the money is still outstanding on a live booking.
+                    'collect' => $user->can('collect', $booking)
+                        && in_array($booking->status, [BookingStatus::Approved, BookingStatus::Confirmed], true)
+                        && $booking->payment?->status === PaymentStatus::Pending,
+                ],
         ]);
+    }
+
+    /** PATCH /bookings/{booking}/paid : the driver confirms the passenger handed over the cash. */
+    public function collect(Request $request, Booking $booking, CollectPayment $collect): RedirectResponse
+    {
+        $this->authorize('collect', $booking->loadMissing('ride.vehicle'));
+
+        $collect->handle($booking, $request->user());
+
+        $this->toast('Payment recorded. Receipt issued.');
+
+        return back();
     }
 
     /** PATCH /bookings/{booking}/{action} : approve | confirm | complete | cancel. */
@@ -248,7 +288,9 @@ class BookingController extends Controller
             'approve' => $booking->status === BookingStatus::Pending,
             'confirm' => $booking->status === BookingStatus::Approved,
             'complete' => $booking->status === BookingStatus::Confirmed,
-            'cancel' => in_array($booking->status, [BookingStatus::Pending, BookingStatus::Approved, BookingStatus::Confirmed], true),
+            // No cancel button once the booking is paid (the server enforces this too).
+            'cancel' => in_array($booking->status, [BookingStatus::Pending, BookingStatus::Approved, BookingStatus::Confirmed], true)
+                && $booking->payment?->status !== PaymentStatus::Paid,
         };
     }
 

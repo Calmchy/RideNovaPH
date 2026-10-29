@@ -206,7 +206,8 @@ export default function TripMap({
     return (
         <div
             ref={box}
-            className={className ?? 'h-72 w-full rounded-xl'}
+            // relative + z-0 traps Leaflet's internal z-indexes (up to 1000) so the map can't float over pop-ups.
+            className={`relative z-0 ${className ?? 'h-72 w-full rounded-xl'}`}
             role="application"
             aria-label="Map"
         />

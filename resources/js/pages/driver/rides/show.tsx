@@ -25,6 +25,8 @@ type Props = {
         seats_taken: number;
         price_per_seat: string;
         trip_status: string;
+        notes: string | null;
+        event: string | null;
         started_at: string | null;
         cancellation_reason: string | null;
     };
@@ -101,6 +103,24 @@ export default function DriverRideShow({ ride, passengers }: Props) {
                         </p>
                     )}
             </div>
+
+            {(ride.notes || ride.event) && (
+                <Panel title="Trip description">
+                    <div className="grid gap-2 p-5 text-sm">
+                        {ride.event && (
+                            <p>
+                                <span className="text-muted-foreground">
+                                    Event:{' '}
+                                </span>
+                                <strong>{ride.event}</strong>
+                            </p>
+                        )}
+                        {ride.notes && (
+                            <p className="whitespace-pre-line">{ride.notes}</p>
+                        )}
+                    </div>
+                </Panel>
+            )}
 
             <Panel title="Passenger list">
                 {passengers.length ? (

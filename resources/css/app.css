@@ -67,7 +67,7 @@
     --color-sand: var(--brand-sand);
     --color-foam: var(--brand-foam);
     /* Readable coral for text on light backgrounds (coral mixed with deep). */
-    --color-coral-ink: color-mix(in oklab, var(--brand-coral) 70%, var(--brand-deep));
+    --color-coral-ink: color-mix(in oklab, var(--brand-coral) 65%, black);
 }
 
 :root {
@@ -81,24 +81,29 @@
     --brand-sand: #f4d19a; /* warm accent, pending states         */
     --brand-foam: #aee8d8; /* soft surfaces, success tints        */
 
-    --background: color-mix(in oklab, var(--brand-foam) 14%, white);
-    --foreground: var(--brand-deep);
+    /* LIGHT MODE ink: true black text on white for a crisp, sharp look.
+       (Dark mode keeps the palette's own colours; brand colours stay the 5 above.) */
+    --ink: #000000;
+
+    --background: color-mix(in oklab, var(--brand-foam) 9%, white);
+    --foreground: var(--ink);
     --card: white;
-    --card-foreground: var(--brand-deep);
+    --card-foreground: var(--ink);
     --popover: white;
-    --popover-foreground: var(--brand-deep);
+    --popover-foreground: var(--ink);
     --primary: var(--brand-ocean);
     --primary-foreground: white;
     --secondary: color-mix(in oklab, var(--brand-foam) 45%, white);
-    --secondary-foreground: var(--brand-deep);
+    --secondary-foreground: var(--ink);
     --muted: color-mix(in oklab, var(--brand-foam) 24%, white);
-    --muted-foreground: color-mix(in oklab, var(--brand-deep) 62%, white);
+    /* Secondary text: dark grey (about 7:1 contrast on white) so it stays readable, not washed out. */
+    --muted-foreground: color-mix(in oklab, var(--ink) 68%, white);
     --accent: color-mix(in oklab, var(--brand-sand) 40%, white);
-    --accent-foreground: var(--brand-deep);
-    --destructive: color-mix(in oklab, var(--brand-coral) 80%, var(--brand-deep));
+    --accent-foreground: var(--ink);
+    --destructive: color-mix(in oklab, var(--brand-coral) 80%, var(--ink));
     --destructive-foreground: white;
-    --border: color-mix(in oklab, var(--brand-deep) 14%, white);
-    --input: color-mix(in oklab, var(--brand-deep) 18%, white);
+    --border: color-mix(in oklab, var(--ink) 16%, white);
+    --input: color-mix(in oklab, var(--ink) 22%, white);
     --ring: var(--brand-ocean);
     --chart-1: var(--brand-ocean);
     --chart-2: var(--brand-coral);
@@ -146,6 +151,7 @@
     }
 
     body {
-        @apply bg-background text-foreground;
+        @apply bg-background text-foreground antialiased;
+        text-rendering: optimizeLegibility;
     }
 }
