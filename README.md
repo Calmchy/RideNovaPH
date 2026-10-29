@@ -1,6 +1,9 @@
 # Laravel-Project
 System Integration & Architecture
 
+## LEADER
+### Geonard Pagaduan
+
 ## Members
 ### John Paul Lelis
-### Geonard Pagaduan
+### Chyril Manatad
