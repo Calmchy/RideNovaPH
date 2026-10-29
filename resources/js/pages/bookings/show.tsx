@@ -5,9 +5,12 @@ import { Check, Copy, Receipt } from 'lucide-react';
 import { useState } from 'react';
 import { Panel, ReasonDialog } from '@/components/kit';
 import LiveTracking from '@/components/live-tracking';
-import { fmtDateTime, peso, Stars, StatusBadge } from '@/components/lux';
+import { fmtDateTime, peso, StatusBadge } from '@/components/lux';
 import PartnerCard from '@/components/partner-card';
 import type { Partner } from '@/components/partner-card';
+import ReviewForm from '@/components/review-form';
+import ReviewsPanel from '@/components/reviews-panel';
+import type { PublicReview, RatingSummary } from '@/components/reviews-panel';
 import SlideToConfirm from '@/components/slide-to-confirm';
 import TripMap from '@/components/trip-map';
 import { Button } from '@/components/ui/button';
@@ -63,10 +66,22 @@ type Props = {
         } | null;
         cancel_fee: number;
         cancel_fee_percent: number;
-        reviews: { by: string; rating: number; comment: string | null }[];
+        reviews: {
+            id: number;
+            by: string;
+            name: string;
+            rating: number;
+            comment: string | null;
+            at: string | null;
+        }[];
     };
     tracking: { ride_id: number; role: 'driver' | 'passenger' } | null;
     partner: Partner | null;
+    driver_reviews: {
+        driver_id: number;
+        summary: RatingSummary;
+        list: PublicReview[];
+    };
     viewer_role: 'passenger' | 'driver' | 'admin' | null;
     abilities: {
         approve: boolean;
@@ -87,13 +102,12 @@ const LABEL = {
 export default function BookingShow({
     booking: b,
     viewer_role,
+    driver_reviews,
     abilities,
     tracking,
     partner,
 }: Props) {
     const [copied, setCopied] = useState(false);
-    const [rating, setRating] = useState(5);
-    const [comment, setComment] = useState('');
 
     const act = (action: string, data: Record<string, string> = {}) =>
         router.patch(`/bookings/${b.id}/${action}`, data, {
@@ -422,75 +436,24 @@ export default function BookingShow({
                     />
                 )}
 
-                {b.reviews.length > 0 && (
-                    <section className="space-y-3">
-                        <h2 className="font-serif text-2xl">Reviews</h2>
-                        {b.reviews.map((r) => (
-                            <div
-                                key={r.by}
-                                className="rounded-xl border bg-card p-4"
-                            >
-                                <p className="text-sm text-muted-foreground">
-                                    From the {r.by}
-                                </p>
-                                <Stars value={r.rating} />
-                                {r.comment && (
-                                    <p className="mt-1 text-sm">{r.comment}</p>
-                                )}
-                            </div>
-                        ))}
-                    </section>
-                )}
-
-                {abilities.review && (
-                    <Panel title="How was the trip?">
-                        <div className="space-y-3 p-5">
-                            <div
-                                className="flex gap-1"
-                                role="radiogroup"
-                                aria-label="Rating"
-                            >
-                                {[1, 2, 3, 4, 5].map((n) => (
-                                    <button
-                                        key={n}
-                                        type="button"
-                                        role="radio"
-                                        aria-checked={rating === n}
-                                        aria-label={`${n} stars`}
-                                        onClick={() => setRating(n)}
-                                        className={cn(
-                                            'text-3xl transition',
-                                            n <= rating
-                                                ? 'text-sand'
-                                                : 'text-muted-foreground/30',
-                                        )}
-                                    >
-                                        ★
-                                    </button>
-                                ))}
-                            </div>
-                            <textarea
-                                value={comment}
-                                onChange={(e) => setComment(e.target.value)}
-                                maxLength={1000}
-                                rows={3}
-                                placeholder="Optional comment"
-                                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-                            />
-                            <Button
-                                onClick={() =>
-                                    router.post(
-                                        `/bookings/${b.id}/reviews`,
-                                        { rating, comment },
-                                        { preserveScroll: true },
-                                    )
+                {/* Ratings only; "Write a Review" opens the review banner (a pop-up). */}
+                <ReviewsPanel
+                    reviews={driver_reviews.list}
+                    summary={driver_reviews.summary}
+                    historyHref={`/drivers/${driver_reviews.driver_id}/reviews`}
+                    action={
+                        abilities.review ? (
+                            <ReviewForm
+                                bookingId={b.id}
+                                target={
+                                    viewer_role === 'driver'
+                                        ? 'this passenger'
+                                        : 'your driver'
                                 }
-                            >
-                                Submit review
-                            </Button>
-                        </div>
-                    </Panel>
-                )}
+                            />
+                        ) : undefined
+                    }
+                />
             </div>
         </>
     );

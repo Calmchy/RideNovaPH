@@ -14,11 +14,24 @@ class StoreRideRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
-        foreach (['pickup_point', 'dropoff_point', 'notes'] as $field) {
+        foreach (['pickup_point', 'dropoff_point', 'notes', 'event_name'] as $field) {
             if (is_string($this->input($field))) {
                 $this->merge([$field => trim(strip_tags($this->input($field)))]);
             }
         }
+    }
+
+    /** After validation: a typed event replaces any picked announcement (one or the other, never both). */
+    public function validated($key = null, $default = null)
+    {
+        $data = parent::validated();
+
+        $data['event_name'] = filled($data['event_name'] ?? null) ? $data['event_name'] : null;
+        if ($data['event_name']) {
+            $data['announcement_id'] = null;
+        }
+
+        return $key ? data_get($data, $key, $default) : $data;
     }
 
     public function rules(): array
@@ -32,8 +45,9 @@ class StoreRideRequest extends FormRequest
             'departure_at' => ['required', 'date', 'after:now'],
             'seats_offered' => ['required', 'integer', 'min:1', 'max:20'],
             'price_per_seat' => ['required', 'numeric', 'min:0', 'max:50000'],
-            'notes' => ['nullable', 'string', 'max:255'],
+            'notes' => ['nullable', 'string', 'max:1000'],
             'announcement_id' => ['nullable', 'integer', 'exists:announcements,id'],
+            'event_name' => ['nullable', 'string', 'max:120'],
         ];
     }
 }

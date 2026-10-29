@@ -1,6 +1,6 @@
 import { Link } from '@inertiajs/react';
 import { CalendarClock, MapPin, Users } from 'lucide-react';
-import { fmtDateTime, peso } from '@/components/lux';
+import { fmtDateTime, LIFT_3D, peso } from '@/components/lux';
 
 export type RideCardData = {
     id: number;
@@ -12,12 +12,13 @@ export type RideCardData = {
     seats_left: number;
     vehicle: string;
     driver_name: string;
+    event?: string | null;
 };
 
 /** One ride. The title area opens the details page; the button goes straight to Review & Reserve. */
 export default function RideCard({ ride }: { ride: RideCardData }) {
     return (
-        <div className="group flex flex-col gap-4 rounded-2xl border bg-card p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg">
+        <div className={`group flex flex-col gap-4 rounded-2xl border bg-card p-5 shadow-sm ${LIFT_3D}`}>
             <Link href={`/rides/${ride.id}`} className="space-y-3">
                 <div className="flex items-start justify-between gap-3">
                     <h3 className="font-serif text-xl">
@@ -28,6 +29,11 @@ export default function RideCard({ ride }: { ride: RideCardData }) {
                         {peso(ride.price_per_seat)}
                     </span>
                 </div>
+                {ride.event && (
+                    <p className="inline-block rounded-full bg-foam/60 px-3 py-0.5 text-xs font-medium text-deep">
+                        {ride.event}
+                    </p>
+                )}
                 <ul className="space-y-1.5 text-sm text-muted-foreground">
                     <li className="flex items-center gap-2">
                         <CalendarClock className="size-4 text-ocean" />

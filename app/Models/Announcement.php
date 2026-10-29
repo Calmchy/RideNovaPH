@@ -56,6 +56,25 @@ class Announcement extends Model
     }
 
     /** Published announcements that haven't happened yet (Query 8). */
+    /**
+     * Announcements a driver may attach a ride to: every PUBLISHED one that is either undated or
+     * not past yet. So anything an admin posts shows up in the driver's "event" list straight away.
+     */
+    public function scopeForRides(Builder $query): Builder
+    {
+        return $query->where('is_published', true)
+            ->where(fn ($w) => $w->whereNull('exam_date')->orWhereDate('exam_date', '>=', today()))
+            ->orderByRaw('exam_date IS NULL')   // dated events first, soonest first
+            ->orderBy('exam_date')
+            ->orderByDesc('id');
+    }
+
+    /** Just the event ("TESDA NC II Assessment"), without the " — Maasin" location suffix in the title. */
+    public function eventName(): string
+    {
+        return trim(preg_split('/\s+[—–-]\s+/u', $this->title)[0]);
+    }
+
     public function scopeUpcoming(Builder $query): Builder
     {
         return $query->where('is_published', true)

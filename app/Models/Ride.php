@@ -16,7 +16,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Ride extends Model
 {
     protected $fillable = [
-        'vehicle_id', 'announcement_id', 'origin_city_id', 'destination_city_id',
+        'vehicle_id', 'announcement_id', 'event_name', 'origin_city_id', 'destination_city_id',
         'pickup_point', 'dropoff_point', 'departure_at', 'seats_offered',
         'price_per_seat', 'notes', 'status',
         'started_at', 'completed_at', 'cancelled_at', 'cancellation_reason',
@@ -37,6 +37,12 @@ class Ride extends Model
     public function vehicle(): BelongsTo
     {
         return $this->belongsTo(Vehicle::class);
+    }
+
+    /** The event this ride is for: the driver's own wording if they wrote one, else the linked announcement's name. */
+    public function eventLabel(): ?string
+    {
+        return $this->event_name ?: $this->announcement?->eventName();
     }
 
     public function announcement(): BelongsTo

@@ -12,6 +12,14 @@ class StoreReviewRequest extends FormRequest
         return $this->user()->can('review', $this->route('booking'));
     }
 
+    /** Reviews are shown publicly, so strip any HTML before validating. */
+    protected function prepareForValidation(): void
+    {
+        if (is_string($this->comment)) {
+            $this->merge(['comment' => trim(strip_tags($this->comment)) ?: null]);
+        }
+    }
+
     public function rules(): array
     {
         return [

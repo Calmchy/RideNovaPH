@@ -3,9 +3,9 @@ import { Head, Link } from '@inertiajs/react';
 import { usePage } from '@inertiajs/react';
 import { ArrowLeft } from 'lucide-react';
 import { fmtDateTime, peso } from '@/components/lux';
+import ReviewsPanel from '@/components/reviews-panel';
+import type { PublicReview, RatingSummary } from '@/components/reviews-panel';
 import SiteHeader from '@/components/site-header';
-import VehicleBanner from '@/components/vehicle-banner';
-import type { VehiclePhoto } from '@/components/vehicle-banner';
 
 type Props = {
     ride: {
@@ -22,10 +22,11 @@ type Props = {
         notes: string | null;
         status: string;
         trip_status: string;
-        vehicle_photos: VehiclePhoto[];
-        vehicle_description: string | null;
     };
     driver_rating: { average: number | null; total: number };
+    reviews: PublicReview[];
+    rating_summary: RatingSummary;
+    driver_id: number;
     my_booking_id: number | null;
     can_book: boolean;
     has_approved_id: boolean;
@@ -34,6 +35,9 @@ type Props = {
 export default function RideShow({
     ride,
     driver_rating,
+    reviews,
+    rating_summary,
+    driver_id,
     my_booking_id,
     can_book,
     has_approved_id,
@@ -60,7 +64,7 @@ export default function RideShow({
                         <ArrowLeft className="size-4" /> All rides
                     </Link>
 
-                    <div className="grid grid-cols-1 gap-8 md:grid-cols-[minmax(0,1fr)_340px]">
+                    <div className="grid gap-8 md:grid-cols-[1fr_340px]">
                         <section className="space-y-6">
                             <h1 className="font-serif text-4xl md:text-5xl">
                                 {ride.origin}{' '}
@@ -96,17 +100,16 @@ export default function RideShow({
                                     </div>
                                 ))}
                             </dl>
-                            {ride.vehicle_photos.some((p) => p.url) && (
-                                <VehicleBanner
-                                    photos={ride.vehicle_photos}
-                                    description={ride.vehicle_description}
-                                />
-                            )}
                             {ride.notes && (
-                                <p className="rounded-2xl border bg-card p-5 text-muted-foreground">
+                                <p className="rounded-2xl border bg-card p-5 whitespace-pre-line text-muted-foreground">
                                     {ride.notes}
                                 </p>
                             )}
+                            <ReviewsPanel
+                                reviews={reviews}
+                                summary={rating_summary}
+                                historyHref={`/drivers/${driver_id}/reviews`}
+                            />
                         </section>
 
                         <aside className="h-fit space-y-4 rounded-3xl bg-deep p-6 text-white shadow-lg">
@@ -141,7 +144,7 @@ export default function RideShow({
                                     Log in to reserve
                                 </Link>
                             ) : !has_approved_id && !can_book ? (
-                                  <Link href="/settings/profile" className={primary}>
+                                <Link href="/identity" className={primary}>
                                     Verify your ID to book
                                 </Link>
                             ) : can_book ? (

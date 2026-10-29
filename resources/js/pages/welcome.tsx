@@ -2,7 +2,7 @@ import { Head, Link } from '@inertiajs/react';
 import { BadgeCheck, CalendarCheck, Car, Search, Star } from 'lucide-react';
 import BannerSlideshow from '@/components/banner-slideshow';
 import type { Banner } from '@/components/banner-slideshow';
-import { fmtDate } from '@/components/lux';
+import { fmtDate, LIFT_3D } from '@/components/lux';
 import RideCard from '@/components/ride-card';
 import type { RideCardData } from '@/components/ride-card';
 import SiteHeader from '@/components/site-header';
@@ -55,15 +55,15 @@ export default function Welcome({ banners, rides, announcements }: Props) {
                 <SiteHeader />
                 <BannerSlideshow banners={banners} />
 
-                <main className="mx-auto max-w-7xl space-y-16 px-4 py-12 sm:px-5 md:space-y-24 md:py-20">
+                <main className="mx-auto max-w-7xl space-y-24 px-5 py-20">
                     <section>
-                        <div className="mb-6 flex flex-wrap items-end justify-between gap-x-4 gap-y-1 md:mb-8">
-                            <h2 className="font-serif text-3xl md:text-4xl">
+                        <div className="mb-8 flex items-end justify-between">
+                            <h2 className="font-serif text-4xl">
                                 Upcoming rides
                             </h2>
                             <Link
                                 href="/bookings?tab=find"
-                                className="text-sm whitespace-nowrap text-ocean hover:underline dark:text-foam"
+                                className="text-sm text-ocean hover:underline dark:text-foam"
                             >
                                 Browse in Bookings →
                             </Link>
@@ -84,7 +84,7 @@ export default function Welcome({ banners, rides, announcements }: Props) {
 
                     {announcements.length > 0 && (
                         <section>
-                            <h2 className="mb-6 font-serif text-3xl md:mb-8 md:text-4xl">
+                            <h2 className="mb-8 font-serif text-4xl">
                                 Exam schedules and notices
                             </h2>
                             <div className="grid gap-4 md:grid-cols-2">
@@ -96,7 +96,7 @@ export default function Welcome({ banners, rides, announcements }: Props) {
                                                 ? `/bookings?tab=find&destination=${a.city_id}`
                                                 : '/bookings?tab=find'
                                         }
-                                        className="overflow-hidden rounded-2xl border bg-card transition hover:border-ocean hover:shadow-md"
+                                        className={`overflow-hidden rounded-2xl border bg-card ${LIFT_3D}`}
                                     >
                                         {a.image_url && (
                                             <img
@@ -132,14 +132,14 @@ export default function Welcome({ banners, rides, announcements }: Props) {
                     )}
 
                     <section>
-                        <h2 className="mb-8 text-center font-serif text-3xl md:mb-10 md:text-4xl">
+                        <h2 className="mb-10 text-center font-serif text-4xl">
                             How RideNovaPH works
                         </h2>
-                        <div className="grid gap-4 sm:grid-cols-2 md:gap-6 lg:grid-cols-4">
+                        <div className="grid gap-6 md:grid-cols-4">
                             {STEPS.map(({ icon: Icon, title, text }, n) => (
                                 <div
                                     key={title}
-                                    className="rounded-2xl border bg-card p-6"
+                                    className={`rounded-2xl border bg-card p-6 ${LIFT_3D}`}
                                 >
                                     <Icon className="size-8 text-ocean" />
                                     <p className="mt-4 text-xs text-muted-foreground">
@@ -165,7 +165,7 @@ export default function Welcome({ banners, rides, announcements }: Props) {
                     </section>
                 </main>
 
-                <footer className="bg-deep px-5 pt-8 pb-24 text-center text-sm text-foam/70 md:pb-8">
+                <footer className="bg-deep py-8 text-center text-sm text-foam/70">
                     © {new Date().getFullYear()} RideNovaPH · Cash on ride ·
                     Your ID is stored privately and viewed only by admins.
                 </footer>
