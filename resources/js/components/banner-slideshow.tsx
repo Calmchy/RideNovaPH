@@ -51,6 +51,7 @@ export default function BannerSlideshow({ banners }: { banners: Banner[] }) {
 
     const [i, setI] = useState(0);
     const [paused, setPaused] = useState(false);
+    const [touchX, setTouchX] = useState<number | null>(null); // swipe start (phones)
     const go = (n: number) => setI((n + slides.length) % slides.length);
 
     // Auto-advance every 6s; stops on hover/focus and for users who prefer reduced motion.
@@ -70,7 +71,20 @@ export default function BannerSlideshow({ banners }: { banners: Banner[] }) {
 
     return (
         <section
-            className="relative h-[78vh] min-h-[560px] w-full overflow-hidden bg-deep"
+            className="relative h-[78svh] min-h-[540px] w-full touch-pan-y overflow-hidden bg-deep"
+            onTouchStart={(e) => setTouchX(e.touches[0].clientX)}
+            onTouchEnd={(e) => {
+                if (touchX === null) {
+                    return;
+                }
+
+                const dx = e.changedTouches[0].clientX - touchX;
+                setTouchX(null);
+
+                if (Math.abs(dx) > 50) {
+                    go(dx < 0 ? i + 1 : i - 1);
+                }
+            }}
             onMouseEnter={() => setPaused(true)}
             onMouseLeave={() => setPaused(false)}
             onFocus={() => setPaused(true)}
@@ -96,15 +110,15 @@ export default function BannerSlideshow({ banners }: { banners: Banner[] }) {
                         />
                     )}
                     <div className="absolute inset-0 bg-gradient-to-t from-deep via-deep/30 to-deep/50" />
-                    <div className="absolute bottom-40 left-6 max-w-xl md:left-16">
+                    <div className="absolute right-6 bottom-36 left-6 max-w-xl md:right-auto md:bottom-40 md:left-16">
                         <p className="text-xs tracking-[0.3em] text-sand uppercase">
                             Discover the Philippines
                         </p>
-                        <h2 className="mt-3 font-serif text-5xl text-white md:text-7xl">
+                        <h2 className="mt-3 font-serif text-4xl text-white sm:text-5xl md:text-7xl">
                             {s.title}
                         </h2>
                         {s.caption && (
-                            <p className="mt-4 text-lg text-white/80">
+                            <p className="mt-3 line-clamp-3 text-base text-white/80 sm:text-lg md:mt-4 md:line-clamp-none">
                                 {s.caption}
                             </p>
                         )}
@@ -127,7 +141,7 @@ export default function BannerSlideshow({ banners }: { banners: Banner[] }) {
                         type="button"
                         onClick={() => go(i - 1)}
                         aria-label="Previous slide"
-                        className="absolute top-1/3 left-3 rounded-full bg-black/30 p-2 text-white backdrop-blur transition hover:bg-black/60"
+                        className="absolute top-24 left-2 rounded-full bg-black/30 p-1.5 text-white backdrop-blur transition hover:bg-black/60 sm:top-1/3 sm:left-3 sm:p-2"
                     >
                         <ChevronLeft className="size-6" />
                     </button>
@@ -135,12 +149,12 @@ export default function BannerSlideshow({ banners }: { banners: Banner[] }) {
                         type="button"
                         onClick={() => go(i + 1)}
                         aria-label="Next slide"
-                        className="absolute top-1/3 right-3 rounded-full bg-black/30 p-2 text-white backdrop-blur transition hover:bg-black/60"
+                        className="absolute top-24 right-2 rounded-full bg-black/30 p-1.5 text-white backdrop-blur transition hover:bg-black/60 sm:top-1/3 sm:right-3 sm:p-2"
                     >
                         <ChevronRight className="size-6" />
                     </button>
                     <div
-                        className="absolute bottom-28 left-6 flex gap-2 md:left-16"
+                        className="absolute bottom-24 left-6 flex gap-2 md:bottom-28 md:left-16"
                         role="tablist"
                     >
                         {slides.map((s, idx) => (

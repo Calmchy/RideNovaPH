@@ -4,37 +4,28 @@ namespace App\Http\Controllers;
 
 use App\Enums\ApprovalStatus;
 use App\Http\Requests\StoreIdentityDocumentRequest;
-use App\Models\IdType;
-use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
-use Illuminate\Support\Str;
-use Inertia\Inertia;
-use Inertia\Response;
-use Illuminate\Validation\ValidationException;
+use App\Models\ActivityLog;
 use App\Models\Role;
 use App\Models\User;
 use App\Notifications\AppNotice;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rules\File;
+use Illuminate\Validation\ValidationException;
 
 class IdentityDocumentController extends Controller
 {
-    /** GET /identity : upload form plus the current verification status. */
-    public function create(Request $request): Response
+    /**
+     * GET /identity : the form now lives on the profile page (Settings > Profile > Verification),
+     * so old links, emails and notifications simply land there.
+     */
+    public function create(Request $request): RedirectResponse
     {
-        $latest = $request->user()->identityDocuments()->latest()->first();
+        $request->session()->reflash(); // keep any toast set just before this redirect
 
-        return Inertia::render('identity/create', [
-            'id_types' => IdType::orderBy('name')->get(['id', 'name']),
-            'status' => $latest?->status->value,   // null | pending | approved | rejected
-            'remarks' => $latest?->status === ApprovalStatus::Rejected ? $latest->remarks : null,
-            // Full history so a rejected user can see what was wrong each time.
-            'history' => $request->user()->identityDocuments()->with('idType')->latest()->limit(10)->get()->map(fn ($d) => [
-                'id' => $d->id,
-                'id_type' => $d->idType->name,
-                'status' => $d->status->value,
-                'remarks' => $d->remarks,
-                'submitted_at' => $d->created_at->toIso8601String(),
-            ]),
-        ]);
+        return to_route('profile.edit');
     }
 
     /** POST /identity : attach a valid ID picture. Stored on the PRIVATE disk, admin-only to view. */
@@ -64,6 +55,68 @@ class IdentityDocumentController extends Controller
 
         $this->toast('ID submitted. An admin will review it shortly.');
 
-        return to_route('identity.create');
+        return to_route('profile.edit');
+    }
+
+    /**
+     * POST /identity/photos : replace the FRONT and/or BACK photo of the user's current ID (or add the optional back)
+     * in one request. PENDING stays pending. APPROVED goes back to pending for a fresh admin check.
+     * REJECTED is fixed by submitting the ID again on the Verify ID page.
+     */
+    public function photos(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+        $document = $user->identityDocuments()->latest()->first();
+        abort_unless($document, 404);
+
+        if ($document->status === ApprovalStatus::Rejected) {
+            $this->toast('Your ID was rejected. Use “Resubmit ID” to upload new photos.', 'warning');
+
+            return back();
+        }
+
+        $image = File::image()->types(['jpg', 'jpeg', 'png'])->max(4 * 1024);
+        $request->validate([
+            'front_photo' => ['required_without:back_photo', 'nullable', $image],
+            'back_photo' => ['required_without:front_photo', 'nullable', $image],
+        ], [
+            'front_photo.required_without' => 'Choose at least one new photo.',
+            'back_photo.required_without' => 'Choose at least one new photo.',
+        ]);
+
+        $wasApproved = $document->status === ApprovalStatus::Approved;
+        $changes = [];
+        $replaced = [];
+
+        foreach (['front_photo' => 'front_image_path', 'back_photo' => 'back_image_path'] as $field => $column) {
+            if ($file = $request->file($field)) {
+                $replaced[] = $document->{$column};
+                $changes[$column] = $file->storeAs('identity-documents', Str::uuid().'.'.$file->guessExtension(), 'local');
+            }
+        }
+
+        $document->forceFill($changes + [
+            'status' => ApprovalStatus::Pending,
+            'remarks' => null,
+            'reviewed_by' => null,
+            'reviewed_at' => null,
+        ])->save();
+
+        foreach (array_filter($replaced) as $old) {
+            Storage::disk('local')->delete($old);
+        }
+
+        ActivityLog::record($user, 'identity.photos_replaced', $document, ['sides' => array_keys($changes)]);
+
+        if ($wasApproved) {
+            User::where('role_id', Role::ADMIN)->get()->each->notify(
+                new AppNotice('ID to re-check', "{$user->name} replaced ID photos.", '/admin/identity?status=pending'),
+            );
+            $this->toast('Photos replaced. An admin will re-check your ID.');
+        } else {
+            $this->toast('Photos replaced.');
+        }
+
+        return back();
     }
 }

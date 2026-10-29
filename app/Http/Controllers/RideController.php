@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Review;
+use App\Support\DriverReviews;
 use App\Models\Ride;
 use App\Models\Setting;
 use App\Support\RidePresenter;
@@ -44,6 +45,9 @@ class RideController extends Controller
                 'average' => $rating->total ? round((float) $rating->average, 1) : null,
                 'total' => (int) $rating->total,
             ],
+            'reviews' => DriverReviews::for($driverId, 5),
+            'rating_summary' => DriverReviews::summary($driverId),
+            'driver_id' => $driverId,
             'my_booking_id' => $mine?->id,
             'can_book' => $user !== null
                 && $driverId !== $user->id

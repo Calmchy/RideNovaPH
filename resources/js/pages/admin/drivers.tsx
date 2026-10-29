@@ -24,6 +24,8 @@ type D = {
     remarks: string | null;
     submitted_at: string;
     vehicles: string[];
+    has_license_back: boolean;
+    cors: { id: number; plate: string }[];
 };
 
 export default function AdminDrivers({
@@ -75,7 +77,7 @@ export default function AdminDrivers({
                     {drivers.data.map((d) => (
                         <li
                             key={d.id}
-                            className="grid gap-3 rounded-2xl border bg-card p-4 md:grid-cols-[1fr_auto]"
+                            className="grid gap-3 rounded-2xl border bg-card p-4 md:grid-cols-[minmax(0,1fr)_auto]"
                         >
                             <div>
                                 <p className="font-medium">
@@ -117,8 +119,35 @@ export default function AdminDrivers({
                                     rel="noopener noreferrer"
                                 >
                                     <ExternalLink className="size-3" /> Licence
-                                    photo
+                                    front
                                 </a>
+                                {d.has_license_back ? (
+                                    <a
+                                        className="inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs hover:bg-muted"
+                                        href={`/admin/drivers/${d.id}/license/back`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                    >
+                                        <ExternalLink className="size-3" />{' '}
+                                        Licence back
+                                    </a>
+                                ) : (
+                                    <span className="text-xs text-muted-foreground">
+                                        Licence back: not uploaded
+                                    </span>
+                                )}
+                                {d.cors.map((c) => (
+                                    <a
+                                        key={c.id}
+                                        className="inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs hover:bg-muted"
+                                        href={`/admin/vehicles/${c.id}/cor`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                    >
+                                        <ExternalLink className="size-3" /> COR{' '}
+                                        {c.plate}
+                                    </a>
+                                ))}
                                 {d.status === 'pending' && (
                                     <>
                                         <Button

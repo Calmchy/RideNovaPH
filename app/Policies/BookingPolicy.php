@@ -36,6 +36,12 @@ class BookingPolicy
         return $this->isDriver($user, $booking);
     }
 
+    /** Only the ride's driver can confirm that the passenger paid. */
+    public function collect(User $user, Booking $booking): bool
+    {
+        return $this->isDriver($user, $booking);
+    }
+
     public function complete(User $user, Booking $booking): bool
     {
         return $this->isDriver($user, $booking);

@@ -17,6 +17,7 @@ import type { Slide } from '@/components/dashboard-slideshow';
 import { EmptyState, StatCard } from '@/components/kit';
 import { fmtDateTime, peso, StatusBadge } from '@/components/lux';
 import { cn } from '@/lib/utils';
+import AvailableDriversCard from '@/components/available-drivers-card';
 
 type Props = {
     slides: Slide[];
@@ -95,16 +96,16 @@ export default function Dashboard({
         ...(auth.isDriver
             ? [{ title: 'Driver hub', href: '/driver', icon: Car }]
             : []),
-        { title: 'Verify ID', href: '/identity', icon: BadgeCheck },
+        { title: 'Verify ID', href: '/settings/profile', icon: BadgeCheck },
         { title: 'Profile', href: '/settings/profile', icon: UserCog },
     ];
 
     return (
         <>
             <Head title="Dashboard" />
-            <div className="mx-auto grid w-full max-w-7xl gap-6 p-4 md:p-8 lg:grid-cols-[13rem_1fr_19rem]">
+            <div className="mx-auto grid w-full max-w-7xl grid-cols-1 gap-6 p-4 pb-24 md:p-8 md:pb-8 lg:grid-cols-[13rem_minmax(0,1fr)_19rem]">
                 {/* Left: dark quick menu */}
-                <aside className="h-fit rounded-2xl bg-deep p-3 text-foam shadow-sm lg:sticky lg:top-6">
+                <aside className="h-fit min-w-0 rounded-2xl bg-deep p-3 text-foam shadow-sm lg:sticky lg:top-6">
                     <p className="px-3 pt-2 pb-3 text-[11px] tracking-widest text-foam/60 uppercase">
                         Quick menu
                     </p>
@@ -232,9 +233,9 @@ export default function Dashboard({
                 </div>
 
                 {/* Right: verification + top drivers */}
-                <aside className="space-y-6">
+                <aside className="min-w-0 space-y-6">
                     <Link
-                        href="/identity"
+                        href="/settings/profile"
                         className={cn(
                             'block rounded-2xl border p-5 transition hover:shadow-md',
                             idCopy.tone,
@@ -250,54 +251,8 @@ export default function Dashboard({
                         </p>
                     </Link>
 
-                    <section className="rounded-2xl border bg-card p-5 shadow-sm">
-                        <h2 className="mb-3 font-semibold">Top drivers</h2>
-                        {drivers.length ? (
-                            <ul className="space-y-4">
-                                {drivers.map((d) => (
-                                    <li
-                                        key={d.id}
-                                        className="flex items-start gap-3"
-                                    >
-                                        <span className="grid size-10 shrink-0 place-items-center rounded-full bg-deep text-sm font-semibold text-sand">
-                                            {d.name.slice(0, 1)}
-                                        </span>
-                                        <div className="min-w-0 text-sm">
-                                            <p className="font-medium">
-                                                {d.name}
-                                            </p>
-                                            <p className="flex items-center gap-1 text-xs text-muted-foreground">
-                                                <Star className="size-3 text-sand" />
-                                                {d.rating ?? 'New'}
-                                                {d.reviews > 0 &&
-                                                    ` (${d.reviews})`}
-                                            </p>
-                                            {d.next_ride ? (
-                                                <Link
-                                                    href={`/rides/${d.next_ride.id}`}
-                                                    className="mt-1 block truncate text-xs text-ocean hover:underline dark:text-foam"
-                                                >
-                                                    {d.next_ride.route} ·{' '}
-                                                    {fmtDateTime(
-                                                        d.next_ride
-                                                            .departure_at,
-                                                    )}
-                                                </Link>
-                                            ) : (
-                                                <p className="text-xs text-muted-foreground">
-                                                    No open rides
-                                                </p>
-                                            )}
-                                        </div>
-                                    </li>
-                                ))}
-                            </ul>
-                        ) : (
-                            <p className="text-sm text-muted-foreground">
-                                No drivers yet.
-                            </p>
-                        )}
-                    </section>
+                    {/* Available Drivers */}
+                    <AvailableDriversCard drivers={drivers} />
                 </aside>
             </div>
         </>

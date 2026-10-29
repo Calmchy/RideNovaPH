@@ -199,7 +199,7 @@ export default function BookingCreate({
                     );
                     form.post(`/rides/${ride.id}/book`);
                 }}
-                className="mx-auto grid w-full max-w-6xl gap-8 p-4 md:p-8 lg:grid-cols-[1fr_22rem]"
+                className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-8 p-4 md:p-8 lg:grid-cols-[minmax(0,1fr)_22rem]"
             >
                 <div className="space-y-6">
                     <div>

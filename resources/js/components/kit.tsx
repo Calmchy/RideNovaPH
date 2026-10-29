@@ -126,7 +126,7 @@ export function Panel({
 }) {
     return (
         <section
-            className={cn('rounded-2xl border bg-card shadow-sm', className)}
+            className={cn('min-w-0 rounded-2xl border bg-card shadow-sm', className)}
         >
             {(title || actions) && (
                 <div className="flex items-center justify-between gap-3 border-b px-5 py-3">

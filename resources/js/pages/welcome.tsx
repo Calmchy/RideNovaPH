@@ -2,7 +2,7 @@ import { Head, Link } from '@inertiajs/react';
 import { BadgeCheck, CalendarCheck, Car, Search, Star } from 'lucide-react';
 import BannerSlideshow from '@/components/banner-slideshow';
 import type { Banner } from '@/components/banner-slideshow';
-import { fmtDate } from '@/components/lux';
+import { fmtDate, LIFT_3D } from '@/components/lux';
 import RideCard from '@/components/ride-card';
 import type { RideCardData } from '@/components/ride-card';
 import SiteHeader from '@/components/site-header';
@@ -96,7 +96,7 @@ export default function Welcome({ banners, rides, announcements }: Props) {
                                                 ? `/bookings?tab=find&destination=${a.city_id}`
                                                 : '/bookings?tab=find'
                                         }
-                                        className="overflow-hidden rounded-2xl border bg-card transition hover:border-ocean hover:shadow-md"
+                                        className={`overflow-hidden rounded-2xl border bg-card ${LIFT_3D}`}
                                     >
                                         {a.image_url && (
                                             <img
@@ -139,7 +139,7 @@ export default function Welcome({ banners, rides, announcements }: Props) {
                             {STEPS.map(({ icon: Icon, title, text }, n) => (
                                 <div
                                     key={title}
-                                    className="rounded-2xl border bg-card p-6"
+                                    className={`rounded-2xl border bg-card p-6 ${LIFT_3D}`}
                                 >
                                     <Icon className="size-8 text-ocean" />
                                     <p className="mt-4 text-xs text-muted-foreground">

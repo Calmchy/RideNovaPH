@@ -54,6 +54,7 @@ test('a passenger without an approved ID cannot book', function () {
 
 test('you cannot take more seats than are left, or book your own ride', function () {
     $driver = Scenario::driver();
+    Scenario::approveId($driver); // the ID check runs first, so the "own ride" rule is only reached with an approved ID
     $ride = Scenario::ride($driver, ['seats_offered' => 2]);
 
     $this->actingAs(Scenario::passenger())->post("/rides/{$ride->id}/book", Scenario::bookingForm(['seats' => 3]))

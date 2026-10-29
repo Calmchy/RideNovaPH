@@ -6,6 +6,7 @@ use App\Enums\ApprovalStatus;
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\DriverProfile;
+use App\Models\Vehicle;
 use App\Notifications\AppNotice;
 use App\Support\Like;
 use Illuminate\Http\RedirectResponse;
@@ -42,6 +43,8 @@ class DriverController extends Controller
                 'name' => $d->user->name,
                 'email' => $d->user->email,
                 'phone' => $d->user->phone_number,
+                'has_license_back' => $d->license_back_image_path !== null,
+                'cors' => $d->vehicles->filter(fn ($v) => $v->cor_image_path)->map(fn ($v) => ['id' => $v->id, 'plate' => $v->plate_number])->values()->all(),
                 'license_number' => $d->license_number,
                 'license_expiry' => $d->license_expiry->toDateString(),
                 'expired' => $d->license_expiry->isPast(),
@@ -53,13 +56,26 @@ class DriverController extends Controller
         ]);
     }
 
-    /** GET /admin/drivers/{driver}/license : stream the private licence photo to admins only (audit logged). */
-    public function license(Request $request, DriverProfile $driver): StreamedResponse
+    /** GET /admin/drivers/{driver}/license/{side?} : stream a private licence photo (front by default) to admins only (audit logged). */
+    public function license(Request $request, DriverProfile $driver, string $side = 'front'): StreamedResponse
     {
-        abort_unless(Storage::disk('local')->exists($driver->license_image_path), 404);
-        Log::info('driver_license_viewed', ['admin_id' => $request->user()->id, 'driver_id' => $driver->user_id]);
+        $path = $side === 'back' ? $driver->license_back_image_path : $driver->license_image_path;
+        abort_unless($path && Storage::disk('local')->exists($path), 404);
+        Log::info('driver_license_viewed', ['admin_id' => $request->user()->id, 'driver_id' => $driver->user_id, 'side' => $side]);
 
-        return Storage::disk('local')->response($driver->license_image_path, null, [
+        return Storage::disk('local')->response($path, null, [
+            'Cache-Control' => 'no-store, private',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    }
+
+    /** GET /admin/vehicles/{vehicle}/cor : stream the private COR photo to admins only (audit logged). */
+    public function cor(Request $request, Vehicle $vehicle): StreamedResponse
+    {
+        abort_unless($vehicle->cor_image_path && Storage::disk('local')->exists($vehicle->cor_image_path), 404);
+        Log::info('vehicle_cor_viewed', ['admin_id' => $request->user()->id, 'vehicle_id' => $vehicle->id]);
+
+        return Storage::disk('local')->response($vehicle->cor_image_path, null, [
             'Cache-Control' => 'no-store, private',
             'X-Content-Type-Options' => 'nosniff',
         ]);

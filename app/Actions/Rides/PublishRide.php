@@ -42,6 +42,7 @@ class PublishRide
             'price_per_seat' => $data['price_per_seat'],
             'notes' => $data['notes'] ?? null,
             'announcement_id' => $data['announcement_id'] ?? null,
+            'event_name' => $data['event_name'] ?? null,
         ]);
     }
 }

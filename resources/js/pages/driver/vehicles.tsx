@@ -1,7 +1,9 @@
 // Vehicle registration: list + add + edit + remove (all scoped to the signed-in driver on the server).
+// Each vehicle shows an editable photo banner (front / back / interior) with a description panel below.
 import { Head, router, useForm } from '@inertiajs/react';
 import { Pencil, Trash2 } from 'lucide-react';
 import { useState } from 'react';
+import DocTile from '@/components/doc-tile';
 import {
     EmptyState,
     Field,
@@ -11,6 +13,8 @@ import {
     ReasonDialog,
 } from '@/components/kit';
 import { Button } from '@/components/ui/button';
+import VehicleBanner from '@/components/vehicle-banner';
+import type { VehiclePhoto } from '@/components/vehicle-banner';
 
 type Vehicle = {
     id: number;
@@ -21,7 +25,28 @@ type Vehicle = {
     seat_capacity: number;
     manufacture_year: number | null;
     rides_count: number;
+    photos: VehiclePhoto[];
+    description: string | null;
+    cor_url: string | null;
 };
+type PhotoField = 'photo_front' | 'photo_back' | 'photo_interior';
+type VehicleForm = {
+    model_id: string;
+    color: string;
+    plate_number: string;
+    seat_capacity: string;
+    manufacture_year: string;
+    description: string;
+    photo_front: File | null;
+    photo_back: File | null;
+    photo_interior: File | null;
+    cor_image: File | null;
+};
+const PHOTO_FIELDS: { name: PhotoField; label: string }[] = [
+    { name: 'photo_front', label: 'Front of the vehicle' },
+    { name: 'photo_back', label: 'Back of the vehicle' },
+    { name: 'photo_interior', label: 'Inside the vehicle' },
+];
 type Props = {
     has_profile: boolean;
     vehicles: Vehicle[];
@@ -30,18 +55,26 @@ type Props = {
 
 export default function Vehicles({ has_profile, vehicles, models }: Props) {
     const [editing, setEditing] = useState<Vehicle | null>(null);
-    const form = useForm({
+    // Bumped on reset so the (uncontrolled) file inputs are cleared too.
+    const [fileKey, setFileKey] = useState(0);
+    const form = useForm<VehicleForm>({
         model_id: '',
         color: '',
         plate_number: '',
         seat_capacity: '4',
         manufacture_year: '',
+        description: '',
+        photo_front: null,
+        photo_back: null,
+        photo_interior: null,
+        cor_image: null,
     });
 
     const reset = () => {
         setEditing(null);
         form.reset();
         form.clearErrors();
+        setFileKey((k) => k + 1);
     };
     const edit = (v: Vehicle) => {
         setEditing(v);
@@ -60,9 +93,20 @@ export default function Vehicles({ has_profile, vehicles, models }: Props) {
         const opts = { preserveScroll: true, onSuccess: reset };
 
         if (editing) {
+            // Photos and description are edited on the banner, not here.
+            form.transform(
+                ({ model_id, color, plate_number, seat_capacity, manufacture_year }) => ({
+                    model_id,
+                    color,
+                    plate_number,
+                    seat_capacity,
+                    manufacture_year,
+                }),
+            );
             form.patch(`/driver/vehicles/${editing.id}`, opts);
+            form.transform((d) => d);
         } else {
-            form.post('/driver/vehicles', opts);
+            form.post('/driver/vehicles', { ...opts, forceFormData: true });
         }
     };
 
@@ -81,60 +125,87 @@ export default function Vehicles({ has_profile, vehicles, models }: Props) {
                 </p>
             )}
 
-            <div className="grid gap-6 lg:grid-cols-[1fr_22rem]">
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
                 <div className="space-y-3">
                     {vehicles.length ? (
                         vehicles.map((v) => (
                             <div
                                 key={v.id}
-                                className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-card p-4"
+                                className="space-y-3 rounded-2xl border bg-card p-4"
                             >
-                                <div>
-                                    <p className="font-medium">
-                                        {v.name}{' '}
-                                        <span className="text-muted-foreground">
-                                            · {v.color}
-                                        </span>
-                                    </p>
-                                    <p className="text-sm text-muted-foreground">
-                                        <span className="font-mono">
-                                            {v.plate_number}
-                                        </span>{' '}
-                                        · {v.seat_capacity} seats
-                                        {v.manufacture_year &&
-                                            ` · ${v.manufacture_year}`}{' '}
-                                        · {v.rides_count} ride(s)
-                                    </p>
+                                <div className="flex flex-wrap items-center justify-between gap-3">
+                                    <div>
+                                        <p className="font-medium">
+                                            {v.name}{' '}
+                                            <span className="text-muted-foreground">
+                                                · {v.color}
+                                            </span>
+                                        </p>
+                                        <p className="text-sm text-muted-foreground">
+                                            <span className="font-mono">
+                                                {v.plate_number}
+                                            </span>{' '}
+                                            · {v.seat_capacity} seats
+                                            {v.manufacture_year &&
+                                                ` · ${v.manufacture_year}`}{' '}
+                                            · {v.rides_count} ride(s)
+                                        </p>
+                                    </div>
+                                    <div className="flex gap-1">
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => edit(v)}
+                                        >
+                                            <Pencil /> Edit
+                                        </Button>
+                                        <ReasonDialog
+                                            title="Remove this vehicle?"
+                                            description="Vehicles with ride history can’t be removed."
+                                            askReason={false}
+                                            confirmLabel="Remove"
+                                            destructive
+                                            onConfirm={() =>
+                                                router.delete(
+                                                    `/driver/vehicles/${v.id}`,
+                                                    { preserveScroll: true },
+                                                )
+                                            }
+                                            trigger={
+                                                <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    aria-label="Remove vehicle"
+                                                >
+                                                    <Trash2 />
+                                                </Button>
+                                            }
+                                        />
+                                    </div>
                                 </div>
-                                <div className="flex gap-1">
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() => edit(v)}
-                                    >
-                                        <Pencil /> Edit
-                                    </Button>
-                                    <ReasonDialog
-                                        title="Remove this vehicle?"
-                                        description="Vehicles with ride history can’t be removed."
-                                        askReason={false}
-                                        confirmLabel="Remove"
-                                        destructive
-                                        onConfirm={() =>
-                                            router.delete(
-                                                `/driver/vehicles/${v.id}`,
-                                                { preserveScroll: true },
-                                            )
-                                        }
-                                        trigger={
-                                            <Button
-                                                size="sm"
-                                                variant="ghost"
-                                                aria-label="Remove vehicle"
-                                            >
-                                                <Trash2 />
-                                            </Button>
-                                        }
+
+                                <VehicleBanner
+                                    photos={v.photos}
+                                    description={v.description}
+                                    editable={{
+                                        photoUrl: (key) =>
+                                            `/driver/vehicles/${v.id}/photos/${key}`,
+                                        descriptionUrl: `/driver/vehicles/${v.id}/description`,
+                                    }}
+                                />
+
+                                <div className="max-w-xs">
+                                    <DocTile
+                                        label="COR (Certificate of Registration)"
+                                        url={v.cor_url}
+                                        emptyText="COR not uploaded yet"
+                                        upload={{
+                                            url: `/driver/vehicles/${v.id}/cor`,
+                                            field: 'cor_image',
+                                            label: v.cor_url
+                                                ? 'Replace COR'
+                                                : 'Upload COR',
+                                        }}
                                     />
                                 </div>
                             </div>
@@ -233,6 +304,74 @@ export default function Vehicles({ has_profile, vehicles, models }: Props) {
                                 />
                             </Field>
                         </div>
+                        {!editing && (
+                            <>
+                                {PHOTO_FIELDS.map((f) => (
+                                    <Field
+                                        key={`${f.name}-${fileKey}`}
+                                        label={f.label}
+                                        error={form.errors[f.name]}
+                                        hint="JPG, PNG or WEBP, up to 5 MB"
+                                    >
+                                        <input
+                                            required
+                                            type="file"
+                                            accept="image/jpeg,image/png,image/webp"
+                                            onChange={(e) =>
+                                                form.setData(
+                                                    f.name,
+                                                    e.target.files?.[0] ?? null,
+                                                )
+                                            }
+                                            className={inputCls}
+                                        />
+                                    </Field>
+                                ))}
+                                <Field
+                                    label="COR (Certificate of Registration)"
+                                    error={form.errors.cor_image}
+                                    hint="Kept private: only you and admins can view it. JPG, PNG or WEBP, up to 5 MB."
+                                >
+                                    <input
+                                        key={`cor-${fileKey}`}
+                                        required
+                                        type="file"
+                                        accept="image/jpeg,image/png,image/webp"
+                                        onChange={(e) =>
+                                            form.setData(
+                                                'cor_image',
+                                                e.target.files?.[0] ?? null,
+                                            )
+                                        }
+                                        className={inputCls}
+                                    />
+                                </Field>
+                                <Field
+                                    label="Description (optional)"
+                                    error={form.errors.description}
+                                    hint="Shown under your photos. You can edit it later from the banner."
+                                >
+                                    <textarea
+                                        rows={3}
+                                        maxLength={500}
+                                        value={form.data.description}
+                                        onChange={(e) =>
+                                            form.setData(
+                                                'description',
+                                                e.target.value,
+                                            )
+                                        }
+                                        className={inputCls}
+                                    />
+                                </Field>
+                            </>
+                        )}
+                        {editing && (
+                            <p className="text-xs text-muted-foreground">
+                                Change photos and the description from the
+                                banner on the vehicle’s card.
+                            </p>
+                        )}
                         <div className="flex gap-2">
                             <Button
                                 type="submit"

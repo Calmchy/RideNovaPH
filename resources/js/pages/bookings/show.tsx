@@ -4,7 +4,14 @@ import { Head, Link, router } from '@inertiajs/react';
 import { Check, Copy, Receipt } from 'lucide-react';
 import { useState } from 'react';
 import { Panel, ReasonDialog } from '@/components/kit';
-import { fmtDateTime, peso, Stars, StatusBadge } from '@/components/lux';
+import LiveTracking from '@/components/live-tracking';
+import { fmtDateTime, peso, StatusBadge } from '@/components/lux';
+import PartnerCard from '@/components/partner-card';
+import type { Partner } from '@/components/partner-card';
+import ReviewForm from '@/components/review-form';
+import ReviewsPanel from '@/components/reviews-panel';
+import type { PublicReview, RatingSummary } from '@/components/reviews-panel';
+import SlideToConfirm from '@/components/slide-to-confirm';
 import TripMap from '@/components/trip-map';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -59,7 +66,21 @@ type Props = {
         } | null;
         cancel_fee: number;
         cancel_fee_percent: number;
-        reviews: { by: string; rating: number; comment: string | null }[];
+        reviews: {
+            id: number;
+            by: string;
+            name: string;
+            rating: number;
+            comment: string | null;
+            at: string | null;
+        }[];
+    };
+    tracking: { ride_id: number; role: 'driver' | 'passenger' } | null;
+    partner: Partner | null;
+    driver_reviews: {
+        driver_id: number;
+        summary: RatingSummary;
+        list: PublicReview[];
     };
     viewer_role: 'passenger' | 'driver' | 'admin' | null;
     abilities: {
@@ -68,6 +89,7 @@ type Props = {
         complete: boolean;
         cancel: boolean;
         review: boolean;
+        collect: boolean;
     };
 };
 
@@ -80,11 +102,12 @@ const LABEL = {
 export default function BookingShow({
     booking: b,
     viewer_role,
+    driver_reviews,
     abilities,
+    tracking,
+    partner,
 }: Props) {
     const [copied, setCopied] = useState(false);
-    const [rating, setRating] = useState(5);
-    const [comment, setComment] = useState('');
 
     const act = (action: string, data: Record<string, string> = {}) =>
         router.patch(`/bookings/${b.id}/${action}`, data, {
@@ -192,6 +215,27 @@ export default function BookingShow({
                     )}
                 </div>
 
+                {/* Driver only: slide (not click) to confirm the cash was received, so it can't happen by accident. */}
+                {abilities.collect && (
+                    <div className="grid gap-2 rounded-2xl border bg-card p-4">
+                        <p className="text-sm text-muted-foreground">
+                            Received the cash ({peso(b.payment?.amount ?? b.total_fare)})
+                            from the passenger? Slide to mark this booking as
+                            paid. Both of you will be notified.
+                        </p>
+                        <SlideToConfirm
+                            label="Slide to mark as PAID"
+                            onConfirm={(reset) =>
+                                router.patch(
+                                    `/bookings/${b.id}/paid`,
+                                    {},
+                                    { preserveScroll: true, onError: reset },
+                                )
+                            }
+                        />
+                    </div>
+                )}
+
                 {b.status === 'cancelled' ? (
                     <p className="rounded-xl border border-coral/40 bg-coral/10 p-4 text-sm">
                         Cancelled
@@ -233,6 +277,9 @@ export default function BookingShow({
                         ))}
                     </ol>
                 )}
+
+                {/* The other person on this booking: driver for the passenger, passenger for the driver */}
+                {partner && <PartnerCard partner={partner} />}
 
                 <div className="grid gap-6 md:grid-cols-2">
                     <Panel title="Trip">
@@ -380,76 +427,35 @@ export default function BookingShow({
                     </div>
                 </Panel>
 
-                {b.reviews.length > 0 && (
-                    <section className="space-y-3">
-                        <h2 className="font-serif text-2xl">Reviews</h2>
-                        {b.reviews.map((r) => (
-                            <div
-                                key={r.by}
-                                className="rounded-xl border bg-card p-4"
-                            >
-                                <p className="text-sm text-muted-foreground">
-                                    From the {r.by}
-                                </p>
-                                <Stars value={r.rating} />
-                                {r.comment && (
-                                    <p className="mt-1 text-sm">{r.comment}</p>
-                                )}
-                            </div>
-                        ))}
-                    </section>
+                {/* Real-time GPS: only sent by the server while the trip is confirmed and the tracking window is open. */}
+                {tracking && (
+                    <LiveTracking
+                        bookingId={b.id}
+                        rideId={tracking.ride_id}
+                        role={tracking.role}
+                    />
                 )}
 
-                {abilities.review && (
-                    <Panel title="How was the trip?">
-                        <div className="space-y-3 p-5">
-                            <div
-                                className="flex gap-1"
-                                role="radiogroup"
-                                aria-label="Rating"
-                            >
-                                {[1, 2, 3, 4, 5].map((n) => (
-                                    <button
-                                        key={n}
-                                        type="button"
-                                        role="radio"
-                                        aria-checked={rating === n}
-                                        aria-label={`${n} stars`}
-                                        onClick={() => setRating(n)}
-                                        className={cn(
-                                            'text-3xl transition',
-                                            n <= rating
-                                                ? 'text-sand'
-                                                : 'text-muted-foreground/30',
-                                        )}
-                                    >
-                                        ★
-                                    </button>
-                                ))}
-                            </div>
-                            <textarea
-                                value={comment}
-                                onChange={(e) => setComment(e.target.value)}
-                                maxLength={1000}
-                                rows={3}
-                                placeholder="Optional comment"
-                                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-                            />
-                            <Button
-                                onClick={() =>
-                                    router.post(
-                                        `/bookings/${b.id}/reviews`,
-                                        { rating, comment },
-                                        { preserveScroll: true },
-                                    )
+                {/* Ratings only; "Write a Review" opens the review banner (a pop-up). */}
+                <ReviewsPanel
+                    reviews={driver_reviews.list}
+                    summary={driver_reviews.summary}
+                    historyHref={`/drivers/${driver_reviews.driver_id}/reviews`}
+                    action={
+                        abilities.review ? (
+                            <ReviewForm
+                                bookingId={b.id}
+                                target={
+                                    viewer_role === 'driver'
+                                        ? 'this passenger'
+                                        : 'your driver'
                                 }
-                            >
-                                Submit review
-                            </Button>
-                        </div>
-                    </Panel>
-                )}
+                            />
+                        ) : undefined
+                    }
+                />
             </div>
         </>
     );
 }
+
