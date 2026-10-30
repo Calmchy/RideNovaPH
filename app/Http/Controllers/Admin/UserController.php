@@ -9,8 +9,10 @@ use App\Models\Role;
 use App\Models\User;
 use App\Notifications\AppNotice;
 use App\Support\Like;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -94,5 +96,34 @@ class UserController extends Controller
         $this->toast($data['status'] === 'suspended' ? 'User suspended.' : 'User reactivated.');
 
         return back();
+    }
+
+    /**
+     * DELETE /admin/users/{user} : permanently remove an account.
+     * Never yourself, never an admin. The database refuses if the person has trip, booking, rental or
+     * vehicle history (that record must be kept), and then suspending is the right tool instead.
+     */
+    public function destroy(Request $request, User $user): RedirectResponse
+    {
+        abort_if($user->id === $request->user()->id || $user->role_id === Role::ADMIN, 403, 'Admin accounts cannot be deleted here.');
+
+        $who = ['name' => $user->name, 'email' => $user->email, 'role' => $user->role->name ?? null];
+
+        try {
+            DB::transaction(function () use ($user) {
+                DB::table('sessions')->where('user_id', $user->id)->delete();
+                DB::table('notifications')->where('notifiable_type', $user->getMorphClass())->where('notifiable_id', $user->id)->delete();
+                $user->delete();
+            });
+        } catch (QueryException) {
+            $this->toast('This user has rides, bookings, rentals or vehicles on record, so they can’t be deleted. Suspend the account instead.', 'warning');
+
+            return back();
+        }
+
+        ActivityLog::record($request->user(), 'user.deleted', null, $who);
+        $this->toast('User deleted.');
+
+        return to_route('admin.users');
     }
 }

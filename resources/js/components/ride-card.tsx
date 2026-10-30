@@ -28,7 +28,7 @@ export default function RideCard({ ride }: { ride: RideCardData }) {
 
     return (
         <div className={`group flex flex-col gap-4 rounded-2xl border bg-card p-5 shadow-sm ${LIFT_3D}`}>
-            <Link href={`/rides/${ride.id}`} className="space-y-3">
+           <Link href={`/rides/${ride.id}`} className="flex flex-1 flex-col space-y-3">
                 <div className="flex items-start justify-between gap-3">
                     <h3 className="font-serif text-xl">
                         {ride.origin} <span className="text-coral">→</span>{' '}
@@ -38,6 +38,7 @@ export default function RideCard({ ride }: { ride: RideCardData }) {
                         {peso(ride.price_per_seat)}
                     </span>
                 </div>
+                    
                 {ride.event && (
                     <p className="inline-block rounded-full bg-foam/60 px-3 py-0.5 text-xs font-medium text-deep">
                         {ride.event}

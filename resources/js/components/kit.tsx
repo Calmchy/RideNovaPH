@@ -588,7 +588,16 @@ export function Field({
 }) {
     return (
         <label className="grid gap-1.5 text-sm">
-            <span className="font-medium">{label}</span>
+            <span className="font-medium">
+    {label.endsWith('*') ? (
+        <>
+            {label.slice(0, -1).trimEnd()}{' '}
+            <span className="text-red-500" aria-hidden="true">*</span>
+                 </>
+                  ) : (
+               label
+                  )}
+            </span>
             {children}
             {hint && !error && (
                 <span className="text-xs text-muted-foreground">{hint}</span>

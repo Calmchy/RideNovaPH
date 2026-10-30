@@ -159,6 +159,7 @@ Route::middleware(['auth', 'verified', 'driver'])->prefix('driver')->name('drive
 // ---- Admin only (role checked server-side by the 'admin' middleware) ----
 Route::middleware(['auth', 'verified', 'admin'])->prefix('admin')->group(function () {
     Route::get('/', [AdminController::class, 'index'])->name('admin');
+    Route::delete('/users/{user}', [AdminUserController::class, 'destroy'])->name('admin.users.destroy');
 
     Route::get('/users', [AdminUserController::class, 'index'])->name('admin.users');
     Route::get('/users/{user}', [AdminUserController::class, 'show'])->name('admin.users.show');
