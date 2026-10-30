@@ -14,7 +14,7 @@ class CharterRequest extends Model
     protected $fillable = [
         'reference_no', 'passenger_id', 'driver_id', 'vehicle_id', 'group_size',
         'pickup_location', 'dropoff_location', 'pickup_at', 'return_location', 'return_at',
-        'description', 'status', 'quoted_price', 'driver_note', 'reason',
+        'description', 'passenger_name', 'passenger_phone', 'status', 'quoted_price', 'driver_note', 'reason',
         'quoted_at', 'accepted_at', 'completed_at', 'closed_at',
     ];
 

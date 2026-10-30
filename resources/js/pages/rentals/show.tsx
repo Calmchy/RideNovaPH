@@ -4,6 +4,9 @@ import { Phone } from 'lucide-react';
 import { useState } from 'react';
 import { inputCls, PageHeader, Panel, ReasonDialog } from '@/components/kit';
 import { fmtDateTime, peso, StatusBadge } from '@/components/lux';
+import { RentalTermsList } from '@/components/rental-terms';
+import type { TermRow } from '@/components/rental-terms';
+import DocTile from '@/components/doc-tile';
 import { Button } from '@/components/ui/button';
 
 type Props = {
@@ -26,10 +29,40 @@ type Props = {
             name: string;
             phone: string;
             address: string;
-            license_number: string;
-            license_expiry: string;
+            license_id_url: string | null;
+            birth_date: string | null;
+            age: number | null;
+            license_type: string | null;
+            driving_years: number | null;
+            passenger_count: number | null;
+            emergency_name: string | null;
+            emergency_phone: string | null;
+            emergency_relationship: string | null;
+            emergency_address: string | null;
+            destination: string | null;
+            additional_drivers: string | null;
+            signature_name: string | null;
         };
     };
+    extension: {
+        notice_hours: number;
+        deadline: string;
+        max_days: number;
+        daily_rate: string;
+        can_request: boolean;
+        can_decide: boolean;
+        list: {
+            id: number;
+            days: number;
+            extra_price: string;
+            new_end_at: string;
+            status: string;
+            reason: string | null;
+            created_at: string;
+        }[];
+    };
+    terms: TermRow[];
+    terms_accepted_at: string | null;
     role: 'renter' | 'owner';
     partner: { label: string; name: string; phone: string | null };
     abilities: {
@@ -65,11 +98,40 @@ const HELP: Record<string, Record<'renter' | 'owner', string>> = {
 
 export default function RentalShow({
     rental: r,
+    extension: ext,
+    terms,
+    terms_accepted_at,
     role,
     partner,
     abilities,
 }: Props) {
     const [note, setNote] = useState('');
+    const [extDays, setExtDays] = useState('');
+    const [extError, setExtError] = useState<string | null>(null);
+    const [extSending, setExtSending] = useState(false);
+    const extN = Math.floor(Number(extDays));
+    const requestExtension = () =>
+        router.post(
+            `/rentals/${r.id}/extensions`,
+            { days: extDays },
+            {
+                preserveScroll: true,
+                onStart: () => {
+                    setExtSending(true);
+                    setExtError(null);
+                },
+                onError: (e) => setExtError(e.days ?? 'Could not send the request.'),
+                onSuccess: () => setExtDays(''),
+                onFinish: () => setExtSending(false),
+            },
+        );
+    const answerExtension = (id: number, action: string, data = {}) =>
+        router.patch(`/rentals/${r.id}/extensions/${id}/${action}`, data, {
+            preserveScroll: true,
+        });
+    const pendingExt = ext.list.find((e) => e.status === 'pending');
+    const showExtension =
+        ext.list.length > 0 || (r.status === 'approved' && role === 'renter');
     const act = (action: string, data: Record<string, string> = {}) =>
         router.patch(`/rentals/${r.id}/${action}`, data, {
             preserveScroll: true,
@@ -86,8 +148,30 @@ export default function RentalShow({
         ['Name', r.renter.name],
         ['Contact number', r.renter.phone],
         ['Home address', r.renter.address],
-        ['Licence number', r.renter.license_number],
-        ['Licence expires', r.renter.license_expiry],
+        ['Licence type', r.renter.license_type ?? '—'],
+        [
+            'Date of birth',
+            r.renter.birth_date
+                ? `${r.renter.birth_date} (${r.renter.age} years old)`
+                : '—',
+        ],
+        [
+            'Driving experience',
+            r.renter.driving_years !== null
+                ? `${r.renter.driving_years} year(s)`
+                : '—',
+        ],
+        ['People riding', String(r.renter.passenger_count ?? '—')],
+        [
+            'Emergency contact',
+            r.renter.emergency_name
+                ? `${r.renter.emergency_name}${r.renter.emergency_relationship ? ` (${r.renter.emergency_relationship})` : ''} · ${r.renter.emergency_phone}`
+                : '—',
+        ],
+        ['Emergency contact address', r.renter.emergency_address ?? '—'],
+        ['Will drive it to', r.renter.destination ?? '—'],
+        ['Other drivers', r.renter.additional_drivers || 'None'],
+        ['Signed by', r.renter.signature_name ?? '—'],
     ];
 
     return (
@@ -95,10 +179,10 @@ export default function RentalShow({
             <Head title={`Rental ${r.reference_no}`} />
             <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-4 md:p-8">
                 <Link
-                    href="/charters"
+                    href={role === 'owner' ? '/driver/rentals' : '/charters'}
                     className="text-sm text-muted-foreground hover:text-foreground"
                 >
-                    ← Hire a driver
+                    {role === 'owner' ? '← Rent my unit' : '← Hire a driver'}
                 </Link>
                 <PageHeader
                     title={`Rental ${r.reference_no}`}
@@ -242,6 +326,146 @@ export default function RentalShow({
                     </div>
                 </div>
 
+                {showExtension && (
+                    <Panel title="Extend the rental">
+                        <div className="space-y-4 p-5 text-sm">
+                            <p className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
+                                <strong>Notice:</strong> an extension must be
+                                requested at least {ext.notice_hours} hours
+                                before the return time ({fmtDateTime(ext.deadline)}
+                                ). The owner will be notified and will accept
+                                or decline your request.
+                            </p>
+
+                            {role === 'renter' && r.status === 'approved' && (
+                                <>
+                                    {ext.can_request ? (
+                                        <div className="flex flex-wrap items-end gap-3">
+                                            <label className="grid gap-1">
+                                                <span className="text-muted-foreground">
+                                                    How many days do you want
+                                                    to add? (up to {ext.max_days})
+                                                </span>
+                                                <input
+                                                    type="number"
+                                                    min={1}
+                                                    max={ext.max_days}
+                                                    step={1}
+                                                    value={extDays}
+                                                    onChange={(e) => setExtDays(e.target.value)}
+                                                    className={`${inputCls} w-32`}
+                                                />
+                                            </label>
+                                            <Button
+                                                onClick={requestExtension}
+                                                disabled={
+                                                    extSending ||
+                                                    !(extN >= 1 && extN <= ext.max_days)
+                                                }
+                                            >
+                                                {extSending ? 'Sending…' : 'Request extension'}
+                                            </Button>
+                                            {extN >= 1 && extN <= ext.max_days && (
+                                                <span className="text-muted-foreground">
+                                                    + {extN} day{extN === 1 ? '' : 's'} ×{' '}
+                                                    {peso(ext.daily_rate)} ={' '}
+                                                    {peso(extN * Number(ext.daily_rate))}
+                                                </span>
+                                            )}
+                                        </div>
+                                    ) : pendingExt ? (
+                                        <p className="text-muted-foreground">
+                                            Your extension is waiting for the owner.
+                                        </p>
+                                    ) : (
+                                        <p className="text-muted-foreground">
+                                            The {ext.notice_hours}-hour notice time has passed, so
+                                            you can’t request an extension here anymore. Please
+                                            contact the owner or return the vehicle on time.
+                                        </p>
+                                    )}
+                                    {extError && (
+                                        <p role="alert" className="text-coral">
+                                            {extError}
+                                        </p>
+                                    )}
+                                </>
+                            )}
+
+                            {ext.list.length > 0 && (
+                                <ul className="divide-y rounded-xl border">
+                                    {ext.list.map((e) => (
+                                        <li
+                                            key={e.id}
+                                            className="flex flex-wrap items-center justify-between gap-3 p-3"
+                                        >
+                                            <div>
+                                                <p className="font-medium">
+                                                    +{e.days} day{e.days === 1 ? '' : 's'} ·{' '}
+                                                    {peso(e.extra_price)}
+                                                </p>
+                                                <p className="text-xs text-muted-foreground">
+                                                    New return time: {fmtDateTime(e.new_end_at)}
+                                                </p>
+                                                {e.reason && (
+                                                    <p className="text-xs text-muted-foreground">
+                                                        Reason: {e.reason}
+                                                    </p>
+                                                )}
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <StatusBadge status={e.status} />
+                                                {e.status === 'pending' &&
+                                                    ext.can_decide && (
+                                                        <>
+                                                            <ReasonDialog
+                                                                title="Accept this extension?"
+                                                                description={`The return time moves to ${fmtDateTime(e.new_end_at)} and ${peso(e.extra_price)} is added to the total.`}
+                                                                askReason={false}
+                                                                confirmLabel="Accept"
+                                                                onConfirm={() => answerExtension(e.id, 'approve')}
+                                                                trigger={<Button size="sm">Accept</Button>}
+                                                            />
+                                                            <ReasonDialog
+                                                                title="Decline this extension?"
+                                                                description="The renter will see your reason."
+                                                                reasonRequired
+                                                                confirmLabel="Decline"
+                                                                destructive
+                                                                onConfirm={(reason) =>
+                                                                    answerExtension(e.id, 'decline', { reason })
+                                                                }
+                                                                trigger={
+                                                                    <Button size="sm" variant="outline">
+                                                                        Decline
+                                                                    </Button>
+                                                                }
+                                                            />
+                                                        </>
+                                                    )}
+                                            </div>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </div>
+                    </Panel>
+                )}
+
+                {terms.length > 0 && (
+                    <Panel title="Terms and conditions">
+                        <RentalTermsList rows={terms} />
+                        {terms_accepted_at && (
+                            <p className="border-t px-5 py-3 text-xs text-muted-foreground">
+                                {role === 'owner'
+                                    ? 'The renter agreed to these terms on '
+                                    : 'You agreed to these terms on '}
+                                {fmtDateTime(terms_accepted_at)}.
+                            </p>
+                        )}
+                    </Panel>
+                )}
+
                 <Panel title={role === 'owner' ? 'Renter details' : 'Your details'}>
                     <dl className="grid gap-3 p-5 text-sm sm:grid-cols-2">
                         {renter.map(([k, v]) => (
@@ -251,6 +475,13 @@ export default function RentalShow({
                             </div>
                         ))}
                     </dl>
+                    <div className="max-w-sm border-t p-5">
+                        <DocTile
+                            label="Driver’s licence ID"
+                            url={r.renter.license_id_url}
+                            emptyText="No licence ID photo"
+                        />
+                    </div>
                 </Panel>
             </div>
         </>

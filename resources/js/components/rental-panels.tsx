@@ -10,6 +10,8 @@ import {
     thCls,
 } from '@/components/kit';
 import { fmtDateTime, peso, StatusBadge } from '@/components/lux';
+import { RentalTermsEditor } from '@/components/rental-terms';
+import type { TermsData } from '@/components/rental-terms';
 import { Button } from '@/components/ui/button';
 
 export type RentalRow = {
@@ -29,6 +31,7 @@ export type MyVehicle = {
     label: string;
     available_for_rent: boolean;
     daily_rate: string | null;
+    rental_terms: TermsData;
 };
 
 export function RentalRequestsTable({
@@ -94,12 +97,19 @@ export function RentalRequestsTable({
 function MyVehicleRow({ v }: { v: MyVehicle }) {
     const [rate, setRate] = useState(v.daily_rate ?? '');
     const [on, setOn] = useState(v.available_for_rent);
+    const [terms, setTerms] = useState<TermsData>(v.rental_terms ?? {});
+    const [showTerms, setShowTerms] = useState(false);
     const [saving, setSaving] = useState(false);
+    const filled = Object.values(terms).filter((x) => String(x) !== '').length;
 
     const save = () =>
         router.patch(
             `/rentals/vehicles/${v.id}`,
-            { available_for_rent: on, daily_rate: rate === '' ? null : rate },
+            {
+                available_for_rent: on,
+                daily_rate: rate === '' ? null : rate,
+                terms,
+            },
             {
                 preserveScroll: true,
                 onStart: () => setSaving(true),
@@ -108,7 +118,8 @@ function MyVehicleRow({ v }: { v: MyVehicle }) {
         );
 
     return (
-        <li className="flex flex-wrap items-center justify-between gap-3 p-4">
+        <li>
+        <div className="flex flex-wrap items-center justify-between gap-3 p-4">
             <span className="font-medium">{v.label}</span>
             <div className="flex flex-wrap items-center gap-3">
                 <label className="flex items-center gap-2 text-sm">
@@ -137,12 +148,28 @@ function MyVehicleRow({ v }: { v: MyVehicle }) {
                 </label>
                 <Button
                     size="sm"
+                    variant="outline"
+                    type="button"
+                    onClick={() => setShowTerms((x) => !x)}
+                >
+                    {showTerms
+                        ? 'Hide terms'
+                        : filled
+                          ? `Terms & conditions (${filled})`
+                          : 'Add terms & conditions'}
+                </Button>
+                <Button
+                    size="sm"
                     onClick={save}
                     disabled={saving || (on && rate === '')}
                 >
                     {saving ? 'Saving…' : 'Save'}
                 </Button>
             </div>
+        </div>
+        {showTerms && (
+            <RentalTermsEditor value={terms} onChange={setTerms} />
+        )}
         </li>
     );
 }

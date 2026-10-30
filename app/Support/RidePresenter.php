@@ -15,8 +15,14 @@ class RidePresenter
     /** Relations every card needs; use with Ride::with(RidePresenter::WITH). */
     public const WITH = ['origin', 'destination', 'vehicle.model.make', 'vehicle.driver.user', 'announcement'];
 
-    public static function card(Ride $ride): array
+    /**
+     * @param bool $withDriverContact Add the driver's photo, profile link and phone number.
+     *        Only pass true on pages that need a signed-in user (never on the public home page).
+     */
+    public static function card(Ride $ride, bool $withDriverContact = false): array
     {
+        $driver = $ride->vehicle->driver->user;
+
         return [
             'id' => $ride->id,
             'origin' => $ride->origin->name,
@@ -31,7 +37,11 @@ class RidePresenter
             ),
             'driver_name' => $ride->vehicle->driver->user->name,
             'event' => $ride->eventLabel(),
-        ];
+        ] + ($withDriverContact ? [
+            'driver_id' => $driver->id,
+            'driver_photo' => $driver->avatar,
+            'driver_phone' => $driver->phone_number,
+        ] : []);
     }
 
     /** City centre as [lat, lng] for map centring, or null when not seeded. */

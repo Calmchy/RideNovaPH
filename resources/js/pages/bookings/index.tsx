@@ -38,7 +38,7 @@ type Props = {
     is_driver: boolean;
     pending_requests: number;
     rides?: SimplePaginated<RideCardData>;
-    cities?: { id: number; name: string }[];
+    cities?: { id: number; name: string; province: string | null }[];
     bookings?: Paginated<Row>;
 };
 
@@ -126,6 +126,7 @@ export default function BookingsIndex({
     const cityOptions = (cities ?? []).map((c) => ({
         value: c.id,
         label: c.name,
+        hint: c.province ?? undefined,
     }));
 
     return (
@@ -191,6 +192,7 @@ export default function BookingsIndex({
                                     name: 'origin',
                                     type: 'select',
                                     placeholder: 'Anywhere',
+                                    searchable: true,
                                     label: 'From',
                                     options: cityOptions,
                                 },
@@ -198,6 +200,7 @@ export default function BookingsIndex({
                                     name: 'destination',
                                     type: 'select',
                                     placeholder: 'Anywhere',
+                                    searchable: true,
                                     label: 'To',
                                     options: cityOptions,
                                 },

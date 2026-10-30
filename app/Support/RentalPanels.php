@@ -45,6 +45,7 @@ class RentalPanels
                     'label' => self::label($v).' · '.$v->plate_number,
                     'available_for_rent' => (bool) $v->available_for_rent,
                     'daily_rate' => $v->daily_rate,
+                    'rental_terms' => $v->rental_terms ?? (object) [],
                 ])
                 : [],
         ];

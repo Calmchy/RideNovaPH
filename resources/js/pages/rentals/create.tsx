@@ -1,8 +1,11 @@
 // The renter's form: who they are (the info the owner needs), when, and where.
 // The price is never typed here: it is the owner's price per day x the number of days.
 import { Head, Link, useForm } from '@inertiajs/react';
+import { useMemo } from 'react';
 import { Field, inputCls, PageHeader, Panel } from '@/components/kit';
 import { peso, toLocalInput } from '@/components/lux';
+import { RentalTermsList } from '@/components/rental-terms';
+import type { TermRow } from '@/components/rental-terms';
 import { Button } from '@/components/ui/button';
 
 type Props = {
@@ -12,6 +15,9 @@ type Props = {
         seats: number;
         daily_rate: string;
         owner: string;
+        terms: TermRow[];
+        min_age: number | null;
+        min_experience_years: number | null;
     };
     defaults: { name: string; phone: string | null; address: string | null };
     max_days: number;
@@ -29,21 +35,84 @@ function countDays(start: string, end: string): number {
     return Math.max(1, Math.ceil((b - a) / 3_600_000 / 24));
 }
 
+/** Account names are saved as "First M. Last"; split that back into the form's name boxes. Anything else is left blank. */
+function splitName(full: string | null | undefined) {
+    const blank = {
+        renter_last_name: '',
+        renter_first_name: '',
+        renter_middle_initial: '',
+        renter_name_ext: '',
+    };
+    const t = (full ?? '').trim().split(/\s+/).filter(Boolean);
+
+    if (t.length === 2) {
+        return { ...blank, renter_first_name: t[0], renter_last_name: t[1] };
+    }
+
+    if (t.length >= 3 && /^[A-Za-z]\.?$/.test(t[1])) {
+        return {
+            ...blank,
+            renter_first_name: t[0],
+            renter_middle_initial: t[1].replace('.', '').toUpperCase(),
+            renter_last_name: t.slice(2).join(' '),
+        };
+    }
+
+    return blank;
+}
+
 export default function RentalCreate({ vehicle, defaults, max_days }: Props) {
     const form = useForm({
         vehicle_id: String(vehicle.id),
-        renter_name: defaults.name ?? '',
+        ...splitName(defaults.name),
         renter_phone: defaults.phone ?? '',
         renter_address: defaults.address ?? '',
-        license_number: '',
-        license_expiry: '',
+        license_id: null as File | null,
         start_at: '',
         end_at: '',
         pickup_location: '',
         return_location: '',
         purpose: '',
+        birth_date: '',
+        license_type: 'non_professional',
+        driving_years: '',
+        passenger_count: '1',
+        emergency_name: '',
+        emergency_phone: '',
+        emergency_relationship: '',
+        emergency_address: '',
+        destination: '',
+        additional_drivers: '',
+        signature_name: '',
+        accept_terms: false,
     });
-    const f = (k: keyof typeof form.data) => ({
+    const hasTerms = vehicle.terms.length > 0;
+    const d = form.data;
+    // Same format the server builds: "First M. Last Jr."
+    const fullName = [
+        d.renter_first_name.trim(),
+        d.renter_middle_initial.trim()
+            ? `${d.renter_middle_initial.trim().replace('.', '').toUpperCase()}.`
+            : '',
+        d.renter_last_name.trim(),
+        d.renter_name_ext.trim(),
+    ]
+        .filter(Boolean)
+        .join(' ');
+    const licenseFile = form.data.license_id;
+    const licensePreview = useMemo(
+        () => (licenseFile ? URL.createObjectURL(licenseFile) : null),
+        [licenseFile],
+    );
+    const minBirth = (() => {
+        const d = new Date();
+        d.setFullYear(d.getFullYear() - 18);
+
+        return d.toISOString().slice(0, 10);
+    })();
+    const f = (
+        k: Exclude<keyof typeof form.data, 'accept_terms' | 'license_id'>,
+    ) => ({
         value: form.data[k],
         onChange: (
             e: React.ChangeEvent<
@@ -87,18 +156,94 @@ export default function RentalCreate({ vehicle, defaults, max_days }: Props) {
                         </p>
                     )}
 
-                    <Panel title="About you">
+                    <Panel title={`1. Terms and conditions of ${vehicle.owner}`}>
+                        {hasTerms ? (
+                            <RentalTermsList rows={vehicle.terms} />
+                        ) : (
+                            <p className="p-5 text-sm text-muted-foreground">
+                                The owner did not add extra terms for this
+                                vehicle. The basic safety rules below still
+                                apply to both of you.
+                            </p>
+                        )}
+                        <div className="border-t p-5">
+                            {form.data.accept_terms ? (
+                                <p className="text-sm font-medium text-foam">
+                                    ✓ You accepted {vehicle.owner}’s terms and
+                                    conditions. Fill in your details below.
+                                </p>
+                            ) : (
+                                <div className="flex flex-wrap items-center justify-between gap-3">
+                                    <p className="max-w-xl text-sm text-muted-foreground">
+                                        Read the terms above. You must accept
+                                        them before you can fill in the rental
+                                        form, so both of you are clear before
+                                        anything is agreed.
+                                    </p>
+                                    <Button
+                                        type="button"
+                                        onClick={() =>
+                                            form.setData('accept_terms', true)
+                                        }
+                                    >
+                                        I have read and accept the terms
+                                    </Button>
+                                </div>
+                            )}
+                            {form.errors.accept_terms && (
+                                <p role="alert" className="mt-2 text-sm text-coral">
+                                    {form.errors.accept_terms}
+                                </p>
+                            )}
+                        </div>
+                    </Panel>
+
+                    {form.data.accept_terms && (
+                        <>
+                    <Panel title="2. About you">
                         <div className="grid gap-4 p-5 sm:grid-cols-2">
-                            <Field
-                                label="Full name *"
-                                error={form.errors.renter_name}
-                            >
-                                <input
-                                    required
-                                    maxLength={120}
-                                    {...f('renter_name')}
-                                />
-                            </Field>
+                            <div className="grid items-start gap-4 sm:col-span-2 sm:grid-cols-2 lg:grid-cols-4">
+                                <Field
+                                    label="Last name *"
+                                    error={form.errors.renter_last_name}
+                                >
+                                    <input
+                                        required
+                                        maxLength={100}
+                                        {...f('renter_last_name')}
+                                    />
+                                </Field>
+                                <Field
+                                    label="First name *"
+                                    error={form.errors.renter_first_name}
+                                >
+                                    <input
+                                        required
+                                        maxLength={100}
+                                        {...f('renter_first_name')}
+                                    />
+                                </Field>
+                                <Field
+                                    label="Middle initial (optional)"
+                                    error={form.errors.renter_middle_initial}
+                                >
+                                    <input
+                                        maxLength={2}
+                                        placeholder="e.g. D"
+                                        {...f('renter_middle_initial')}
+                                    />
+                                </Field>
+                                <Field
+                                    label="Extension (if any)"
+                                    error={form.errors.renter_name_ext}
+                                >
+                                    <input
+                                        maxLength={10}
+                                        placeholder="e.g. Jr., Sr., III"
+                                        {...f('renter_name_ext')}
+                                    />
+                                </Field>
+                            </div>
                             <Field
                                 label="Contact number *"
                                 error={form.errors.renter_phone}
@@ -111,7 +256,7 @@ export default function RentalCreate({ vehicle, defaults, max_days }: Props) {
                                     {...f('renter_phone')}
                                 />
                             </Field>
-                            <div className="sm:col-span-2">
+                            <div>
                                 <Field
                                     label="Home address *"
                                     error={form.errors.renter_address}
@@ -124,33 +269,150 @@ export default function RentalCreate({ vehicle, defaults, max_days }: Props) {
                                 </Field>
                             </div>
                             <Field
-                                label="Driver’s licence number *"
-                                error={form.errors.license_number}
-                                hint="Only the owner sees this. It is stored encrypted."
+                                label="Upload licence ID *"
+                                error={form.errors.license_id}
+                                hint="A clear photo of your driver’s licence (JPG, PNG or WEBP, up to 5 MB). Only the owner sees it."
                             >
                                 <input
                                     required
-                                    maxLength={40}
-                                    autoComplete="off"
-                                    {...f('license_number')}
+                                    type="file"
+                                    accept="image/jpeg,image/png,image/webp"
+                                    onChange={(e) =>
+                                        form.setData(
+                                            'license_id',
+                                            e.target.files?.[0] ?? null,
+                                        )
+                                    }
+                                    className={inputCls}
                                 />
+                                {licensePreview && (
+                                    <img
+                                        src={licensePreview}
+                                        alt="Your licence ID"
+                                        className="mt-2 aspect-[4/3] w-full max-w-xs rounded-xl border object-cover"
+                                    />
+                                )}
                             </Field>
                             <Field
-                                label="Licence expiry date *"
-                                error={form.errors.license_expiry}
-                                hint="Must be valid until you return the vehicle"
+                                label="Date of birth *"
+                                error={form.errors.birth_date}
+                                hint={
+                                    vehicle.min_age
+                                        ? `The owner requires at least ${vehicle.min_age} years old.`
+                                        : 'You must be at least 18. Stored encrypted.'
+                                }
                             >
                                 <input
                                     required
                                     type="date"
-                                    min={now.slice(0, 10)}
-                                    {...f('license_expiry')}
+                                    max={minBirth}
+                                    {...f('birth_date')}
+                                />
+                            </Field>
+                            <Field
+                                label="Licence type *"
+                                error={form.errors.license_type}
+                                hint="Foreign renters: use the International Driving Permit."
+                            >
+                                <select required {...f('license_type')}>
+                                    <option value="non_professional">
+                                        Non-professional
+                                    </option>
+                                    <option value="professional">
+                                        Professional
+                                    </option>
+                                    <option value="international">
+                                        International Driving Permit
+                                    </option>
+                                </select>
+                            </Field>
+                            <Field
+                                label="Years of driving experience *"
+                                error={form.errors.driving_years}
+                                hint={
+                                    vehicle.min_experience_years
+                                        ? `The owner requires at least ${vehicle.min_experience_years} year(s).`
+                                        : undefined
+                                }
+                            >
+                                <input
+                                    required
+                                    type="number"
+                                    min={0}
+                                    max={80}
+                                    step={1}
+                                    {...f('driving_years')}
+                                />
+                            </Field>
+                            <Field
+                                label="How many people will ride? *"
+                                error={form.errors.passenger_count}
+                                hint={`This vehicle has ${vehicle.seats} seats, including the driver.`}
+                            >
+                                <input
+                                    required
+                                    type="number"
+                                    min={1}
+                                    max={vehicle.seats}
+                                    step={1}
+                                    {...f('passenger_count')}
                                 />
                             </Field>
                         </div>
                     </Panel>
 
-                    <Panel title="When">
+                    <Panel title="3. Emergency contact">
+                        <div className="grid items-start gap-4 p-5 sm:grid-cols-2">
+                            <Field
+                                label="Contact person *"
+                                error={form.errors.emergency_name}
+                                hint="Someone we can call if something happens. Not the driver."
+                            >
+                                <input
+                                    required
+                                    maxLength={120}
+                                    {...f('emergency_name')}
+                                />
+                            </Field>
+                            <Field
+                                label="Relationship *"
+                                error={form.errors.emergency_relationship}
+                            >
+                                <input
+                                    required
+                                    maxLength={50}
+                                    placeholder="e.g. Father"
+                                    {...f('emergency_relationship')}
+                                />
+                            </Field>
+                            <Field
+                                label="Contact number *"
+                                error={form.errors.emergency_phone}
+                            >
+                                <input
+                                    required
+                                    type="tel"
+                                    maxLength={30}
+                                    placeholder="09XX XXX XXXX"
+                                    {...f('emergency_phone')}
+                                />
+                            </Field>
+                            <Field
+                                label="Address *"
+                                error={form.errors.emergency_address}
+                                hint="In case this person can’t be reached by phone."
+                            >
+                                <input
+                                    required
+                                    maxLength={255}
+                                    placeholder="House no., barangay, town, province"
+                                    {...f('emergency_address')}
+                                />
+                            </Field>
+                        </div>
+                    </Panel>
+
+                    <Panel title="4. When">
                         <div className="grid gap-4 p-5 sm:grid-cols-2">
                             <Field
                                 label="Start date & time *"
@@ -178,7 +440,7 @@ export default function RentalCreate({ vehicle, defaults, max_days }: Props) {
                         </div>
                     </Panel>
 
-                    <Panel title="Where">
+                    <Panel title="5. Where">
                         <div className="grid gap-4 p-5 sm:grid-cols-2">
                             <Field
                                 label="Pick-up place *"
@@ -202,11 +464,36 @@ export default function RentalCreate({ vehicle, defaults, max_days }: Props) {
                                     {...f('return_location')}
                                 />
                             </Field>
+                            <div className="sm:col-span-2">
+                                <Field
+                                    label="Where will you drive it? *"
+                                    error={form.errors.destination}
+                                    hint="Towns or provinces. Tell the owner if you leave the area allowed in the terms."
+                                >
+                                    <input
+                                        required
+                                        maxLength={255}
+                                        placeholder="e.g. Abuyog to Tacloban and back"
+                                        {...f('destination')}
+                                    />
+                                </Field>
+                            </div>
                         </div>
                     </Panel>
 
-                    <Panel title="Anything the owner should know? (optional)">
-                        <div className="p-5">
+                    <Panel title="6. Other drivers and notes (optional)">
+                        <div className="grid gap-4 p-5">
+                            <Field
+                                label="Other people who will drive"
+                                error={form.errors.additional_drivers}
+                                hint="Full name and licence number of each. Only people listed here may drive."
+                            >
+                                <textarea
+                                    rows={2}
+                                    maxLength={500}
+                                    {...f('additional_drivers')}
+                                />
+                            </Field>
                             <Field
                                 label="Purpose of the rental"
                                 error={form.errors.purpose}
@@ -217,6 +504,46 @@ export default function RentalCreate({ vehicle, defaults, max_days }: Props) {
                                     maxLength={500}
                                     placeholder="e.g. Family vacation to Tacloban, 5 people."
                                     {...f('purpose')}
+                                />
+                            </Field>
+                        </div>
+                    </Panel>
+
+                    <Panel title="7. Signature">
+                        <div className="space-y-4 p-5 text-sm">
+                            <div>
+                                <p className="font-semibold">
+                                    Basic safety rules for both of you
+                                </p>
+                                <ul className="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
+                                    <li>
+                                        Renter: drive only with a valid licence,
+                                        never after drinking or taking drugs,
+                                        carry no more people than seats, and
+                                        follow traffic laws.
+                                    </li>
+                                    <li>
+                                        Owner: hand over a roadworthy, registered
+                                        vehicle as described in the listing and
+                                        terms.
+                                    </li>
+                                    <li>
+                                        Both: check the vehicle together at
+                                        pick-up and return, and take photos of
+                                        any scratches or dents.
+                                    </li>
+                                </ul>
+                            </div>
+                            <Field
+                                label="Sign: type your full name *"
+                                error={form.errors.signature_name}
+                                hint={`By signing, you confirm everything you wrote is true and that you follow the terms you accepted. Type your name as: ${fullName || 'your full name above'}`}
+                            >
+                                <input
+                                    required
+                                    maxLength={120}
+                                    autoComplete="off"
+                                    {...f('signature_name')}
                                 />
                             </Field>
                         </div>
@@ -246,6 +573,8 @@ export default function RentalCreate({ vehicle, defaults, max_days }: Props) {
                             </Button>
                         </div>
                     </div>
+                        </>
+                    )}
                 </form>
             </div>
         </>

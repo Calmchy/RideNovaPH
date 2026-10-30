@@ -97,7 +97,7 @@ class CharterController extends Controller
             'is_driver' => $user->isApprovedDriver(),
             'incoming' => $user->isApprovedDriver()
                 ? CharterRequest::with('passenger:id,name')->where('driver_id', $user->id)
-                    ->latest()->limit(30)->get()->map(fn ($c) => $row($c, $c->passenger->name))
+                    ->latest()->limit(30)->get()->map(fn ($c) => $row($c, $c->passenger_name ?: $c->passenger->name))
                 : [],
             'available_for_hire' => (bool) $user->driverProfile?->available_for_hire,
         ] + RentalPanels::for($user));
@@ -119,7 +119,11 @@ class CharterController extends Controller
             return to_route('charters.index');
         }
 
+        $me = $request->user();
+
         return Inertia::render('charters/create', [
+            // Prefilled from the account; the passenger can change them for this request.
+            'defaults' => ['name' => $me->name, 'phone' => $me->phone_number],
             'driver' => [
                 'id' => $profile->user_id, 'name' => $profile->user->name,
                 'phone' => $profile->user->phone_number, 'bio' => $profile->bio,
@@ -129,10 +133,6 @@ class CharterController extends Controller
                 'label' => $v->model->make->name.' '.$v->model->name.' · '.$v->color,
                 'seats' => $v->seat_capacity,
             ])->values(),
-            // The "rent the vehicle only" alternative (first rentable vehicle), if this driver offers one.
-            'rent_vehicle' => ($rv = $profile->vehicles->first(fn ($v) => $v->available_for_rent && $v->daily_rate))
-                ? ['id' => $rv->id, 'daily_rate' => $rv->daily_rate]
-                : null,
         ]);
     }
 
@@ -176,7 +176,12 @@ class CharterController extends Controller
             ],
             'role' => $role,
             // The other person: name + phone (both parties may call each other once a request exists).
-            'partner' => ['name' => $other->name, 'phone' => $other->phone_number, 'label' => $role === 'driver' ? 'Passenger' : 'Driver'],
+            // The driver sees the name and number the passenger typed for THIS request.
+            'partner' => [
+                'name' => $role === 'driver' ? ($charter->passenger_name ?: $other->name) : $other->name,
+                'phone' => $role === 'driver' ? ($charter->passenger_phone ?: $other->phone_number) : $other->phone_number,
+                'label' => $role === 'driver' ? 'Passenger' : 'Driver',
+            ],
             'abilities' => [
                 'quote' => $role === 'driver' && in_array($status, [CharterStatus::Pending, CharterStatus::Quoted], true),
                 'decline' => $role === 'driver' && in_array($status, [CharterStatus::Pending, CharterStatus::Quoted], true),

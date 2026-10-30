@@ -4,7 +4,7 @@
 import { Link, router } from '@inertiajs/react';
 import type { LucideIcon } from 'lucide-react';
 import { RotateCcw, Search } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -229,9 +229,133 @@ export type FilterField = {
     name: string;
     type: 'search' | 'select' | 'date';
     placeholder?: string;
-    options?: { value: string | number; label: string }[];
+    options?: { value: string | number; label: string; hint?: string }[];
     label?: string;
+    /** select only: let people type to search the options (label or hint, e.g. town or province). */
+    searchable?: boolean;
 };
+
+/**
+ * A select you can type in. Typing filters the list by label or hint (for places: town or province),
+ * arrow keys + Enter pick, Esc closes. The first row clears the choice.
+ */
+function SearchSelect({
+    value,
+    options,
+    placeholder,
+    onChange,
+}: {
+    value: string;
+    options: { value: string | number; label: string; hint?: string }[];
+    placeholder: string;
+    onChange: (value: string) => void;
+}) {
+    const [open, setOpen] = useState(false);
+    const [query, setQuery] = useState('');
+    const [active, setActive] = useState(0);
+    const id = useId();
+    const selected = options.find((o) => String(o.value) === value);
+    const q = query.trim().toLowerCase();
+    const shown = q
+        ? options.filter((o) =>
+              `${o.label} ${o.hint ?? ''}`.toLowerCase().includes(q),
+          )
+        : options;
+    // Row 0 is always "Anywhere" (clears the filter).
+    const rows = [{ value: '', label: placeholder, hint: undefined }, ...shown];
+
+    const pick = (v: string) => {
+        onChange(v);
+        setQuery('');
+        setOpen(false);
+    };
+
+    return (
+        <span className="relative block">
+            <input
+                role="combobox"
+                aria-expanded={open}
+                aria-controls={`${id}-list`}
+                aria-autocomplete="list"
+                aria-activedescendant={open ? `${id}-${active}` : undefined}
+                autoComplete="off"
+                value={open ? query : (selected?.label ?? '')}
+                placeholder={placeholder}
+                onFocus={() => {
+                    setOpen(true);
+                    setActive(0);
+                }}
+                onBlur={() => {
+                    setOpen(false);
+                    setQuery('');
+                }}
+                onChange={(e) => {
+                    setQuery(e.target.value);
+                    setOpen(true);
+                    setActive(e.target.value.trim() ? 1 : 0);
+                }}
+                onKeyDown={(e) => {
+                    if (e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        setOpen(true);
+                        setActive((a) => Math.min(a + 1, rows.length - 1));
+                    } else if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        setActive((a) => Math.max(a - 1, 0));
+                    } else if (e.key === 'Enter' && open) {
+                        e.preventDefault();
+                        const row = rows[Math.min(active, rows.length - 1)];
+                        pick(String(row.value));
+                    } else if (e.key === 'Escape') {
+                        setOpen(false);
+                        setQuery('');
+                    }
+                }}
+                className={inputCls}
+            />
+            {open && (
+                <ul
+                    id={`${id}-list`}
+                    role="listbox"
+                    className="absolute z-30 mt-1 max-h-64 w-64 max-w-[80vw] overflow-auto rounded-lg border bg-popover p-1 text-sm text-popover-foreground shadow-lg"
+                >
+                    {rows.map((o, i) => (
+                        <li
+                            key={`${o.value}-${i}`}
+                            id={`${id}-${i}`}
+                            role="option"
+                            aria-selected={String(o.value) === value}
+                            // mousedown (not click) so it runs before the input loses focus
+                            onMouseDown={(e) => {
+                                e.preventDefault();
+                                pick(String(o.value));
+                            }}
+                            onMouseEnter={() => setActive(i)}
+                            className={cn(
+                                'flex cursor-pointer items-baseline justify-between gap-3 rounded-md px-2 py-1.5',
+                                i === active && 'bg-accent text-accent-foreground',
+                                String(o.value) === value && 'font-semibold',
+                            )}
+                        >
+                            <span>{o.label}</span>
+                            {o.hint && (
+                                <span className="text-xs text-muted-foreground">
+                                    {o.hint}
+                                </span>
+                            )}
+                        </li>
+                    ))}
+                    {q && shown.length === 0 && (
+                        <li className="px-2 py-2 text-xs text-muted-foreground">
+                            No place matches “{query.trim()}”. Rides run only
+                            between the towns listed here.
+                        </li>
+                    )}
+                </ul>
+            )}
+        </span>
+    );
+}
 
 /**
  * One search/filter bar for any list page. It keeps its own state, sends a GET request to `url`
@@ -323,6 +447,13 @@ export function FilterBar({
                                 className={cn(inputCls, 'pl-9')}
                             />
                         </span>
+                    ) : f.type === 'select' && f.searchable ? (
+                        <SearchSelect
+                            value={state[f.name]}
+                            options={f.options ?? []}
+                            placeholder={f.placeholder ?? 'All'}
+                            onChange={(v) => update(f.name, v, false)}
+                        />
                     ) : f.type === 'select' ? (
                         <select
                             value={state[f.name]}

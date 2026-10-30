@@ -68,6 +68,8 @@ class RequestCharter
                 'return_location' => $data['return_location'] ?? null,
                 'return_at' => $data['return_at'] ?? null,
                 'description' => $data['description'] ?? null,
+                'passenger_name' => $data['passenger_name'],
+                'passenger_phone' => $data['passenger_phone'],
                 'status' => CharterStatus::Pending,
             ]);
         });
@@ -75,7 +77,7 @@ class RequestCharter
         ActivityLog::record($passenger, 'charter.requested', $charter);
         $driver->notify(new AppNotice(
             'New group booking request',
-            "{$passenger->name} wants to hire your vehicle for a group of {$charter->group_size} ({$charter->reference_no}). Review the terms and set your price.",
+            "{$data['passenger_name']} wants to hire your vehicle for a group of {$charter->group_size} ({$charter->reference_no}). Review the terms and set your price.",
             "/charters/{$charter->id}",
         ));
 

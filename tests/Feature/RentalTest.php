@@ -2,11 +2,16 @@
 
 use App\Enums\RentalStatus;
 use App\Models\RentalRequest;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\Support\Scenario;
 
 // Self-drive rental: owner sets the daily rate, renter sends details + when/where, owner approves.
 
-beforeEach(fn () => Scenario::lookups());
+beforeEach(function () {
+    Scenario::lookups();
+    Storage::fake('local');
+});
 
 function rentableCar(float $rate = 1500): array
 {
@@ -22,8 +27,12 @@ function rentalForm($vehicle, array $over = []): array
 {
     return $over + [
         'vehicle_id' => $vehicle->id,
-        'renter_name' => 'Juan Dela Cruz', 'renter_phone' => '09171234567', 'renter_address' => 'Abuyog, Leyte',
-        'license_number' => 'N01-23-456789', 'license_expiry' => now()->addYears(2)->format('Y-m-d'),
+        'renter_last_name' => 'Dela Cruz', 'renter_first_name' => 'Juan', 'renter_phone' => '09171234567', 'renter_address' => 'Abuyog, Leyte',
+        'license_id' => UploadedFile::fake()->image('licence.jpg'),
+        'birth_date' => '1995-05-05', 'license_type' => 'non_professional', 'driving_years' => 5, 'passenger_count' => 2,
+        'emergency_name' => 'Maria Dela Cruz', 'emergency_phone' => '09170001111',
+        'emergency_relationship' => 'Mother', 'emergency_address' => 'Abuyog, Leyte', 'destination' => 'Tacloban',
+        'signature_name' => 'Juan Dela Cruz', 'accept_terms' => true,
         'start_at' => now()->addDays(3)->format('Y-m-d\TH:i'),
         'end_at' => now()->addDays(5)->format('Y-m-d\TH:i'),
         'pickup_location' => 'Abuyog plaza', 'return_location' => 'Abuyog plaza',
@@ -47,11 +56,12 @@ test('a verified renter can request a vehicle; price is rate x days and the owne
         ->and($rental->days)->toBe(2)
         ->and((float) $rental->daily_rate)->toBe(1500.0)
         ->and((float) $rental->total_price)->toBe(3000.0)
-        ->and($rental->license_number)->toBe('N01-23-456789')
+        ->and(Storage::disk('local')->exists($rental->license_id_path))->toBeTrue()
+        ->and($rental->birth_date)->toBe('1995-05-05')
         ->and($owner->notifications()->count())->toBe(1);
 
-    // The licence number is encrypted at rest (the raw column is not the plain text).
-    expect(\Illuminate\Support\Facades\DB::table('rental_requests')->value('license_number'))->not->toBe('N01-23-456789');
+    // The date of birth is encrypted at rest (the raw column is not the plain text).
+    expect(\Illuminate\Support\Facades\DB::table('rental_requests')->value('birth_date'))->not->toBe('1995-05-05');
 });
 
 test('the renter cannot choose the price, only the owner rate counts', function () {
@@ -91,15 +101,12 @@ test('a vehicle that is not for rent, or my own, cannot be requested', function 
     expect(RentalRequest::count())->toBe(0);
 });
 
-test('renter details are required and the licence must outlast the rental', function () {
+test('renter details and the licence ID photo are required', function () {
     [, $vehicle] = rentableCar();
     $renter = Scenario::passenger();
 
-    $this->actingAs($renter)->post('/rentals', rentalForm($vehicle, ['renter_name' => '', 'license_number' => '']))
-        ->assertSessionHasErrors(['renter_name', 'license_number']);
-
-    $this->actingAs($renter)->post('/rentals', rentalForm($vehicle, ['license_expiry' => now()->addDay()->format('Y-m-d')]))
-        ->assertSessionHasErrors('license_expiry');
+    $this->actingAs($renter)->post('/rentals', rentalForm($vehicle, ['renter_first_name' => '', 'license_id' => null]))
+        ->assertSessionHasErrors(['renter_first_name', 'license_id']);
 });
 
 test('a renter without an approved ID cannot rent', function () {

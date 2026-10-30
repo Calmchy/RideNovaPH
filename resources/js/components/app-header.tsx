@@ -44,7 +44,11 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
 
     const items: NavItem[] = [
         { title: 'Dashboard', href: '/dashboard', icon: LayoutGrid },
-        { title: 'Bookings', href: '/bookings', icon: CalendarCheck },
+        // Drivers provide the rides, so they don't get the passenger "Bookings" link.
+        // (Their passenger requests are under Driver > Passenger requests.)
+        ...(auth.isDriver
+            ? []
+            : [{ title: 'Bookings', href: '/bookings', icon: CalendarCheck }]),
         { title: 'Transactions', href: '/transactions', icon: ReceiptText },
         ...(auth.isDriver
             ? [{ title: 'Driver', href: '/driver', icon: Car }]

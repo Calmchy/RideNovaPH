@@ -11,6 +11,8 @@ use App\Models\Vehicle;
 use App\Notifications\AppNotice;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -39,6 +41,29 @@ class RequestRental
             throw ValidationException::withMessages(['vehicle_id' => 'Please get your ID verified before renting a vehicle.']);
         }
 
+        // The owner's Terms & Conditions (if any) are frozen onto the request; the renter must have agreed.
+        $terms = $vehicle->rental_terms ?: null;
+        if (! filter_var($data['accept_terms'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+            throw ValidationException::withMessages(['accept_terms' => 'Please read and agree to the terms and conditions.']);
+        }
+        // The typed signature must be the renter's own name (ignoring case and extra spaces).
+        $norm = fn (string $v) => mb_strtolower(trim(preg_replace('/\s+/', ' ', str_replace(['.', ','], ' ', $v))));
+        if ($norm($data['signature_name']) !== $norm($data['renter_name'])) {
+            throw ValidationException::withMessages(['signature_name' => 'Type your full name exactly as written above to sign.']);
+        }
+
+        // Requirements the owner set in the terms, checked against what the renter declared.
+        $age = Carbon::parse($data['birth_date'])->age;
+        if (isset($terms['min_age']) && $age < (int) $terms['min_age']) {
+            throw ValidationException::withMessages(['birth_date' => 'The owner requires renters to be at least '.(int) $terms['min_age'].' years old.']);
+        }
+        if (isset($terms['min_experience_years']) && (int) $data['driving_years'] < (int) $terms['min_experience_years']) {
+            throw ValidationException::withMessages(['driving_years' => 'The owner requires at least '.(int) $terms['min_experience_years'].' year(s) of driving experience.']);
+        }
+        if ((int) $data['passenger_count'] > (int) $vehicle->seat_capacity) {
+            throw ValidationException::withMessages(['passenger_count' => 'This vehicle only has '.$vehicle->seat_capacity.' seats.']);
+        }
+
         $start = Carbon::parse($data['start_at']);
         $end = Carbon::parse($data['end_at']);
         $days = RentalRequest::daysBetween($start, $end);
@@ -46,12 +71,13 @@ class RequestRental
         if ($days > self::MAX_DAYS) {
             throw ValidationException::withMessages(['end_at' => 'You can rent a vehicle for at most '.self::MAX_DAYS.' days at a time.']);
         }
-        // The licence must still be valid on the day the vehicle comes back.
-        if (Carbon::parse($data['license_expiry'])->lt($end->copy()->startOfDay())) {
-            throw ValidationException::withMessages(['license_expiry' => 'Your licence expires before the rental ends.']);
-        }
 
-        $rental = DB::transaction(function () use ($renter, $owner, $vehicle, $data, $start, $end, $days) {
+        // Licence ID photo: private disk, random name. Removed again if the request is refused below.
+        $file = $data['license_id'];
+        $licensePath = $file->storeAs('rental-license-ids', Str::uuid().'.'.$file->guessExtension(), 'local');
+
+        try {
+            $rental = DB::transaction(function () use ($renter, $owner, $vehicle, $data, $start, $end, $days, $terms, $licensePath) {
             // Lock the vehicle row so two renters can't both be accepted into the same dates.
             Vehicle::whereKey($vehicle->id)->lockForUpdate()->first();
 
@@ -78,8 +104,7 @@ class RequestRental
                 'renter_name' => $data['renter_name'],
                 'renter_phone' => $data['renter_phone'],
                 'renter_address' => $data['renter_address'],
-                'license_number' => $data['license_number'],
-                'license_expiry' => $data['license_expiry'],
+                'license_id_path' => $licensePath,
                 'start_at' => $start,
                 'end_at' => $end,
                 'pickup_location' => $data['pickup_location'],
@@ -89,8 +114,27 @@ class RequestRental
                 'daily_rate' => $rate,
                 'total_price' => round($rate * $days, 2),
                 'status' => RentalStatus::Pending,
+                // Frozen copy of what the renter agreed to.
+                'terms_snapshot' => $terms,
+                'terms_accepted_at' => now(),
+                'birth_date' => $data['birth_date'],
+                'license_type' => $data['license_type'],
+                'driving_years' => $data['driving_years'],
+                'passenger_count' => $data['passenger_count'],
+                'emergency_name' => $data['emergency_name'],
+                'emergency_phone' => $data['emergency_phone'],
+                'emergency_relationship' => $data['emergency_relationship'],
+                'emergency_address' => $data['emergency_address'],
+                'destination' => $data['destination'],
+                'additional_drivers' => $data['additional_drivers'] ?? null,
+                'signature_name' => $data['signature_name'],
             ]);
-        });
+            });
+        } catch (\Throwable $e) {
+            Storage::disk('local')->delete($licensePath);
+
+            throw $e;
+        }
 
         ActivityLog::record($renter, 'rental.requested', $rental);
         $owner->notify(new AppNotice(
