@@ -11,6 +11,7 @@ use App\Models\CharterMessage;
 use App\Models\CharterRequest;
 use App\Models\DriverProfile;
 use App\Models\User;
+use App\Support\RentalPanels;
 use App\Notifications\AppNotice;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -45,10 +46,12 @@ class CharterController extends Controller
             ->get()->keyBy('driver_id');
 
         // Only approved drivers who switched "available for hire" on and own at least one vehicle.
+        // Listed when the driver is open to being hired OR has a vehicle for rent (self-drive).
         $drivers = DriverProfile::with(['user:id,name,phone_number', 'vehicles.model.make'])
             ->where('status', ApprovalStatus::Approved->value)
-            ->where('available_for_hire', true)
             ->where('user_id', '!=', $user->id)
+            ->where(fn ($q) => $q->where('available_for_hire', true)
+                ->orWhereHas('vehicles', fn ($v) => $v->where('available_for_rent', true)->whereNotNull('daily_rate')))
             ->whereHas('vehicles')
             ->limit(20)->get()
             ->map(function (DriverProfile $p) use ($ratings) {
@@ -61,10 +64,17 @@ class CharterController extends Controller
                     'bio' => $p->bio,
                     'rating' => $r ? round((float) $r->average, 1) : null,
                     'reviews' => $r ? (int) $r->total : 0,
+                    'can_hire' => (bool) $p->available_for_hire,
                     'vehicles' => $p->vehicles->map(fn ($v) => [
                         'name' => $v->model->make->name.' '.$v->model->name,
                         'color' => $v->color,
                         'seats' => $v->seat_capacity,
+                    ])->values(),
+                    // Vehicles this driver lets people rent WITHOUT the driver (renter drives), at the owner's daily rate.
+                    'rentals' => $p->vehicles->filter(fn ($v) => $v->available_for_rent && $v->daily_rate)->map(fn ($v) => [
+                        'id' => $v->id,
+                        'name' => $v->model->make->name.' '.$v->model->name,
+                        'daily_rate' => $v->daily_rate,
                     ])->values(),
                 ];
             })->values();
@@ -90,7 +100,7 @@ class CharterController extends Controller
                     ->latest()->limit(30)->get()->map(fn ($c) => $row($c, $c->passenger->name))
                 : [],
             'available_for_hire' => (bool) $user->driverProfile?->available_for_hire,
-        ]);
+        ] + RentalPanels::for($user));
     }
 
     /** GET /charters/new?driver=ID : the passenger's fill-out form. */
@@ -119,6 +129,10 @@ class CharterController extends Controller
                 'label' => $v->model->make->name.' '.$v->model->name.' · '.$v->color,
                 'seats' => $v->seat_capacity,
             ])->values(),
+            // The "rent the vehicle only" alternative (first rentable vehicle), if this driver offers one.
+            'rent_vehicle' => ($rv = $profile->vehicles->first(fn ($v) => $v->available_for_rent && $v->daily_rate))
+                ? ['id' => $rv->id, 'daily_rate' => $rv->daily_rate]
+                : null,
         ]);
     }
 

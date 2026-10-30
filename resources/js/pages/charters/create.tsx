@@ -3,7 +3,7 @@
 import { Head, Link, useForm } from '@inertiajs/react';
 import { Phone } from 'lucide-react';
 import { Field, inputCls, PageHeader, Panel } from '@/components/kit';
-import { toLocalInput } from '@/components/lux';
+import { peso, toLocalInput } from '@/components/lux';
 import { Button } from '@/components/ui/button';
 
 type Props = {
@@ -14,9 +14,15 @@ type Props = {
         bio: string | null;
     };
     vehicles: { id: number; label: string; seats: number }[];
+    /** First vehicle this driver lets people rent without the driver, if any. */
+    rent_vehicle: { id: number; daily_rate: string } | null;
 };
 
-export default function CharterCreate({ driver, vehicles }: Props) {
+export default function CharterCreate({
+    driver,
+    vehicles,
+    rent_vehicle,
+}: Props) {
     const form = useForm({
         driver_id: String(driver.id),
         vehicle_id: String(vehicles[0]?.id ?? ''),
@@ -65,6 +71,56 @@ export default function CharterCreate({ driver, vehicles }: Props) {
                         ) : undefined
                     }
                 />
+
+                {/* What do you need? Hire the driver (this form) or just rent the vehicle and drive it yourself. */}
+                <div
+                    role="tablist"
+                    aria-label="What do you need?"
+                    className="grid gap-2 sm:grid-cols-2"
+                >
+                    <div
+                        role="tab"
+                        aria-selected="true"
+                        className="rounded-xl border-2 border-ocean bg-card p-4 dark:border-foam"
+                    >
+                        <p className="font-semibold">Hire the driver</p>
+                        <p className="text-sm text-muted-foreground">
+                            The driver takes you and your group. They set the
+                            price.
+                        </p>
+                    </div>
+                    {rent_vehicle ? (
+                        <Link
+                            role="tab"
+                            aria-selected="false"
+                            href={`/rentals/new?vehicle=${rent_vehicle.id}`}
+                            className="rounded-xl border bg-card p-4 transition hover:border-ocean"
+                        >
+                            <p className="font-semibold">
+                                Rent the vehicle only
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                                No driver. You drive it yourself ·{' '}
+                                {peso(rent_vehicle.daily_rate)} per day.
+                            </p>
+                        </Link>
+                    ) : (
+                        <div
+                            role="tab"
+                            aria-selected="false"
+                            aria-disabled="true"
+                            className="rounded-xl border border-dashed p-4 opacity-60"
+                        >
+                            <p className="font-semibold">
+                                Rent the vehicle only
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                                This owner doesn’t rent out the vehicle without
+                                the driver.
+                            </p>
+                        </div>
+                    )}
+                </div>
 
                 <form
                     onSubmit={(e) => {

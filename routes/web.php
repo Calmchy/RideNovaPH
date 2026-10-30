@@ -28,6 +28,7 @@ use App\Http\Controllers\TrackingController;
 use App\Http\Controllers\TransactionController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\DriverDirectoryController;
+use App\Http\Controllers\RentalController;
 
 /*
 |--------------------------------------------------------------------------
@@ -57,6 +58,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/drivers/{user}', [DriverDirectoryController::class, 'show'])->name('drivers.show');        
     Route::get('dashboard', DashboardController::class)->name('dashboard');
     Route::inertia('/about', 'about')->name('about');
+
+        // Self-drive vehicle rental. Literal paths come before {rental}.
+    Route::get('/rentals', [RentalController::class, 'index'])->name('rentals.index');
+    Route::get('/rentals/new', [RentalController::class, 'create'])->name('rentals.create');
+    Route::post('/rentals', [RentalController::class, 'store'])->middleware('throttle:10,1')->name('rentals.store');
+    Route::patch('/rentals/vehicles/{vehicle}', [RentalController::class, 'vehicle'])->middleware('throttle:30,1')->name('rentals.vehicle');
+    Route::get('/rentals/{rental}', [RentalController::class, 'show'])->name('rentals.show');
+    Route::patch('/rentals/{rental}/{action}', [RentalController::class, 'transition'])
+        ->where('action', 'approve|decline|cancel|complete')->middleware('throttle:30,1')->name('rentals.transition');
 
     // Valid-ID upload (rate limited: uploads are expensive and a brute-force target).
     Route::get('/identity', [IdentityDocumentController::class, 'create'])->name('identity.create');

@@ -384,6 +384,7 @@ export default function BookingsIndex({
                         >
                             Review history
                         </Link>
+
                     </>
                 )}
             </div>
