@@ -85,16 +85,29 @@ export default function Dashboard({
     const idCopy = ID_COPY[id_status ?? 'none'];
 
     const menu = [
-        {
-            title: 'Bookings',
-            href: '/bookings',
-            icon: CalendarCheck,
-            badge: stats.awaiting_my_approval,
-        },
+        // Drivers provide the rides, so they don't get the passenger "Bookings" link.
+        ...(auth.isDriver
+            ? []
+            : [
+                  {
+                      title: 'Bookings',
+                      href: '/bookings',
+                      icon: CalendarCheck,
+                      badge: stats.awaiting_my_approval,
+                  },
+              ]),
         { title: 'Find a ride', href: '/bookings?tab=find', icon: Route },
         { title: 'Transactions', href: '/transactions', icon: ReceiptText },
         ...(auth.isDriver
-            ? [{ title: 'Driver hub', href: '/driver', icon: Car }]
+            ? [
+                  {
+                      title: 'Driver hub',
+                      href: '/driver',
+                      icon: Car,
+                      // The "waiting for my approval" count moves here, where drivers answer requests.
+                      badge: stats.awaiting_my_approval,
+                  },
+              ]
             : []),
         { title: 'Verify ID', href: '/settings/profile', icon: BadgeCheck },
         { title: 'Profile', href: '/settings/profile', icon: UserCog },
