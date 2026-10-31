@@ -144,7 +144,7 @@ export default function AdminIdentity({
     filters,
 }: {
     documents: Paginated<Doc>;
-    filters: { status: string; q: string | null };
+    filters: { status: string; q: string | null; role: string | null };
 }) {
     const decide = (d: Doc, decision: 'approved' | 'rejected', remarks = '') =>
         router.patch(
@@ -167,7 +167,11 @@ export default function AdminIdentity({
                         href={`/admin/identity?status=${s}`}
                         onClick={(e) => {
                             e.preventDefault();
-                            router.get('/admin/identity', { status: s });
+                            router.get('/admin/identity', {
+                                status: s,
+                                ...(filters.role ? { role: filters.role } : {}),
+                                ...(filters.q ? { q: filters.q } : {}),
+                            });
                         }}
                         className={cn(
                             '-mb-px border-b-2 px-4 py-2 text-sm font-medium capitalize',
@@ -183,9 +187,20 @@ export default function AdminIdentity({
             <FilterBar
                 url="/admin/identity"
                 extra={{ status: filters.status }}
-                values={{ q: filters.q }}
+                values={{ q: filters.q, role: filters.role }}
                 fields={[
                     { name: 'q', type: 'search', placeholder: 'Name or email' },
+                    {
+                        name: 'role',
+                        type: 'select',
+                        placeholder: 'All users',
+                        label: 'User type',
+                        options: [
+                            { value: 'passenger', label: 'Passenger' },
+                            { value: 'driver', label: 'Driver' },
+                            { value: 'admin', label: 'Admin' },
+                        ],
+                    },
                 ]}
             />
 

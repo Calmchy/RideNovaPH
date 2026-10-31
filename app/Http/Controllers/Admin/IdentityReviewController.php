@@ -25,16 +25,18 @@ class IdentityReviewController extends Controller
         $f = $request->validate([
             'status' => ['nullable', 'in:pending,approved,rejected'],
             'q' => ['nullable', 'string', 'max:60'],
+            'role' => ['nullable', 'in:passenger,driver,admin'],
         ]);
         $status = $f['status'] ?? 'pending';
 
         $docs = IdentityDocument::with(['user:id,name,email,phone_number,address,emergency_contact_name,emergency_contact_phone,profile_photo_path,account_status,created_at,role_id', 'user.role', 'user.driverProfile', 'idType', 'reviewer:id,name'])
             ->where('status', $status)
+            ->when($f['role'] ?? null, fn ($q, $v) => $q->whereHas('user.role', fn ($r) => $r->where('name', $v)))
             ->when($f['q'] ?? null, fn ($q, $v) => $q->whereHas('user', fn ($u) => $u->where('name', 'like', Like::contains($v))->orWhere('email', 'like', Like::contains($v))))
             ->oldest()->paginate(10)->withQueryString();
 
         return Inertia::render('admin/identity', [
-            'filters' => ['status' => $status, 'q' => $f['q'] ?? null],
+            'filters' => ['status' => $status, 'q' => $f['q'] ?? null, 'role' => $f['role'] ?? null],
             'documents' => $docs->through(fn (IdentityDocument $d) => [
                 'id' => $d->id,
                 'name' => $d->user->name,

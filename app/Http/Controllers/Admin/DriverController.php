@@ -28,7 +28,7 @@ class DriverController extends Controller
             'q' => ['nullable', 'string', 'max:60'],
         ]);
 
-        $drivers = DriverProfile::with(['user:id,name,email,phone_number', 'vehicles.model.make'])
+        $drivers = DriverProfile::with(['user:id,name,email,phone_number,address,emergency_contact_name,emergency_contact_phone,profile_photo_path,account_status,created_at', 'vehicles.model.make'])
             ->when($f['status'] ?? null, fn ($q, $v) => $q->where('status', $v))
             ->when($f['q'] ?? null, fn ($q, $v) => $q->where(fn ($w) => $w
                 ->where('license_number', 'like', Like::contains($v))
@@ -43,6 +43,14 @@ class DriverController extends Controller
                 'name' => $d->user->name,
                 'email' => $d->user->email,
                 'phone' => $d->user->phone_number,
+                // The person being reviewed, shown on the card so the admin can compare it with the licence.
+                'profile' => [
+                    'photo' => $d->user->profile_photo_path ? Storage::disk('public')->url($d->user->profile_photo_path) : null,
+                    'address' => $d->user->address,
+                    'emergency' => collect([$d->user->emergency_contact_name, $d->user->emergency_contact_phone])->filter()->implode(' · ') ?: null,
+                    'member_since' => $d->user->created_at->toIso8601String(),
+                    'account_status' => $d->user->account_status->value,
+                ],
                 'has_license_back' => $d->license_back_image_path !== null,
                 'cors' => $d->vehicles->filter(fn ($v) => $v->cor_image_path)->map(fn ($v) => ['id' => $v->id, 'plate' => $v->plate_number])->values()->all(),
                 'license_number' => $d->license_number,
@@ -106,7 +114,7 @@ class DriverController extends Controller
 
         $driver->user->notify(new AppNotice(
             $data['decision'] === 'approved' ? 'Driver licence approved' : 'Driver licence rejected',
-            $data['decision'] === 'approved' ? 'You can now register vehicles and publish rides.' : "Reason: {$data['remarks']}. Please upload a new photo.",
+            $data['decision'] === 'approved' ? 'You can now register vehicles and publish rides.' : "Your driver licence was rejected. Reason: {$data['remarks']}. Please upload a new photo.",
             '/driver/apply',
         ));
         ActivityLog::record($request->user(), "driver.{$data['decision']}", $driver, ['remarks' => $data['remarks'] ?? null]);
