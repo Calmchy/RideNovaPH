@@ -24,7 +24,7 @@ class ContentController extends Controller
         return Inertia::render('admin/content', [
             'banners' => Banner::orderBy('display_order')->get()->map(fn (Banner $b) => [
                 'id' => $b->id, 'title' => $b->title, 'caption' => $b->caption,
-                'link_url' => $b->link_url, 'is_active' => $b->is_active, 'display_order' => $b->display_order,
+                'link_url' => $b->link_url, 'city_id' => $b->city_id, 'is_active' => $b->is_active, 'display_order' => $b->display_order,
                 'image_url' => str_starts_with($b->image_path, 'http') ? $b->image_path : '/storage/'.$b->image_path,
             ]),
             'announcements' => Announcement::with(['category', 'city'])->latest()->limit(30)->get()->map(fn (Announcement $a) => [

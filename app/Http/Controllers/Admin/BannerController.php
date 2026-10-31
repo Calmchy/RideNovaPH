@@ -18,6 +18,7 @@ class BannerController extends Controller
         $data = $request->validate([
             'title' => ['required', 'string', 'max:100'],
             'caption' => ['nullable', 'string', 'max:255'],
+            'city_id' => ['nullable', 'integer', 'exists:cities,id'],
             'link_url' => ['nullable', 'string', 'max:255', 'regex:#^/[^/\\\\].*$#'],
             'image' => ['required', File::image()->types(['jpg', 'jpeg', 'png', 'webp'])->max(5 * 1024)],
         ]);
@@ -28,6 +29,7 @@ class BannerController extends Controller
             'created_by' => $request->user()->id,
             'title' => $data['title'],
             'caption' => $data['caption'] ?? null,
+            'city_id' => $data['city_id'] ?? null,
             'link_url' => $data['link_url'] ?? null,
             'image_path' => $file->storeAs('banners', Str::uuid().'.'.$file->guessExtension(), 'public'),
             'display_order' => (int) Banner::max('display_order') + 1,
@@ -44,6 +46,7 @@ class BannerController extends Controller
         $data = $request->validate([
             'title' => ['required', 'string', 'max:100'],
             'caption' => ['nullable', 'string', 'max:255'],
+            'city_id' => ['nullable', 'integer', 'exists:cities,id'],
             'link_url' => ['nullable', 'string', 'max:255', 'regex:#^/[^/\\\\].*$#'],
             'image' => ['nullable', File::image()->types(['jpg', 'jpeg', 'png', 'webp'])->max(5 * 1024)],
         ]);
@@ -51,6 +54,7 @@ class BannerController extends Controller
         $fields = [
             'title' => $data['title'],
             'caption' => $data['caption'] ?? null,
+            'city_id' => $data['city_id'] ?? null,
             'link_url' => $data['link_url'] ?? null,
         ];
 
