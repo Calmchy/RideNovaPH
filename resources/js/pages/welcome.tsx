@@ -5,6 +5,7 @@ import type { Banner } from '@/components/banner-slideshow';
 import { fmtDate, LIFT_3D } from '@/components/lux';
 import RideCard from '@/components/ride-card';
 import type { RideCardData } from '@/components/ride-card';
+import GlowHero from '@/components/glow-hero';
 import SiteHeader from '@/components/site-header';
 
 type Announcement = {

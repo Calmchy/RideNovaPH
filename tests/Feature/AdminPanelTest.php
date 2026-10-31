@@ -149,3 +149,20 @@ test('an admin can delete a user with no history, but not themselves, other admi
     $other = Scenario::passenger();
     $this->actingAs(Scenario::passenger())->delete("/admin/users/{$other->id}")->assertForbidden();
 });
+
+test('the ID review page shows the person being reviewed, and a rejection notifies them with the reason', function () {
+    $admin = Scenario::admin();
+    $user = Scenario::passenger(idApproved: false);
+    $user->forceFill(['phone_number' => '09171112222', 'address' => 'Abuyog, Leyte'])->save();
+    $doc = IdentityDocument::create(['user_id' => $user->id, 'id_type_id' => IdType::first()->id, 'front_image_path' => 'identity-documents/a.png']);
+
+    $this->actingAs($admin)->get('/admin/identity')->assertOk()->assertInertia(fn ($p) => $p
+        ->where('documents.data.0.profile.phone', '09171112222')
+        ->where('documents.data.0.profile.address', 'Abuyog, Leyte')
+        ->where('documents.data.0.profile.user_id', $user->id));
+
+    $this->actingAs($admin)->patch("/admin/identity-documents/{$doc->id}", ['decision' => 'rejected', 'remarks' => 'Photo is blurry'])->assertSessionHasNoErrors();
+
+    $note = $user->notifications()->first();
+    expect($note->data['title'])->toBe('ID rejected')->and($note->data['body'])->toContain('Photo is blurry');
+});
