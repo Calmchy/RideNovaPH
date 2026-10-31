@@ -57,7 +57,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/drivers', [DriverDirectoryController::class, 'index'])->name('drivers.index');
     Route::get('/drivers/{user}', [DriverDirectoryController::class, 'show'])->name('drivers.show');        
     Route::get('dashboard', DashboardController::class)->name('dashboard');
-    Route::inertia('/about', 'about')->name('about');
+    Route::get('/about', \App\Http\Controllers\AboutController::class)->name('about');
 
         // Self-drive vehicle rental. Literal paths come before {rental}.
     Route::get('/rentals', [RentalController::class, 'index'])->name('rentals.index');
@@ -119,7 +119,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 });
 
 // ---- Drivers (role checked server-side by the 'driver' middleware) ----
-Route::middleware(['auth', 'verified', 'driver'])->prefix('driver')->name('driver.')->group(function () {
+    Route::middleware(['auth', 'verified', 'driver'])->prefix('driver')->name('driver.')->group(function () {
     Route::get('/', DriverDashboardController::class)->name('index');
 
     Route::get('/apply', [DriverApplicationController::class, 'create'])->name('apply');
@@ -164,6 +164,7 @@ Route::middleware(['auth', 'verified', 'admin'])->prefix('admin')->group(functio
     Route::get('/users', [AdminUserController::class, 'index'])->name('admin.users');
     Route::get('/users/{user}', [AdminUserController::class, 'show'])->name('admin.users.show');
     Route::patch('/users/{user}', [AdminUserController::class, 'update'])->name('admin.users.update');
+    Route::post('/team/{member}', [\App\Http\Controllers\Admin\TeamController::class, 'update'])->middleware('throttle:30,1')->name('admin.team.update');
 
     Route::get('/drivers', [AdminDriverController::class, 'index'])->name('admin.drivers');
     Route::get('/drivers/{driver}/license/{side?}', [AdminDriverController::class, 'license'])

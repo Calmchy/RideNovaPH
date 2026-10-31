@@ -50,16 +50,11 @@ class VehicleController extends Controller
         // vehicles.driver_id points at driver_profiles, so the licence submission must exist first.
         abort_unless($request->user()->driverProfile, 403, 'Submit your driver licence before registering a vehicle.');
 
-        $data = $request->safe()->except(['photo_front', 'photo_back', 'photo_interior', 'cor_image']);
-
-        foreach (Vehicle::PHOTO_SLOTS as $slot => [$column]) {
-            $data[$column] = $this->storePhoto($request->file("photo_{$slot}"));
-        }
-
-        $data['cor_image_path'] = $this->storeCor($request->file('cor_image'));
+        // Photos, COR and description are added later from the vehicle's card.
+        $data = $request->validated();
 
         Vehicle::create($data + ['driver_id' => $request->user()->id]);
-        $this->toast('Vehicle registered.');
+        $this->toast('Vehicle registered. Now add its photos and COR from its card.');
 
         return back();
     }
