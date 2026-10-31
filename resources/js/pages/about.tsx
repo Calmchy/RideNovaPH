@@ -17,7 +17,7 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import CursorTrail from '@/components/cursor-trail';
 import GlowHero from '@/components/glow-hero';
-import { LIFT_3D } from '@/components/lux';
+import { HOLO, HoloStyles } from '@/components/holo-card';
 import TeamCard from '@/components/team-card';
 import type { TeamMember } from '@/components/team-card';
 import { about } from '@/routes';
@@ -33,7 +33,7 @@ function Feature({
     children: string;
 }) {
     return (
-        <div className={`rounded-2xl border bg-card p-6 ${LIFT_3D}`}>
+        <div className={`rounded-2xl border bg-card p-6 ${HOLO}`}>
             <span className="grid size-11 place-items-center rounded-xl bg-ocean/10 text-ocean">
                 <Icon className="size-6" />
             </span>
@@ -74,6 +74,7 @@ export default function About({ team = [] }: { team?: TeamMember[] }) {
         <>
             <Head title="About RideNovaPH" />
             <CursorTrail />
+            <HoloStyles />
             <div className="mx-auto flex w-full max-w-6xl flex-col gap-16 p-4 md:p-8">
                 {/* 1. WHO WE ARE */}
                 <GlowHero>
@@ -134,7 +135,7 @@ export default function About({ team = [] }: { team?: TeamMember[] }) {
                             </p>
                         </div>
                     </div>
-                    <aside className="rounded-2xl border bg-secondary p-6 md:col-span-2">
+                    <aside className={`rounded-2xl border bg-secondary p-6 md:col-span-2 ${HOLO}`}>
                         <h3 className="font-serif text-xl">Our mission</h3>
                         <p className="mt-3 leading-7">
                             Make shared travel in the Philippines{' '}
@@ -152,7 +153,7 @@ export default function About({ team = [] }: { team?: TeamMember[] }) {
                         text="Whether you are looking for a seat or you have seats to share, everything happens in one Bookings area."
                     />
                     <div className="grid gap-6 md:grid-cols-2">
-                        <div className="rounded-2xl border bg-card p-6">
+                        <div className={`rounded-2xl border bg-card p-6 ${HOLO}`}>
                             <h3 className="font-serif text-2xl">
                                 For passengers
                             </h3>
@@ -171,7 +172,7 @@ export default function About({ team = [] }: { team?: TeamMember[] }) {
                                 ))}
                             </ul>
                         </div>
-                        <div className="rounded-2xl border bg-card p-6">
+                        <div className={`rounded-2xl border bg-card p-6 ${HOLO}`}>
                             <h3 className="font-serif text-2xl">For drivers</h3>
                             <ul className="mt-4 grid gap-3 text-sm leading-6">
                                 {[
@@ -263,7 +264,7 @@ export default function About({ team = [] }: { team?: TeamMember[] }) {
                             return (
                                 <li
                                     key={title as string}
-                                    className={`rounded-2xl border bg-card p-6 ${LIFT_3D}`}
+                                    className={`rounded-2xl border bg-card p-6 ${HOLO}`}
                                 >
                                     <I className="size-8 text-ocean" />
                                     <p className="mt-4 text-xs text-muted-foreground">

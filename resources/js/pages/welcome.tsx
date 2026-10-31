@@ -1,11 +1,20 @@
 import { Head, Link } from '@inertiajs/react';
-import { BadgeCheck, CalendarCheck, Car, Search, Star } from 'lucide-react';
+import {
+    BadgeCheck,
+    CalendarCheck,
+    CalendarClock,
+    Car,
+    MapPinned,
+    Search,
+    Star,
+} from 'lucide-react';
 import BannerSlideshow from '@/components/banner-slideshow';
 import type { Banner } from '@/components/banner-slideshow';
-import { fmtDate, LIFT_3D } from '@/components/lux';
+import CursorTrail from '@/components/cursor-trail';
+import { HOLO, HoloStyles } from '@/components/holo-card';
+import { fmtDate } from '@/components/lux';
 import RideCard from '@/components/ride-card';
 import type { RideCardData } from '@/components/ride-card';
-import GlowHero from '@/components/glow-hero';
 import SiteHeader from '@/components/site-header';
 
 type Announcement = {
@@ -52,6 +61,8 @@ export default function Welcome({ banners, rides, announcements }: Props) {
     return (
         <>
             <Head title="Affordable shared rides across the Philippines" />
+            <CursorTrail />
+            <HoloStyles />
             <div className="min-h-screen bg-background text-foreground">
                 <SiteHeader />
                 <BannerSlideshow banners={banners} />
@@ -97,15 +108,34 @@ export default function Welcome({ banners, rides, announcements }: Props) {
                                                 ? `/bookings?tab=find&destination=${a.city_id}`
                                                 : '/bookings?tab=find'
                                         }
-                                        className={`overflow-hidden rounded-2xl border bg-card ${LIFT_3D}`}
+                                        className="group relative overflow-hidden rounded-2xl border bg-card transition-[transform,box-shadow] duration-300 ease-out hover:z-10 hover:scale-105 hover:shadow-2xl hover:shadow-black/40 motion-reduce:transition-none motion-reduce:hover:transform-none"
                                     >
                                         {a.image_url && (
-                                            <img
-                                                src={a.image_url}
-                                                alt=""
-                                                loading="lazy"
-                                                className="h-40 w-full object-cover"
-                                            />
+                                            <div className="relative h-40 overflow-hidden bg-deep">
+                                                <img
+                                                    src={a.image_url}
+                                                    alt=""
+                                                    loading="lazy"
+                                                    className="h-full w-full object-cover transition duration-500 group-hover:scale-110 group-hover:opacity-40 motion-reduce:transition-none motion-reduce:group-hover:transform-none"
+                                                />
+                                                {/* Revealed on hover: where to go, and when */}
+                                                <div className="absolute inset-0 flex translate-y-2 items-start justify-between p-4 opacity-0 transition duration-300 group-hover:translate-y-0 group-hover:opacity-100 motion-reduce:transition-none">
+                                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-white/90 px-3 py-1.5 text-xs font-semibold text-deep shadow">
+                                                        <MapPinned className="size-4 text-coral-ink" />
+                                                        {a.city_id
+                                                            ? 'Find rides'
+                                                            : 'View notice'}
+                                                    </span>
+                                                    {a.exam_date && (
+                                                        <span className="inline-flex items-center gap-1.5 rounded-full bg-white/90 px-3 py-1.5 text-xs font-semibold text-deep shadow">
+                                                            <CalendarClock className="size-4 text-ocean" />
+                                                            {fmtDate(
+                                                                a.exam_date,
+                                                            )}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
                                         )}
                                         <div className="p-5">
                                             <p className="text-xs tracking-widest text-coral-ink uppercase">
@@ -140,7 +170,7 @@ export default function Welcome({ banners, rides, announcements }: Props) {
                             {STEPS.map(({ icon: Icon, title, text }, n) => (
                                 <div
                                     key={title}
-                                    className={`rounded-2xl border bg-card p-6 ${LIFT_3D}`}
+                                    className={`rounded-2xl border bg-card p-6 ${HOLO}`}
                                 >
                                     <Icon className="size-8 text-ocean" />
                                     <p className="mt-4 text-xs text-muted-foreground">
