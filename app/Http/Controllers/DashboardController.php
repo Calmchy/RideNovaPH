@@ -61,6 +61,22 @@ class DashboardController extends Controller
                 'route' => $b->ride->origin->name.' → '.$b->ride->destination->name,
                 'departure_at' => $b->ride->departure_at->toIso8601String(),
             ]),
+            // Drivers: their latest rides (same list as Driver > My rides), so the dashboard isn't empty.
+            'my_rides' => $isDriver
+                ? Ride::with(['origin', 'destination', 'vehicle.model.make'])->withSeatsTaken()
+                    ->whereHas('vehicle', fn ($q) => $q->where('driver_id', $user->id))
+                    ->orderByDesc('departure_at')->limit(6)->get()
+                    ->map(fn (Ride $r) => [
+                        'id' => $r->id,
+                        'route' => $r->origin->name.' → '.$r->destination->name,
+                        'departure_at' => $r->departure_at->toIso8601String(),
+                        'price_per_seat' => $r->price_per_seat,
+                        'seats_offered' => $r->seats_offered,
+                        'seats_taken' => (int) $r->seats_taken,
+                        'vehicle' => $r->vehicle->model->make->name.' '.$r->vehicle->model->name,
+                        'trip_status' => $r->tripStatus(),
+                    ])
+                : [],
             'drivers' => $this->drivers(),
         ]);
     }
