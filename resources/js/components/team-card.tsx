@@ -185,13 +185,13 @@ export default function TeamCard({ m }: { m: TeamMember }) {
     );
     const [editing, setEditing] = useState(false);
 
-    return (
-        <div className="group relative mx-auto h-[23rem] w-full max-w-xs">
-            {/* Photo slide: sits over the text, slides up on hover */}
+        return (
+        <div className="group relative mx-auto -my-8 h-[29rem] w-full max-w-xs">
+            {/* Photo slide: keeps its full size, only moves up on hover */}
             <div
                 tabIndex={0}
                 aria-label={`${m.name}, ${m.role_title}`}
-                className="group/card absolute inset-x-0 top-0 z-10 h-[11.5rem] translate-y-[5.75rem] overflow-hidden rounded-t-2xl bg-ocean transition-transform duration-700 ease-out outline-none group-focus-within:translate-y-0 group-hover:translate-y-0"
+                className="absolute inset-x-0 top-0 z-10 h-[20rem] translate-y-[4.5rem] overflow-hidden rounded-t-2xl bg-ocean transition-transform duration-200 ease-out outline-none group-focus-within:translate-y-0 group-hover:translate-y-0"
             >
                 {m.photo ? (
                     <img
@@ -206,13 +206,13 @@ export default function TeamCard({ m }: { m: TeamMember }) {
                 )}
             </div>
 
-            {/* Text slide: hidden behind the photo, slides down on hover */}
-            <div className="absolute inset-x-0 top-[11.5rem] h-[11.5rem] -translate-y-[5.75rem] rounded-b-2xl border bg-card px-5 pt-4 pb-8 text-center shadow-xl transition-transform duration-[800ms] ease-out group-focus-within:translate-y-0 group-hover:translate-y-0">
+            {/* Text slide: hidden behind the photo, slides down to the bottom on hover */}
+            <div className="absolute inset-x-0 top-[20rem] h-[9rem] -translate-y-[4.5rem] rounded-b-2xl border bg-card px-5 pt-4 pb-8 text-center shadow-xl transition-transform duration-800 ease-out group-focus-within:translate-y-0 group-hover:translate-y-0">
                 <h3 className="font-serif text-xl">{m.name}</h3>
                 <p className="text-xs font-semibold tracking-wide text-ocean uppercase">
                     {m.role_title}
                 </p>
-                <p className="mt-2 line-clamp-4 text-sm leading-5 text-muted-foreground">
+                <p className="mt-2 line-clamp-2 text-sm leading-5 text-muted-foreground">
                     {m.description}
                 </p>
                 <span className="absolute bottom-3 left-1/2 h-1 w-8 -translate-x-1/2 rounded bg-coral" />
