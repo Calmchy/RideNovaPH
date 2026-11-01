@@ -4,12 +4,11 @@ namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\Rules\File;
 
 /**
  * Vehicle registration (create + edit). Plate numbers are normalised to upper case.
- * The three photos, the COR and the description are only taken on CREATE; afterwards the driver
- * changes them from the banner (VehicleController@photo / @description).
+ * Only the basic details are asked here. The photos, the COR and the description are added from the
+ * vehicle's own card afterwards (VehicleController@photo / @cor / @description).
  */
 class StoreVehicleRequest extends FormRequest
 {
@@ -38,30 +37,6 @@ class StoreVehicleRequest extends FormRequest
             'manufacture_year' => ['nullable', 'integer', 'min:1990', 'max:'.(now()->year + 1)],
         ];
 
-        if ($ignore === null) {
-            // Real image check, no SVG (it can carry scripts).
-            $photo = ['required', File::image()->types(['jpg', 'jpeg', 'png', 'webp'])->max(5 * 1024)];
-
-            $rules += [
-                'photo_front' => $photo,
-                'photo_back' => $photo,
-                'photo_interior' => $photo,
-                'description' => ['nullable', 'string', 'max:500'],
-                // COR = Certificate of Registration. Stored privately (it shows the owner's name and address).
-                'cor_image' => ['required', File::image()->types(['jpg', 'jpeg', 'png', 'webp'])->max(5 * 1024)],
-            ];
-        }
-
         return $rules;
-    }
-
-    public function messages(): array
-    {
-        return [
-            'photo_front.required' => 'Upload a photo of the front of your vehicle.',
-            'photo_back.required' => 'Upload a photo of the back of your vehicle.',
-            'cor_image.required' => 'Upload a photo of the vehicle’s COR (Certificate of Registration).',
-            'photo_interior.required' => 'Upload a photo of the inside of your vehicle.',
-        ];
     }
 }

@@ -27,6 +27,7 @@ type Props = {
         title: string;
         caption: string | null;
         link_url: string | null;
+        city_id: number | null;
         is_active: boolean;
         display_order?: number;
         image_url: string;
@@ -57,8 +58,9 @@ export default function AdminContent({
         title: string;
         caption: string;
         link_url: string;
+        city_id: string;
         image: File | null;
-    }>({ title: '', caption: '', link_url: '', image: null });
+    }>({ title: '', caption: '', link_url: '', city_id: '', image: null });
     const note = useForm({
         category_id: '',
         city_id: '',
@@ -81,6 +83,7 @@ export default function AdminContent({
             title: b.title,
             caption: b.caption ?? '',
             link_url: b.link_url ?? '',
+            city_id: b.city_id ? String(b.city_id) : '',
             image: null,
         });
         banner.clearErrors();
@@ -261,6 +264,26 @@ export default function AdminContent({
                                 }
                                 className={inputCls}
                             />
+                        </Field>
+                        <Field
+                            label="Destination (optional)"
+                            hint="Drivers who open this banner get a ride form with this destination already chosen."
+                            error={banner.errors.city_id}
+                        >
+                            <select
+                                value={banner.data.city_id}
+                                onChange={(e) =>
+                                    banner.setData('city_id', e.target.value)
+                                }
+                                className={inputCls}
+                            >
+                                <option value="">None</option>
+                                {cities.map((c) => (
+                                    <option key={c.id} value={c.id}>
+                                        {c.name}
+                                    </option>
+                                ))}
+                            </select>
                         </Field>
                         <Field
                             label="Link (on this site)"

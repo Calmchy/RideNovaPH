@@ -1,6 +1,7 @@
 // Admin > Drivers: licence review (approve / reject with reason) and a quick look at each driver's vehicles.
-import { Head, router } from '@inertiajs/react';
-import { Check, ExternalLink, X } from 'lucide-react';
+import { Head, Link, router } from '@inertiajs/react';
+import { Check, X } from 'lucide-react';
+import { useState } from 'react';
 import {
     EmptyState,
     FilterBar,
@@ -10,13 +11,29 @@ import {
 } from '@/components/kit';
 import type { Paginated } from '@/components/kit';
 import { fmtDate, StatusBadge } from '@/components/lux';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogTitle,
+    DialogTrigger,
+} from '@/components/ui/dialog';
+import { useInitials } from '@/hooks/use-initials';
 
 type D = {
     id: number;
     name: string;
     email: string;
     phone: string | null;
+    profile: {
+        photo: string | null;
+        address: string | null;
+        emergency: string | null;
+        member_since: string;
+        account_status: string;
+    };
     license_number: string;
     license_expiry: string;
     expired: boolean;
@@ -27,6 +44,94 @@ type D = {
     has_license_back: boolean;
     cors: { id: number; plate: string }[];
 };
+
+/** A submitted photo shown on the card; click to enlarge in a popup (no new tab). Served by admin-only routes. */
+function DocPhoto({ src, label, name }: { src: string; label: string; name: string }) {
+    const [failed, setFailed] = useState(false);
+
+    if (failed) {
+        return (
+            <div className="grid h-32 w-48 place-items-center rounded-xl border border-dashed text-xs text-muted-foreground">
+                {label}: image unavailable
+            </div>
+        );
+    }
+
+    return (
+        <Dialog>
+            <DialogTrigger asChild>
+                <button
+                    type="button"
+                    aria-label={`Enlarge ${label} of ${name}`}
+                    className="group relative cursor-zoom-in overflow-hidden rounded-xl border bg-muted/40 focus-visible:ring-2 focus-visible:ring-ocean focus-visible:outline-none"
+                >
+                    <img
+                        src={src}
+                        alt={`${label} of ${name}`}
+                        loading="lazy"
+                        onError={() => setFailed(true)}
+                        className="h-32 w-48 object-cover transition group-hover:scale-105"
+                    />
+                    <span className="absolute inset-x-0 bottom-0 bg-black/55 px-2 py-0.5 text-left text-[11px] font-medium text-white">
+                        {label}
+                    </span>
+                </button>
+            </DialogTrigger>
+            <DialogContent className="w-auto max-w-[94vw] p-3 sm:max-w-3xl">
+                <DialogTitle className="text-sm">
+                    {label} · {name}
+                </DialogTitle>
+                <DialogDescription className="sr-only">
+                    Enlarged photo
+                </DialogDescription>
+                <img
+                    src={src}
+                    alt={`${label} of ${name}`}
+                    className="max-h-[80vh] w-full rounded-lg object-contain"
+                />
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+/** Who is being reviewed: photo and account details, so the admin can compare them with the documents. */
+function DriverProfile({ d }: { d: D }) {
+    const initials = useInitials();
+    const p = d.profile;
+    const rows: [string, string | null][] = [
+        ['Contact number', d.phone],
+        ['Address', p.address],
+        ['Emergency contact', p.emergency],
+        ['Member since', fmtDate(p.member_since)],
+        ['Account', p.account_status],
+    ];
+
+    return (
+        <div className="flex flex-wrap items-start gap-4 rounded-xl border bg-muted/30 p-4 md:col-span-2">
+            <Avatar className="size-14">
+                {p.photo && <AvatarImage src={p.photo} alt={d.name} />}
+                <AvatarFallback className="bg-ocean font-semibold text-white">
+                    {initials(d.name)}
+                </AvatarFallback>
+            </Avatar>
+            <dl className="grid min-w-0 flex-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
+                {rows
+                    .filter(([, v]) => v)
+                    .map(([k, v]) => (
+                        <div key={k}>
+                            <dt className="text-xs text-muted-foreground">
+                                {k}
+                            </dt>
+                            <dd className="font-medium capitalize">{v}</dd>
+                        </div>
+                    ))}
+            </dl>
+            <Button asChild size="sm" variant="outline">
+                <Link href={`/admin/users/${d.id}`}>Full profile</Link>
+            </Button>
+        </div>
+    );
+}
 
 export default function AdminDrivers({
     drivers,
@@ -112,42 +217,6 @@ export default function AdminDrivers({
                                 )}
                             </div>
                             <div className="flex flex-wrap items-center gap-2 md:justify-end">
-                                <a
-                                    className="inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs hover:bg-muted"
-                                    href={`/admin/drivers/${d.id}/license`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                >
-                                    <ExternalLink className="size-3" /> Licence
-                                    front
-                                </a>
-                                {d.has_license_back ? (
-                                    <a
-                                        className="inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs hover:bg-muted"
-                                        href={`/admin/drivers/${d.id}/license/back`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                    >
-                                        <ExternalLink className="size-3" />{' '}
-                                        Licence back
-                                    </a>
-                                ) : (
-                                    <span className="text-xs text-muted-foreground">
-                                        Licence back: not uploaded
-                                    </span>
-                                )}
-                                {d.cors.map((c) => (
-                                    <a
-                                        key={c.id}
-                                        className="inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs hover:bg-muted"
-                                        href={`/admin/vehicles/${c.id}/cor`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                    >
-                                        <ExternalLink className="size-3" /> COR{' '}
-                                        {c.plate}
-                                    </a>
-                                ))}
                                 {d.status === 'pending' && (
                                     <>
                                         <Button
@@ -180,6 +249,33 @@ export default function AdminDrivers({
                                         />
                                     </>
                                 )}
+                            </div>
+                            <DriverProfile d={d} />
+                            <div className="flex flex-wrap gap-3 md:col-span-2">
+                                <DocPhoto
+                                    src={`/admin/drivers/${d.id}/license`}
+                                    label="Licence front"
+                                    name={d.name}
+                                />
+                                {d.has_license_back ? (
+                                    <DocPhoto
+                                        src={`/admin/drivers/${d.id}/license/back`}
+                                        label="Licence back"
+                                        name={d.name}
+                                    />
+                                ) : (
+                                    <div className="grid h-32 w-48 place-items-center rounded-xl border border-dashed text-xs text-muted-foreground">
+                                        Licence back: not uploaded
+                                    </div>
+                                )}
+                                {d.cors.map((c) => (
+                                    <DocPhoto
+                                        key={c.id}
+                                        src={`/admin/vehicles/${c.id}/cor`}
+                                        label={`COR · ${c.plate}`}
+                                        name={d.name}
+                                    />
+                                ))}
                             </div>
                         </li>
                     ))}
