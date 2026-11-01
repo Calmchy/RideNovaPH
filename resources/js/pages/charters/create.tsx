@@ -4,9 +4,12 @@ import { Head, Link, useForm } from '@inertiajs/react';
 import { Phone } from 'lucide-react';
 import { Field, inputCls, PageHeader, Panel } from '@/components/kit';
 import { toLocalInput } from '@/components/lux';
+import { splitName } from '@/lib/split-name';
 import { Button } from '@/components/ui/button';
 
 type Props = {
+    /** The signed-in account's name and phone, used to prefill. */
+    defaults: { name: string; phone: string | null };
     driver: {
         id: number;
         name: string;
@@ -16,8 +19,14 @@ type Props = {
     vehicles: { id: number; label: string; seats: number }[];
 };
 
-export default function CharterCreate({ driver, vehicles }: Props) {
+export default function CharterCreate({ defaults, driver, vehicles }: Props) {
+    const name = splitName(defaults.name);
     const form = useForm({
+        passenger_last_name: name.last,
+        passenger_first_name: name.first,
+        passenger_middle_initial: name.middle,
+        passenger_name_ext: name.ext,
+        passenger_phone: defaults.phone ?? '',
         driver_id: String(driver.id),
         vehicle_id: String(vehicles[0]?.id ?? ''),
         group_size: '2',
@@ -81,6 +90,66 @@ export default function CharterCreate({ driver, vehicles }: Props) {
                             {form.errors.driver_id}
                         </p>
                     )}
+
+                    <Panel title="Your details">
+                        <div className="grid items-start gap-4 p-5 sm:grid-cols-2 lg:grid-cols-4">
+                            <Field
+                                label="Last name *"
+                                error={form.errors.passenger_last_name}
+                            >
+                                <input
+                                    required
+                                    maxLength={100}
+                                    {...f('passenger_last_name')}
+                                />
+                            </Field>
+                            <Field
+                                label="First name *"
+                                error={form.errors.passenger_first_name}
+                            >
+                                <input
+                                    required
+                                    maxLength={100}
+                                    {...f('passenger_first_name')}
+                                />
+                            </Field>
+                            <Field
+                                label="Middle initial (optional)"
+                                error={form.errors.passenger_middle_initial}
+                            >
+                                <input
+                                    maxLength={2}
+                                    placeholder="e.g. D"
+                                    {...f('passenger_middle_initial')}
+                                />
+                            </Field>
+                            <Field
+                                label="Extension (if any)"
+                                error={form.errors.passenger_name_ext}
+                            >
+                                <input
+                                    maxLength={10}
+                                    placeholder="e.g. Jr., Sr., III"
+                                    {...f('passenger_name_ext')}
+                                />
+                            </Field>
+                            <div className="sm:col-span-2">
+                                <Field
+                                    label="Contact number *"
+                                    error={form.errors.passenger_phone}
+                                    hint="The driver will call or text this number about your trip."
+                                >
+                                    <input
+                                        required
+                                        type="tel"
+                                        maxLength={30}
+                                        placeholder="09XX XXX XXXX"
+                                        {...f('passenger_phone')}
+                                    />
+                                </Field>
+                            </div>
+                        </div>
+                    </Panel>
 
                     <Panel title="Group &amp; vehicle">
                         <div className="grid gap-4 p-5 sm:grid-cols-2">

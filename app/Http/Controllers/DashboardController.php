@@ -36,7 +36,7 @@ class DashboardController extends Controller
         $myRides = fn () => Ride::whereHas('vehicle', fn ($q) => $q->where('driver_id', $user->id));
 
         return Inertia::render('dashboard', [
-            'slides' => $this->slides(),
+            'slides' => $this->slides($isDriver),
             'id_status' => $latestId?->status->value,
             'stats' => [
                 'upcoming' => $user->bookings()->whereIn('status', $openStates)->count(),
@@ -61,19 +61,37 @@ class DashboardController extends Controller
                 'route' => $b->ride->origin->name.' → '.$b->ride->destination->name,
                 'departure_at' => $b->ride->departure_at->toIso8601String(),
             ]),
+            // Drivers: their latest rides (same list as Driver > My rides), so the dashboard isn't empty.
+            'my_rides' => $isDriver
+                ? Ride::with(['origin', 'destination', 'vehicle.model.make'])->withSeatsTaken()
+                    ->whereHas('vehicle', fn ($q) => $q->where('driver_id', $user->id))
+                    ->orderByDesc('departure_at')->limit(6)->get()
+                    ->map(fn (Ride $r) => [
+                        'id' => $r->id,
+                        'route' => $r->origin->name.' → '.$r->destination->name,
+                        'departure_at' => $r->departure_at->toIso8601String(),
+                        'price_per_seat' => $r->price_per_seat,
+                        'seats_offered' => $r->seats_offered,
+                        'seats_taken' => (int) $r->seats_taken,
+                        'vehicle' => $r->vehicle->model->make->name.' '.$r->vehicle->model->name,
+                        'trip_status' => $r->tripStatus(),
+                    ])
+                : [],
             'drivers' => $this->drivers(),
         ]);
     }
 
     /** Admin banners and upcoming exam announcements, interleaved into one auto-playing slideshow. */
-    private function slides(): array
+    private function slides(bool $isDriver): array
     {
         $banners = Banner::slideshow()->get()->map(fn (Banner $b) => [
             'key' => 'b'.$b->id,
             'tag' => 'Featured',
             'title' => $b->title,
             'caption' => $b->caption,
-            'href' => $b->link_url ?: '/bookings?tab=find',
+            // Drivers don't book seats: the banner opens the publish-a-ride form, filled in from it.
+            'href' => $isDriver ? '/driver/rides/create?banner='.$b->id : ($b->link_url ?: '/bookings?tab=find'),
+            'cta' => $isDriver ? 'Publish a ride' : 'Find rides',
             'image_url' => str_starts_with($b->image_path, 'http') ? $b->image_path : '/storage/'.$b->image_path,
         ]);
 
@@ -82,7 +100,10 @@ class DashboardController extends Controller
             'tag' => $a->category->name,
             'title' => $a->title,
             'caption' => collect([$a->city?->name, $a->exam_date?->format('M j, Y')])->filter()->implode(' · '),
-            'href' => $a->city_id ? '/bookings?tab=find&destination='.$a->city_id : '/bookings?tab=find',
+            'href' => $isDriver
+                ? '/driver/rides/create?announcement='.$a->id
+                : ($a->city_id ? '/bookings?tab=find&destination='.$a->city_id : '/bookings?tab=find'),
+            'cta' => $isDriver ? 'Publish a ride' : 'Find rides',
             'image_url' => $a->imageUrl(),
         ]);
 

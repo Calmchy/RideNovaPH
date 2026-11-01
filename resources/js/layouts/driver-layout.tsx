@@ -7,7 +7,11 @@ import { cn } from '@/lib/utils';
 const TABS = [
     { title: 'Overview', href: '/driver', exact: true },
     { title: 'My rides', href: '/driver/rides' },
+    // The driver's own inbox: seat requests from passengers and group "hire a driver" requests.
+    { title: 'Passenger requests', href: '/driver/requests' },
+    { title: 'Hire requests', href: '/driver/hire' },
     { title: 'Vehicles', href: '/driver/vehicles' },
+    { title: 'Rent my unit', href: '/driver/rentals' },
     { title: 'Licence', href: '/driver/apply' },
 ];
 

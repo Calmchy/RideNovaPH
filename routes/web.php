@@ -28,6 +28,7 @@ use App\Http\Controllers\TrackingController;
 use App\Http\Controllers\TransactionController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\DriverDirectoryController;
+use App\Http\Controllers\RentalController;
 
 /*
 |--------------------------------------------------------------------------
@@ -56,7 +57,20 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/drivers', [DriverDirectoryController::class, 'index'])->name('drivers.index');
     Route::get('/drivers/{user}', [DriverDirectoryController::class, 'show'])->name('drivers.show');        
     Route::get('dashboard', DashboardController::class)->name('dashboard');
-    Route::inertia('/about', 'about')->name('about');
+    Route::get('/about', \App\Http\Controllers\AboutController::class)->name('about');
+
+        // Self-drive vehicle rental. Literal paths come before {rental}.
+    Route::get('/rentals', [RentalController::class, 'index'])->name('rentals.index');
+    Route::get('/rentals/new', [RentalController::class, 'create'])->name('rentals.create');
+    Route::post('/rentals', [RentalController::class, 'store'])->middleware('throttle:10,1')->name('rentals.store');
+    Route::patch('/rentals/vehicles/{vehicle}', [RentalController::class, 'vehicle'])->middleware('throttle:30,1')->name('rentals.vehicle');
+    Route::get('/rentals/{rental}', [RentalController::class, 'show'])->name('rentals.show');
+    Route::get('/rentals/{rental}/license-id', [RentalController::class, 'licenseId'])->name('rentals.license-id');
+    Route::post('/rentals/{rental}/extensions', [RentalController::class, 'extend'])->middleware('throttle:10,1')->name('rentals.extend');
+    Route::patch('/rentals/{rental}/extensions/{extension}/{action}', [RentalController::class, 'extension'])
+        ->where('action', 'approve|decline')->middleware('throttle:30,1')->name('rentals.extension');
+    Route::patch('/rentals/{rental}/{action}', [RentalController::class, 'transition'])
+        ->where('action', 'approve|decline|cancel|complete')->middleware('throttle:30,1')->name('rentals.transition');
 
     // Valid-ID upload (rate limited: uploads are expensive and a brute-force target).
     Route::get('/identity', [IdentityDocumentController::class, 'create'])->name('identity.create');
@@ -105,7 +119,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 });
 
 // ---- Drivers (role checked server-side by the 'driver' middleware) ----
-Route::middleware(['auth', 'verified', 'driver'])->prefix('driver')->name('driver.')->group(function () {
+    Route::middleware(['auth', 'verified', 'driver'])->prefix('driver')->name('driver.')->group(function () {
     Route::get('/', DriverDashboardController::class)->name('index');
 
     Route::get('/apply', [DriverApplicationController::class, 'create'])->name('apply');
@@ -115,6 +129,13 @@ Route::middleware(['auth', 'verified', 'driver'])->prefix('driver')->name('drive
 
     // Driver's on/off switch for the "Hire a driver" banner.
     Route::patch('/availability', [CharterController::class, 'availability'])->name('availability');
+
+    // The driver's own inbox: passenger seat requests and group "hire a driver" requests.
+    Route::get('/requests', [\App\Http\Controllers\Driver\RequestController::class, 'passengers'])->name('requests');
+    Route::get('/hire', [\App\Http\Controllers\Driver\RequestController::class, 'hire'])->name('hire');
+
+    // "Rent my unit": the owner's own rental page (separate from Hire a driver).
+    Route::get('/rentals', [RentalController::class, 'manage'])->name('rentals');
 
     Route::get('/vehicles', [VehicleController::class, 'index'])->name('vehicles.index');
     Route::post('/vehicles', [VehicleController::class, 'store'])->middleware('throttle:20,1')->name('vehicles.store');
@@ -138,10 +159,12 @@ Route::middleware(['auth', 'verified', 'driver'])->prefix('driver')->name('drive
 // ---- Admin only (role checked server-side by the 'admin' middleware) ----
 Route::middleware(['auth', 'verified', 'admin'])->prefix('admin')->group(function () {
     Route::get('/', [AdminController::class, 'index'])->name('admin');
+    Route::delete('/users/{user}', [AdminUserController::class, 'destroy'])->name('admin.users.destroy');
 
     Route::get('/users', [AdminUserController::class, 'index'])->name('admin.users');
     Route::get('/users/{user}', [AdminUserController::class, 'show'])->name('admin.users.show');
     Route::patch('/users/{user}', [AdminUserController::class, 'update'])->name('admin.users.update');
+    Route::post('/team/{member}', [\App\Http\Controllers\Admin\TeamController::class, 'update'])->middleware('throttle:30,1')->name('admin.team.update');
 
     Route::get('/drivers', [AdminDriverController::class, 'index'])->name('admin.drivers');
     Route::get('/drivers/{driver}/license/{side?}', [AdminDriverController::class, 'license'])

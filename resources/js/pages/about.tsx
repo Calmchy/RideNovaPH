@@ -15,7 +15,11 @@ import {
     Wallet,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { LIFT_3D } from '@/components/lux';
+import CursorTrail from '@/components/cursor-trail';
+import GlowHero from '@/components/glow-hero';
+import { HOLO, HoloStyles } from '@/components/holo-card';
+import TeamCard from '@/components/team-card';
+import type { TeamMember } from '@/components/team-card';
 import { about } from '@/routes';
 
 /** One small card: icon, title, text. Reused by every grid below so they all look the same. */
@@ -29,7 +33,7 @@ function Feature({
     children: string;
 }) {
     return (
-        <div className={`rounded-2xl border bg-card p-6 ${LIFT_3D}`}>
+        <div className={`rounded-2xl border bg-card p-6 ${HOLO}`}>
             <span className="grid size-11 place-items-center rounded-xl bg-ocean/10 text-ocean">
                 <Icon className="size-6" />
             </span>
@@ -65,15 +69,17 @@ function SectionTitle({
     );
 }
 
-export default function About() {
+export default function About({ team = [] }: { team?: TeamMember[] }) {
     return (
         <>
             <Head title="About RideNovaPH" />
+            <CursorTrail />
+            <HoloStyles />
             <div className="mx-auto flex w-full max-w-6xl flex-col gap-16 p-4 md:p-8">
                 {/* 1. WHO WE ARE */}
-                <header className="relative overflow-hidden rounded-3xl bg-deep p-8 text-foam md:p-14">
-                    <div className="pointer-events-none absolute -top-24 -right-24 size-72 rounded-full bg-ocean/40 blur-3xl" />
-                    <div className="pointer-events-none absolute -bottom-24 -left-16 size-64 rounded-full bg-coral/20 blur-3xl" />
+                <GlowHero>
+                    <div className="pointer-events-none absolute -top-24 -right-24 size-72 rounded-full bg-[#0038a8]/45 blur-3xl" />
+                    <div className="pointer-events-none absolute -bottom-24 -left-16 size-64 rounded-full bg-[#ce1126]/30 blur-3xl" />
                     <div className="relative max-w-3xl">
                         <p className="text-xs font-semibold tracking-[0.25em] text-sand uppercase">
                             About RideNovaPH
@@ -81,7 +87,7 @@ export default function About() {
                         <h1 className="mt-4 font-serif text-4xl leading-tight tracking-tight text-white md:text-6xl">
                             Shared rides for every Filipino journey.
                         </h1>
-                        <p className="mt-5 text-lg leading-8 text-foam/90">
+                        <p className="mt-5 text-lg leading-8 text-white">
                             RideNovaPH is a carpooling platform that connects
                             passengers with verified drivers who are already
                             going their way: to a board exam, a government
@@ -104,7 +110,7 @@ export default function About() {
                             </Link>
                         </div>
                     </div>
-                </header>
+                </GlowHero>
 
                 {/* Mission */}
                 <section className="grid gap-8 md:grid-cols-5">
@@ -129,7 +135,7 @@ export default function About() {
                             </p>
                         </div>
                     </div>
-                    <aside className="rounded-2xl border bg-secondary p-6 md:col-span-2">
+                    <aside className={`rounded-2xl border bg-secondary p-6 md:col-span-2 ${HOLO}`}>
                         <h3 className="font-serif text-xl">Our mission</h3>
                         <p className="mt-3 leading-7">
                             Make shared travel in the Philippines{' '}
@@ -147,7 +153,7 @@ export default function About() {
                         text="Whether you are looking for a seat or you have seats to share, everything happens in one Bookings area."
                     />
                     <div className="grid gap-6 md:grid-cols-2">
-                        <div className="rounded-2xl border bg-card p-6">
+                        <div className={`rounded-2xl border bg-card p-6 ${HOLO}`}>
                             <h3 className="font-serif text-2xl">
                                 For passengers
                             </h3>
@@ -166,7 +172,7 @@ export default function About() {
                                 ))}
                             </ul>
                         </div>
-                        <div className="rounded-2xl border bg-card p-6">
+                        <div className={`rounded-2xl border bg-card p-6 ${HOLO}`}>
                             <h3 className="font-serif text-2xl">For drivers</h3>
                             <ul className="mt-4 grid gap-3 text-sm leading-6">
                                 {[
@@ -174,7 +180,7 @@ export default function About() {
                                     'Approve or decline requests, and see your passenger list and profiles.',
                                     'Start and finish trips with live status so passengers always know where you are.',
                                     'Mark a booking as paid with a slide-to-confirm button, and keep a record of every peso.',
-                                    'Earnings and platform fees shown clearly in your transaction history.',
+                                    'Your earnings shown clearly in your transaction history.',
                                 ].map((t) => (
                                     <li key={t} className="flex gap-3">
                                         <BadgeCheck className="mt-0.5 size-5 shrink-0 text-ocean" />
@@ -214,9 +220,8 @@ export default function About() {
                             was agreed.
                         </Feature>
                         <Feature icon={HandCoins} title="Fair to drivers">
-                            Drivers keep the fare minus a small, visible
-                            platform fee. Cancelling after payment is blocked
-                            to prevent no-shows and scams.
+                            Drivers keep 100% of the fare. Cancelling after
+                            payment is blocked to prevent no-shows and scams.
                         </Feature>
                         <Feature icon={Star} title="Trust through reviews">
                             After each trip, passengers and drivers rate each
@@ -259,7 +264,7 @@ export default function About() {
                             return (
                                 <li
                                     key={title as string}
-                                    className={`rounded-2xl border bg-card p-6 ${LIFT_3D}`}
+                                    className={`rounded-2xl border bg-card p-6 ${HOLO}`}
                                 >
                                     <I className="size-8 text-ocean" />
                                     <p className="mt-4 text-xs text-muted-foreground">
@@ -276,6 +281,22 @@ export default function About() {
                         })}
                     </ol>
                 </section>
+
+                {/* The team */}
+                {team.length > 0 && (
+                    <section className="grid gap-8">
+                        <SectionTitle
+                            eyebrow="Our team"
+                            title="The Team Behind RideNova PH"
+                            text="The students who planned, built and tested RideNovaPH."
+                        />
+                        <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
+                            {team.map((m) => (
+                                <TeamCard key={m.id} m={m} />
+                            ))}
+                        </div>
+                    </section>
+                )}
 
                 {/* Who it is for */}
                 <section className="rounded-3xl bg-secondary p-8 md:p-12">

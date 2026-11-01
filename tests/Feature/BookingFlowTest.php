@@ -29,19 +29,20 @@ test('a verified passenger can reserve a seat and gets a reference and a pending
         ->and($booking->contact_phone)->toBe('09171234567')
         ->and($booking->payment->status)->toBe(PaymentStatus::Pending)
         ->and((float) $booking->payment->amount)->toBe(400.0)
-        ->and((float) $booking->payment->platform_fee)->toBe(40.0)       // default fee is 10%
-        ->and((float) $booking->payment->driver_earnings)->toBe(360.0);
+        ->and((float) $booking->payment->platform_fee)->toBe(0.0)        // no platform fee: driver keeps it all
+        ->and((float) $booking->payment->driver_earnings)->toBe(400.0);
 
     expect($driver->notifications()->count())->toBe(1); // "New seat request"
 });
 
 test('the platform fee is a snapshot: changing the setting later does not rewrite old payments', function () {
     $ride = Scenario::ride(Scenario::driver());
+    Setting::put('platform_fee_percent', '10');
     $booking = reserve(Scenario::passenger(), $ride);
 
     Setting::put('platform_fee_percent', '25');
 
-    expect((float) $booking->payment->fresh()->platform_fee)->toBe(20.0);
+    expect((float) $booking->payment->fresh()->platform_fee)->toBe(40.0);
 });
 
 test('a passenger without an approved ID cannot book', function () {
@@ -54,12 +55,13 @@ test('a passenger without an approved ID cannot book', function () {
 
 test('you cannot take more seats than are left, or book your own ride', function () {
     $driver = Scenario::driver();
-    Scenario::approveId($driver); // the ID check runs first, so the "own ride" rule is only reached with an approved ID
     $ride = Scenario::ride($driver, ['seats_offered' => 2]);
 
     $this->actingAs(Scenario::passenger())->post("/rides/{$ride->id}/book", Scenario::bookingForm(['seats' => 3]))
         ->assertSessionHasErrors('seats');
 
+    // Even a driver with an approved ID can't book their own ride.
+    Scenario::approveId($driver);
     $this->actingAs($driver)->post("/rides/{$ride->id}/book", Scenario::bookingForm())->assertSessionHasErrors('ride');
 });
 

@@ -21,6 +21,7 @@ function hireDriver(int $seats = 6): array
 function charterForm($driver, $vehicle, array $over = []): array
 {
     return $over + [
+        'passenger_last_name' => 'Dela Cruz', 'passenger_first_name' => 'Juan', 'passenger_phone' => '09171234567',
         'driver_id' => $driver->id, 'vehicle_id' => $vehicle->id, 'group_size' => 4,
         'pickup_location' => 'Abuyog plaza', 'dropoff_location' => 'Tacloban City hall',
         'pickup_at' => now()->addDays(5)->format('Y-m-d\TH:i'),
@@ -70,6 +71,7 @@ test('the form rules: capacity, return pair, future time, vehicle ownership, ID,
     $passenger = Scenario::passenger();
 
     $this->actingAs($passenger)->post('/charters', charterForm($driver, $vehicle, ['group_size' => 5]))->assertSessionHasErrors('group_size');
+    $this->actingAs($passenger)->post('/charters', charterForm($driver, $vehicle, ['passenger_first_name' => '', 'passenger_phone' => '']))->assertSessionHasErrors(['passenger_first_name', 'passenger_phone']);
     $this->actingAs($passenger)->post('/charters', charterForm($driver, $vehicle, ['return_at' => now()->addDays(6)->format('Y-m-d\TH:i')]))->assertSessionHasErrors('return_location');
     $this->actingAs($passenger)->post('/charters', charterForm($driver, $vehicle, ['pickup_at' => now()->subDay()->format('Y-m-d\TH:i')]))->assertSessionHasErrors('pickup_at');
     $this->actingAs($passenger)->post('/charters', charterForm($driver, $otherVehicle))->assertSessionHasErrors('vehicle_id');

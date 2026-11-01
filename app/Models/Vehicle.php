@@ -21,6 +21,11 @@ class Vehicle extends Model
         'photo_front_path', 'photo_back_path', 'photo_interior_path', 'description', 'cor_image_path',
     ];
 
+    protected function casts(): array
+    {
+        return ['rental_terms' => 'array'];
+    }
+
     public function driver(): BelongsTo
     {
         return $this->belongsTo(DriverProfile::class, 'driver_id', 'user_id');

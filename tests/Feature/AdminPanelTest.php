@@ -26,10 +26,14 @@ test('every admin page is forbidden for non-admins and open for admins', functio
 
 test('admin write actions are forbidden for non-admins', function () {
     $user = Scenario::passenger();
+    // Real records, because Laravel resolves route models before the admin check would run.
+    $ride = Scenario::ride(Scenario::driver());
+    $this->actingAs($user)->post("/rides/{$ride->id}/book", Scenario::bookingForm());
+    $payment = Booking::firstOrFail()->payment;
 
     $this->actingAs($user)->patch("/admin/users/{$user->id}", ['status' => 'suspended'])->assertForbidden();
     $this->actingAs($user)->put('/admin/settings', [])->assertForbidden();
-    $this->actingAs($user)->post('/admin/transactions/1/refund', ['reason' => 'x'])->assertForbidden();
+    $this->actingAs($user)->post("/admin/transactions/{$payment->id}/refund", ['reason' => 'x'])->assertForbidden();
     $this->actingAs($user)->post('/admin/announcements', [])->assertForbidden();
 });
 
@@ -61,9 +65,7 @@ test('ID rejection needs a reason, shows it to the user, and the user can resubm
     $this->actingAs($admin)->patch("/admin/identity-documents/{$doc->id}", ['decision' => 'rejected', 'remarks' => 'Photo is blurry'])->assertSessionHasNoErrors();
 
     expect($doc->fresh()->remarks)->toBe('Photo is blurry')->and($user->hasApprovedId())->toBeFalse();
-    $this->actingAs($user)->get('/settings/profile')->assertInertia(fn ($p) => $p->where('verification.id_remarks', 'Photo is blurry')->where('verification.id_status', 'rejected'));
-    // The old /identity address now just lands on the profile page.
-    $this->actingAs($user)->get('/identity')->assertRedirect('/settings/profile');
+    $this->actingAs($user)->get('/identity')->assertInertia(fn ($p) => $p->where('remarks', 'Photo is blurry')->where('status', 'rejected'));
 
     // A decided document cannot be decided twice.
     $this->actingAs($admin)->patch("/admin/identity-documents/{$doc->id}", ['decision' => 'approved'])->assertStatus(409);
@@ -126,4 +128,41 @@ test('exports are CSV and neutralise spreadsheet formulas', function () {
 test('reports page loads with a date range', function () {
     $this->actingAs(Scenario::admin())->get('/admin/reports?from=2026-01-01&to=2026-12-31')->assertOk()
         ->assertInertia(fn ($p) => $p->component('admin/reports')->has('totals'));
+});
+
+test('an admin can delete a user with no history, but not themselves, other admins or users with records', function () {
+    $admin = Scenario::admin();
+    $plain = Scenario::passenger();
+
+    $this->actingAs($admin)->delete("/admin/users/{$plain->id}")->assertRedirect('/admin/users');
+    expect(\App\Models\User::find($plain->id))->toBeNull();
+
+    $this->actingAs($admin)->delete("/admin/users/{$admin->id}")->assertForbidden();
+
+    // A driver with a vehicle on record is protected: the database refuses, the account survives.
+    $driver = Scenario::driver();
+    Scenario::vehicle($driver);
+    $this->actingAs($admin)->delete("/admin/users/{$driver->id}")->assertRedirect();
+    expect(\App\Models\User::find($driver->id))->not->toBeNull();
+
+    // Non-admins can't use it at all.
+    $other = Scenario::passenger();
+    $this->actingAs(Scenario::passenger())->delete("/admin/users/{$other->id}")->assertForbidden();
+});
+
+test('the ID review page shows the person being reviewed, and a rejection notifies them with the reason', function () {
+    $admin = Scenario::admin();
+    $user = Scenario::passenger(idApproved: false);
+    $user->forceFill(['phone_number' => '09171112222', 'address' => 'Abuyog, Leyte'])->save();
+    $doc = IdentityDocument::create(['user_id' => $user->id, 'id_type_id' => IdType::first()->id, 'front_image_path' => 'identity-documents/a.png']);
+
+    $this->actingAs($admin)->get('/admin/identity')->assertOk()->assertInertia(fn ($p) => $p
+        ->where('documents.data.0.profile.phone', '09171112222')
+        ->where('documents.data.0.profile.address', 'Abuyog, Leyte')
+        ->where('documents.data.0.profile.user_id', $user->id));
+
+    $this->actingAs($admin)->patch("/admin/identity-documents/{$doc->id}", ['decision' => 'rejected', 'remarks' => 'Photo is blurry'])->assertSessionHasNoErrors();
+
+    $note = $user->notifications()->first();
+    expect($note->data['title'])->toBe('ID rejected')->and($note->data['body'])->toContain('Photo is blurry');
 });

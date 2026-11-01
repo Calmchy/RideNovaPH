@@ -1,6 +1,6 @@
 // Admin > Users: search + filter, open a profile, suspend / reactivate.
 import { Head, Link, router } from '@inertiajs/react';
-import { Check, Eye, ShieldBan } from 'lucide-react';
+import { Check, Eye, ShieldBan, Trash2 } from 'lucide-react';
 import {
     EmptyState,
     FilterBar,
@@ -40,6 +40,9 @@ export default function AdminUsers({
             { status, reason },
             { preserveScroll: true },
         );
+
+    const remove = (u: U) =>
+        router.delete(`/admin/users/${u.id}`, { preserveScroll: true });
 
     return (
         <>
@@ -180,6 +183,27 @@ export default function AdminUsers({
                                                         Reactivate
                                                     </Button>
                                                 ))}
+                                            {u.role !== 'admin' &&
+                                                !u.is_self && (
+                                                    <ReasonDialog
+                                                        title={`Delete ${u.name}?`}
+                                                        description="This permanently removes the account and cannot be undone. If they have rides, bookings, rentals or vehicles on record, deletion is blocked: suspend them instead."
+                                                        confirmLabel="Delete"
+                                                        destructive
+                                                        onConfirm={() =>
+                                                            remove(u)
+                                                        }
+                                                        trigger={
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                aria-label={`Delete ${u.name}`}
+                                                            >
+                                                                <Trash2 />
+                                                            </Button>
+                                                        }
+                                                    />
+                                                )}
                                         </div>
                                     </td>
                                 </tr>

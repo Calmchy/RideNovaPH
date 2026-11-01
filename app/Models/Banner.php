@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class Banner extends Model
 {
     protected $fillable = [
-        'created_by', 'title', 'caption', 'image_path', 'link_url',
+        'created_by', 'city_id', 'title', 'caption', 'image_path', 'link_url',
         'display_order', 'is_active',
     ];
 

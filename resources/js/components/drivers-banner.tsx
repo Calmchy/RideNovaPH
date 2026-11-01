@@ -3,7 +3,7 @@
 import { Link } from '@inertiajs/react';
 import { ChevronLeft, ChevronRight, Phone, Star } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { LIFT_3D } from '@/components/lux';
+import { LIFT_3D, peso } from '@/components/lux';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { useInitials } from '@/hooks/use-initials';
@@ -15,6 +15,9 @@ export type HireDriver = {
     bio: string | null;
     rating: number | null;
     reviews: number;
+    can_hire: boolean;
+    /** Vehicles this driver lets people rent without the driver (renter drives). */
+    rentals: { id: number; name: string; daily_rate: string }[];
     vehicles: { name: string; color: string; seats: number }[];
 };
 
@@ -124,11 +127,28 @@ export default function DriversBanner({ drivers }: { drivers: HireDriver[] }) {
                             </p>
                         )}
 
-                        <Button asChild className="mt-auto">
-                            <Link href={`/charters/new?driver=${d.id}`}>
-                                Request this driver
-                            </Link>
-                        </Button>
+                        <div className="mt-auto grid gap-2">
+                            {d.can_hire && (
+                                <Button asChild>
+                                    <Link href={`/charters/new?driver=${d.id}`}>
+                                        Request this driver
+                                    </Link>
+                                </Button>
+                            )}
+                            {d.rentals.slice(0, 2).map((r) => (
+                                <Button key={r.id} asChild variant="outline">
+                                    <Link href={`/rentals/new?vehicle=${r.id}`}>
+                                        Rent {r.name} only · {peso(r.daily_rate)}
+                                        /day
+                                    </Link>
+                                </Button>
+                            ))}
+                            {d.rentals.length > 0 && (
+                                <p className="text-center text-xs text-muted-foreground">
+                                    “Rent only” = you drive, without the driver.
+                                </p>
+                            )}
+                        </div>
                     </article>
                 ))}
             </div>

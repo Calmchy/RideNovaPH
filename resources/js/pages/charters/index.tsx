@@ -12,6 +12,8 @@ import {
     thCls,
 } from '@/components/kit';
 import { fmtDateTime, peso, StatusBadge } from '@/components/lux';
+import { RentalRequestsTable } from '@/components/rental-panels';
+import type { RentalRow } from '@/components/rental-panels';
 import { Button } from '@/components/ui/button';
 
 type Row = {
@@ -31,6 +33,7 @@ type Props = {
     incoming: Row[];
     is_driver: boolean;
     available_for_hire: boolean;
+    my_rentals: RentalRow[];
 };
 
 function RequestsTable({ rows, who }: { rows: Row[]; who: string }) {
@@ -96,6 +99,7 @@ export default function CharterIndex({
     incoming,
     is_driver,
     available_for_hire,
+    my_rentals,
 }: Props) {
     return (
         <>
@@ -151,6 +155,12 @@ export default function CharterIndex({
                         }
                     >
                         <RequestsTable rows={incoming} who="Passenger" />
+                    </Panel>
+                )}
+
+                {my_rentals.length > 0 && (
+                    <Panel title="My vehicle rental requests">
+                        <RentalRequestsTable rows={my_rentals} who="Owner" />
                     </Panel>
                 )}
             </div>

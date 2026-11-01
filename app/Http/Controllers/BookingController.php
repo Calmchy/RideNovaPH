@@ -73,8 +73,10 @@ class BookingController extends Controller
                 ->simplePaginate(9)->withQueryString();
 
             $props += [
-                'rides' => $rides->through(fn (Ride $r) => RidePresenter::card($r)),
-                'cities' => City::orderBy('name')->get(['id', 'name']),
+                'rides' => $rides->through(fn (Ride $r) => RidePresenter::card($r, withDriverContact: true)),
+                // Province comes along so the From / To boxes can search by town OR province.
+                'cities' => City::with('province:id,name')->orderBy('name')->get(['id', 'name', 'province_id'])
+                    ->map(fn (City $c) => ['id' => $c->id, 'name' => $c->name, 'province' => $c->province?->name]),
             ];
         } elseif ($tab === 'mine') {
             $mine = $user->bookings()->with(['ride.origin', 'ride.destination', 'payment'])
