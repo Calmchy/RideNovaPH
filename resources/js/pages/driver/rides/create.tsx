@@ -27,6 +27,15 @@ type Props = {
         event_name: string;
         seats_booked: number;
     } | null;
+    /** Present when the driver came from a dashboard banner / announcement: starting values for the form. */
+    prefill?: {
+        source: string;
+        announcement_id: string;
+        event_name: string;
+        destination_city_id: string;
+        departure_at: string;
+        notes: string;
+    } | null;
     /** True once passengers have booked: route, pick-up, time, price and vehicle are frozen. */
     locked: boolean;
 };
@@ -36,26 +45,28 @@ export default function CreateRide({
     cities,
     announcements,
     ride,
+    prefill,
     locked,
 }: Props) {
     const editing = ride !== null;
     const form = useForm({
         vehicle_id: ride?.vehicle_id ?? String(vehicles[0]?.id ?? ''),
         origin_city_id: ride?.origin_city_id ?? '',
-        destination_city_id: ride?.destination_city_id ?? '',
+        destination_city_id:
+            ride?.destination_city_id ?? prefill?.destination_city_id ?? '',
         pickup_point: ride?.pickup_point ?? '',
         dropoff_point: ride?.dropoff_point ?? '',
-        departure_at: ride?.departure_at ?? '',
+        departure_at: ride?.departure_at ?? prefill?.departure_at ?? '',
         seats_offered:
             ride?.seats_offered ??
             String(Math.min(vehicles[0]?.seat_capacity ?? 4, 4)),
         price_per_seat: ride?.price_per_seat ?? '',
-        notes: ride?.notes ?? '',
-        announcement_id: ride?.announcement_id ?? '',
-        event_name: ride?.event_name ?? '',
+        notes: ride?.notes ?? prefill?.notes ?? '',
+        announcement_id: ride?.announcement_id ?? prefill?.announcement_id ?? '',
+        event_name: ride?.event_name ?? prefill?.event_name ?? '',
     });
     // "Edit" lets the driver type their own event instead of picking one from the list.
-    const [ownEvent, setOwnEvent] = useState(Boolean(ride?.event_name));
+    const [ownEvent, setOwnEvent] = useState(Boolean(ride?.event_name ?? prefill?.event_name));
     const vehicle = vehicles.find((v) => String(v.id) === form.data.vehicle_id);
     const f = (k: keyof typeof form.data) => ({
         value: form.data[k],
@@ -78,6 +89,14 @@ export default function CreateRide({
                     title={editing ? 'Edit ride' : 'Publish a ride'}
                     description="Passengers will see this in Bookings → Find a ride."
                 />
+                {prefill && !editing && (
+                    <p className="rounded-xl border border-ocean/40 bg-ocean/10 p-4 text-sm">
+                        Started from “{prefill.source}”. The event, destination,
+                        date and notes are filled in from it. Choose your
+                        vehicle, starting town, time, seats and price, then
+                        publish.
+                    </p>
+                )}
                 {locked && (
                     <p className="rounded-xl border border-sand/60 bg-sand/20 p-4 text-sm">
                         Passengers have already booked this ride, so the route,

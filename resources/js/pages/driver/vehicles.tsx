@@ -29,24 +29,13 @@ type Vehicle = {
     description: string | null;
     cor_url: string | null;
 };
-type PhotoField = 'photo_front' | 'photo_back' | 'photo_interior';
 type VehicleForm = {
     model_id: string;
     color: string;
     plate_number: string;
     seat_capacity: string;
     manufacture_year: string;
-    description: string;
-    photo_front: File | null;
-    photo_back: File | null;
-    photo_interior: File | null;
-    cor_image: File | null;
 };
-const PHOTO_FIELDS: { name: PhotoField; label: string }[] = [
-    { name: 'photo_front', label: 'Front of the vehicle' },
-    { name: 'photo_back', label: 'Back of the vehicle' },
-    { name: 'photo_interior', label: 'Inside the vehicle' },
-];
 type Props = {
     has_profile: boolean;
     vehicles: Vehicle[];
@@ -55,26 +44,18 @@ type Props = {
 
 export default function Vehicles({ has_profile, vehicles, models }: Props) {
     const [editing, setEditing] = useState<Vehicle | null>(null);
-    // Bumped on reset so the (uncontrolled) file inputs are cleared too.
-    const [fileKey, setFileKey] = useState(0);
     const form = useForm<VehicleForm>({
         model_id: '',
         color: '',
         plate_number: '',
         seat_capacity: '4',
         manufacture_year: '',
-        description: '',
-        photo_front: null,
-        photo_back: null,
-        photo_interior: null,
-        cor_image: null,
     });
 
     const reset = () => {
         setEditing(null);
         form.reset();
         form.clearErrors();
-        setFileKey((k) => k + 1);
     };
     const edit = (v: Vehicle) => {
         setEditing(v);
@@ -93,7 +74,6 @@ export default function Vehicles({ has_profile, vehicles, models }: Props) {
         const opts = { preserveScroll: true, onSuccess: reset };
 
         if (editing) {
-            // Photos and description are edited on the banner, not here.
             form.transform(
                 ({ model_id, color, plate_number, seat_capacity, manufacture_year }) => ({
                     model_id,
@@ -106,7 +86,7 @@ export default function Vehicles({ has_profile, vehicles, models }: Props) {
             form.patch(`/driver/vehicles/${editing.id}`, opts);
             form.transform((d) => d);
         } else {
-            form.post('/driver/vehicles', { ...opts, forceFormData: true });
+            form.post('/driver/vehicles', opts);
         }
     };
 
@@ -304,74 +284,11 @@ export default function Vehicles({ has_profile, vehicles, models }: Props) {
                                 />
                             </Field>
                         </div>
-                        {!editing && (
-                            <>
-                                {PHOTO_FIELDS.map((f) => (
-                                    <Field
-                                        key={`${f.name}-${fileKey}`}
-                                        label={f.label}
-                                        error={form.errors[f.name]}
-                                        hint="JPG, PNG or WEBP, up to 5 MB"
-                                    >
-                                        <input
-                                            required
-                                            type="file"
-                                            accept="image/jpeg,image/png,image/webp"
-                                            onChange={(e) =>
-                                                form.setData(
-                                                    f.name,
-                                                    e.target.files?.[0] ?? null,
-                                                )
-                                            }
-                                            className={inputCls}
-                                        />
-                                    </Field>
-                                ))}
-                                <Field
-                                    label="COR (Certificate of Registration)"
-                                    error={form.errors.cor_image}
-                                    hint="Kept private: only you and admins can view it. JPG, PNG or WEBP, up to 5 MB."
-                                >
-                                    <input
-                                        key={`cor-${fileKey}`}
-                                        required
-                                        type="file"
-                                        accept="image/jpeg,image/png,image/webp"
-                                        onChange={(e) =>
-                                            form.setData(
-                                                'cor_image',
-                                                e.target.files?.[0] ?? null,
-                                            )
-                                        }
-                                        className={inputCls}
-                                    />
-                                </Field>
-                                <Field
-                                    label="Description (optional)"
-                                    error={form.errors.description}
-                                    hint="Shown under your photos. You can edit it later from the banner."
-                                >
-                                    <textarea
-                                        rows={3}
-                                        maxLength={500}
-                                        value={form.data.description}
-                                        onChange={(e) =>
-                                            form.setData(
-                                                'description',
-                                                e.target.value,
-                                            )
-                                        }
-                                        className={inputCls}
-                                    />
-                                </Field>
-                            </>
-                        )}
-                        {editing && (
-                            <p className="text-xs text-muted-foreground">
-                                Change photos and the description from the
-                                banner on the vehicle’s card.
-                            </p>
-                        )}
+                        <p className="text-xs text-muted-foreground">
+                            {editing
+                                ? 'Change photos, the COR and the description from the vehicle’s card.'
+                                : 'After you register, add the photos, the COR and a description from the vehicle’s card.'}
+                        </p>
                         <div className="flex gap-2">
                             <Button
                                 type="submit"

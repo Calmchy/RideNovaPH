@@ -7,6 +7,7 @@ import {
     Banknote,
     CalendarCheck,
     Car,
+    Plus,
     ReceiptText,
     Route,
     Star,
@@ -16,6 +17,7 @@ import DashboardSlideshow from '@/components/dashboard-slideshow';
 import type { Slide } from '@/components/dashboard-slideshow';
 import { EmptyState, StatCard } from '@/components/kit';
 import { fmtDateTime, peso, StatusBadge } from '@/components/lux';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import AvailableDriversCard from '@/components/available-drivers-card';
 
@@ -37,6 +39,17 @@ type Props = {
         status: string;
         route: string;
         departure_at: string;
+    }[];
+    /** Drivers only: their latest published rides. */
+    my_rides: {
+        id: number;
+        route: string;
+        departure_at: string;
+        price_per_seat: string;
+        seats_offered: number;
+        seats_taken: number;
+        vehicle: string;
+        trip_status: string;
     }[];
     drivers: {
         id: number;
@@ -79,22 +92,36 @@ export default function Dashboard({
     id_status,
     stats,
     upcoming,
+    my_rides,
     drivers,
 }: Props) {
     const { auth } = usePage().props;
     const idCopy = ID_COPY[id_status ?? 'none'];
 
     const menu = [
-        {
-            title: 'Bookings',
-            href: '/bookings',
-            icon: CalendarCheck,
-            badge: stats.awaiting_my_approval,
-        },
+        // Drivers provide the rides, so they don't get the passenger "Bookings" link.
+        ...(auth.isDriver
+            ? []
+            : [
+                  {
+                      title: 'Bookings',
+                      href: '/bookings',
+                      icon: CalendarCheck,
+                      badge: stats.awaiting_my_approval,
+                  },
+              ]),
         { title: 'Find a ride', href: '/bookings?tab=find', icon: Route },
         { title: 'Transactions', href: '/transactions', icon: ReceiptText },
         ...(auth.isDriver
-            ? [{ title: 'Driver hub', href: '/driver', icon: Car }]
+            ? [
+                  {
+                      title: 'Driver hub',
+                      href: '/driver',
+                      icon: Car,
+                      // The "waiting for my approval" count moves here, where drivers answer requests.
+                      badge: stats.awaiting_my_approval,
+                  },
+              ]
             : []),
         { title: 'Verify ID', href: '/settings/profile', icon: BadgeCheck },
         { title: 'Profile', href: '/settings/profile', icon: UserCog },
@@ -142,37 +169,29 @@ export default function Dashboard({
                         </h1>
                     </header>
 
-                    <DashboardSlideshow slides={slides} />
+                    <DashboardSlideshow slides={slides} driver={Boolean(auth.isDriver)} />
 
-                    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                        <StatCard
-                            label="Upcoming trips"
-                            value={stats.upcoming}
-                            icon={CalendarCheck}
-                        />
-                        <StatCard
-                            label="Completed"
-                            value={stats.completed}
-                            icon={Route}
-                            tone="foam"
-                        />
-                        <StatCard
-                            label="Total spent"
-                            value={peso(stats.spent)}
-                            icon={Banknote}
-                            tone="sand"
-                        />
-                        {stats.earned !== null ? (
-                            // Drivers: earnings, plus how many passenger requests need their answer.
+                    {/* Passenger numbers. Drivers don't see this row (their rides are listed below). */}
+                    {!auth.isDriver && (
+                        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                             <StatCard
-                                label="Driver earnings"
-                                value={peso(stats.earned)}
-                                hint={`${stats.active_rides} open ride(s) · ${stats.awaiting_my_approval} request(s) to approve`}
-                                icon={Car}
-                                tone="deep"
+                                label="Upcoming trips"
+                                value={stats.upcoming}
+                                icon={CalendarCheck}
                             />
-                        ) : (
-                            // Passengers: their own bookings still waiting for a driver.
+                            <StatCard
+                                label="Completed"
+                                value={stats.completed}
+                                icon={Route}
+                                tone="foam"
+                            />
+                            <StatCard
+                                label="Total spent"
+                                value={peso(stats.spent)}
+                                icon={Banknote}
+                                tone="sand"
+                            />
+                            {/* Their own bookings still waiting for a driver. */}
                             <StatCard
                                 label="Awaiting driver"
                                 value={stats.my_pending}
@@ -180,9 +199,76 @@ export default function Dashboard({
                                 icon={BadgeCheck}
                                 tone="coral"
                             />
-                        )}
-                    </div>
+                        </div>
+                    )}
 
+                    {/* Drivers: their rides take the place of the passenger trips list. */}
+                    {auth.isDriver && (
+                        <section>
+                            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                                <h2 className="font-serif text-2xl">My rides</h2>
+                                <div className="flex items-center gap-4">
+                                    <Link
+                                        href="/driver/rides"
+                                        className="text-sm text-ocean hover:underline dark:text-foam"
+                                    >
+                                        All rides →
+                                    </Link>
+                                    <Button asChild size="sm">
+                                        <Link href="/driver/rides/create">
+                                            <Plus /> Publish a ride
+                                        </Link>
+                                    </Button>
+                                </div>
+                            </div>
+                            {my_rides.length ? (
+                                <div className="divide-y overflow-hidden rounded-2xl border bg-card">
+                                    {my_rides.map((r) => (
+                                        <div
+                                            key={r.id}
+                                            className="flex flex-wrap items-center justify-between gap-3 p-4"
+                                        >
+                                            <div className="min-w-0">
+                                                <p className="font-medium">
+                                                    {r.route}
+                                                </p>
+                                                <p className="text-sm text-muted-foreground">
+                                                    {fmtDateTime(r.departure_at)} · {r.vehicle}{' '}
+                                                    · {r.seats_taken}/{r.seats_offered} seats ·{' '}
+                                                    {peso(r.price_per_seat)}
+                                                </p>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <StatusBadge status={r.trip_status} />
+                                                <Button
+                                                    asChild
+                                                    size="sm"
+                                                    variant="outline"
+                                                >
+                                                    <Link href={`/driver/rides/${r.id}`}>
+                                                        Manage
+                                                    </Link>
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <EmptyState>
+                                    You haven’t published a ride yet.{' '}
+                                    <Link
+                                        href="/driver/rides/create"
+                                        className="text-ocean underline dark:text-foam"
+                                    >
+                                        Publish a ride
+                                    </Link>
+                                </EmptyState>
+                            )}
+                        </section>
+                    )}
+
+                    {/* Drivers provide rides rather than book them, so they don't get this list. */}
+                    {!auth.isDriver && (
                     <section>
                         <div className="mb-3 flex items-center justify-between">
                             <h2 className="font-serif text-2xl">
@@ -230,6 +316,7 @@ export default function Dashboard({
                             </EmptyState>
                         )}
                     </section>
+                    )}
                 </div>
 
                 {/* Right: verification + top drivers */}

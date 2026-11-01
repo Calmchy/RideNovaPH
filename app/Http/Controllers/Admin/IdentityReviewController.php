@@ -25,20 +25,33 @@ class IdentityReviewController extends Controller
         $f = $request->validate([
             'status' => ['nullable', 'in:pending,approved,rejected'],
             'q' => ['nullable', 'string', 'max:60'],
+            'role' => ['nullable', 'in:passenger,driver,admin'],
         ]);
         $status = $f['status'] ?? 'pending';
 
-        $docs = IdentityDocument::with(['user:id,name,email,role_id', 'user.role', 'idType', 'reviewer:id,name'])
+        $docs = IdentityDocument::with(['user:id,name,email,phone_number,address,emergency_contact_name,emergency_contact_phone,profile_photo_path,account_status,created_at,role_id', 'user.role', 'user.driverProfile', 'idType', 'reviewer:id,name'])
             ->where('status', $status)
+            ->when($f['role'] ?? null, fn ($q, $v) => $q->whereHas('user.role', fn ($r) => $r->where('name', $v)))
             ->when($f['q'] ?? null, fn ($q, $v) => $q->whereHas('user', fn ($u) => $u->where('name', 'like', Like::contains($v))->orWhere('email', 'like', Like::contains($v))))
             ->oldest()->paginate(10)->withQueryString();
 
         return Inertia::render('admin/identity', [
-            'filters' => ['status' => $status, 'q' => $f['q'] ?? null],
+            'filters' => ['status' => $status, 'q' => $f['q'] ?? null, 'role' => $f['role'] ?? null],
             'documents' => $docs->through(fn (IdentityDocument $d) => [
                 'id' => $d->id,
                 'name' => $d->user->name,
                 'email' => $d->user->email,
+                // The person being reviewed, so the admin can check the ID against who they say they are.
+                'profile' => [
+                    'user_id' => $d->user->id,
+                    'photo' => $d->user->profile_photo_path ? Storage::disk('public')->url($d->user->profile_photo_path) : null,
+                    'phone' => $d->user->phone_number,
+                    'address' => $d->user->address,
+                    'emergency' => collect([$d->user->emergency_contact_name, $d->user->emergency_contact_phone])->filter()->implode(' · ') ?: null,
+                    'member_since' => $d->user->created_at->toIso8601String(),
+                    'account_status' => $d->user->account_status->value,
+                    'driver_status' => $d->user->driverProfile?->status->value,
+                ],
                 'role' => $d->user->role->name,
                 'id_type' => $d->idType->name,
                 'has_back' => $d->back_image_path !== null,
@@ -85,8 +98,8 @@ class IdentityReviewController extends Controller
 
         $document->user->notify(new AppNotice(
             $data['decision'] === 'approved' ? 'ID verified' : 'ID rejected',
-            $data['decision'] === 'approved' ? 'Your ID is verified. You can now book rides.' : "Reason: {$data['remarks']}. Please upload a new photo.",
-            '/settings/profile',
+            $data['decision'] === 'approved' ? 'Your ID is verified. You can now book rides.' : "Your ID was rejected. Reason: {$data['remarks']}. Please upload a new photo.",
+            '/identity',
         ));
         ActivityLog::record($request->user(), "identity.{$data['decision']}", $document, ['remarks' => $data['remarks'] ?? null]);
         $this->toast("ID {$data['decision']}.");

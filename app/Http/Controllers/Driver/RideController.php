@@ -11,12 +11,14 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreRideRequest;
 use App\Http\Requests\UpdateRideRequest;
 use App\Models\Announcement;
+use App\Models\Banner;
 use App\Models\City;
 use App\Models\Ride;
 use App\Models\Vehicle;
 use App\Support\Like;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -69,8 +71,64 @@ class RideController extends Controller
             'cities' => City::orderBy('name')->get(['id', 'name']),
             'announcements' => $this->eventOptions(),
             'ride' => null,
+            'prefill' => $this->prefillFromSlide($request),
             'locked' => false,
         ]);
+    }
+
+    /**
+     * Dashboard banner / announcement -> a publish form that is already filled in as far as the
+     * announcement says. Read on the server from the id (never from typed-in text), and only a
+     * suggestion: the driver still picks the vehicle, origin, time, seats and price.
+     *
+     * @return array<string, string>|null
+     */
+    private function prefillFromSlide(Request $request): ?array
+    {
+        if ($id = $request->integer('announcement')) {
+            $a = Announcement::forRides()->find($id);
+
+            return $a ? [
+                'source' => $a->title,
+                'announcement_id' => (string) $a->id,
+                'event_name' => '',
+                'destination_city_id' => $a->city_id ? (string) $a->city_id : '',
+                // Exam day at 5 AM as a starting point (the driver adjusts it); past dates are left empty.
+                'departure_at' => $a->exam_date && $a->exam_date->gte(today()) ? $a->exam_date->copy()->setTime(5, 0)->format('Y-m-d\TH:i') : '',
+                'notes' => '',
+            ] : null;
+        }
+
+        if ($id = $request->integer('banner')) {
+            $b = Banner::slideshow()->find($id);
+
+            if (! $b) {
+                return null;
+            }
+
+            // The destination the admin chose for the banner. If none, a city (or its province, e.g.
+            // "Palawan") named in the title or caption is used.
+            $cityId = $b->city_id;
+
+            if (! $cityId) {
+                $text = mb_strtolower($b->title.' '.$b->caption);
+                $cityId = City::with('province:id,name')->orderBy('name')->get(['id', 'name', 'province_id'])->first(
+                    fn (City $c) => str_contains($text, mb_strtolower(Str::of($c->name)->replaceLast(' City', '')->toString()))
+                        || ($c->province && str_contains($text, mb_strtolower($c->province->name))),
+                )?->id;
+            }
+
+            return [
+                'source' => $b->title,
+                'announcement_id' => '',
+                'event_name' => mb_substr($b->title, 0, 120),
+                'destination_city_id' => $cityId ? (string) $cityId : '',
+                'departure_at' => '',
+                'notes' => mb_substr((string) $b->caption, 0, 500),
+            ];
+        }
+
+        return null;
     }
 
     /**

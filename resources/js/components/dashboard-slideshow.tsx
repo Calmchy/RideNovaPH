@@ -12,6 +12,8 @@ export type Slide = {
     caption: string | null;
     image_url: string | null;
     href: string;
+    /** Link text. Defaults to "Find rides" (drivers get "Publish a ride"). */
+    cta?: string;
 };
 
 // Shown only until an admin adds banners/announcements. Palette gradients, no remote images needed.
@@ -48,8 +50,21 @@ const GRADIENTS = [
     'from-deep via-deep to-ocean/70',
 ];
 
-export default function DashboardSlideshow({ slides }: { slides: Slide[] }) {
-    const items = slides.length ? slides : FALLBACK;
+export default function DashboardSlideshow({
+    slides,
+    driver = false,
+}: {
+    slides: Slide[];
+    /** Drivers publish rides instead of booking them. */
+    driver?: boolean;
+}) {
+    const items = slides.length
+        ? slides
+        : FALLBACK.map((f) =>
+              driver
+                  ? { ...f, href: '/driver/rides/create', cta: 'Publish a ride' }
+                  : f,
+          );
     const [i, setI] = useState(0);
     const [paused, setPaused] = useState(false);
     const [touchX, setTouchX] = useState<number | null>(null); // swipe start (phones)
@@ -128,7 +143,7 @@ export default function DashboardSlideshow({ slides }: { slides: Slide[] }) {
                             </p>
                         )}
                         <span className="mt-4 inline-block text-sm font-medium text-sand">
-                            Find rides →
+                            {s.cta ?? 'Find rides'} →
                         </span>
                     </Link>
                 ))}
