@@ -129,3 +129,19 @@ test('a rejected driver can resubmit a licence; an approved one cannot', functio
     expect($profile->status->value)->toBe('pending')->and($profile->remarks)->toBeNull()->and($profile->license_number)->toBe('N01-99-000001');
     Storage::disk('local')->assertExists($profile->license_image_path);
 });
+
+test('my rides page lists the passenger requests so the driver can answer them there', function () {
+    $driver = Scenario::driver();
+    $ride = Scenario::ride($driver);
+    $this->actingAs(Scenario::passenger())->post("/rides/{$ride->id}/book", Scenario::bookingForm())->assertSessionHasNoErrors();
+
+    $this->actingAs($driver)->get('/driver/rides')->assertOk()->assertInertia(fn ($p) => $p
+        ->component('driver/rides/index')
+        ->where('pending_total', 1)
+        ->has('requests', 1)
+        ->where('requests.0.status', 'pending')
+        ->where('rides.data.0.pending_requests', 1));
+
+    // Another driver does not see them.
+    $this->actingAs(Scenario::driver())->get('/driver/rides')->assertInertia(fn ($p) => $p->where('pending_total', 0)->has('requests', 0));
+});

@@ -131,7 +131,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('/availability', [CharterController::class, 'availability'])->name('availability');
 
     // The driver's own inbox: passenger seat requests and group "hire a driver" requests.
-    Route::get('/requests', [\App\Http\Controllers\Driver\RequestController::class, 'passengers'])->name('requests');
     Route::get('/hire', [\App\Http\Controllers\Driver\RequestController::class, 'hire'])->name('hire');
 
     // "Rent my unit": the owner's own rental page (separate from Hire a driver).

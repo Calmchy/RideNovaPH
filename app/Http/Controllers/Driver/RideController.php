@@ -12,6 +12,7 @@ use App\Http\Requests\StoreRideRequest;
 use App\Http\Requests\UpdateRideRequest;
 use App\Models\Announcement;
 use App\Models\Banner;
+use App\Models\Booking;
 use App\Models\City;
 use App\Models\Ride;
 use App\Models\Vehicle;
@@ -34,6 +35,7 @@ class RideController extends Controller
         ]);
 
         $rides = Ride::with(['origin', 'destination', 'vehicle.model.make'])->withSeatsTaken()
+            ->withCount(['bookings as pending_requests' => fn ($b) => $b->where('status', BookingStatus::Pending->value)])
             ->whereHas('vehicle', fn ($q) => $q->where('driver_id', $request->user()->id))
             ->when($f['status'] ?? null, fn ($q, $v) => $q->where('status', $v))
             ->when($f['q'] ?? null, fn ($q, $v) => $q->where(fn ($w) => $w
@@ -41,8 +43,27 @@ class RideController extends Controller
                 ->orWhereHas('destination', fn ($c) => $c->where('name', 'like', Like::contains($v)))))
             ->orderByDesc('departure_at')->paginate(10)->withQueryString();
 
+        // Passenger requests that still need the driver, shown right on this page (pending first).
+        $open = [BookingStatus::Pending->value, BookingStatus::Approved->value, BookingStatus::Confirmed->value];
+        $mine = fn ($q) => $q->where('driver_id', $request->user()->id);
+        $requests = Booking::whereHas('ride.vehicle', $mine)->whereIn('status', $open)
+            ->with(['ride.origin', 'ride.destination', 'passenger:id,name', 'payment'])
+            ->orderByRaw("case status when 'pending' then 0 else 1 end")->latest()->limit(15)->get();
+
         return Inertia::render('driver/rides/index', [
             'filters' => $f,
+            'pending_total' => Booking::whereHas('ride.vehicle', $mine)->where('status', BookingStatus::Pending->value)->count(),
+            'requests' => $requests->map(fn (Booking $b) => [
+                'id' => $b->id,
+                'reference_no' => $b->reference_no,
+                'status' => $b->status->value,
+                'seats' => $b->seats_booked,
+                'total_fare' => $b->totalFare(),
+                'route' => $b->ride->origin->name.' → '.$b->ride->destination->name,
+                'departure_at' => $b->ride->departure_at->toIso8601String(),
+                'payment_status' => $b->payment?->status->value,
+                'passenger' => $b->passenger->name,
+            ]),
             'rides' => $rides->through(fn (Ride $r) => [
                 'id' => $r->id,
                 'route' => $r->origin->name.' → '.$r->destination->name,
@@ -50,6 +71,7 @@ class RideController extends Controller
                 'price_per_seat' => $r->price_per_seat,
                 'seats_offered' => $r->seats_offered,
                 'seats_taken' => (int) $r->seats_taken,
+                'pending_requests' => (int) $r->pending_requests,
                 'vehicle' => $r->vehicle->model->make->name.' '.$r->vehicle->model->name,
                 'trip_status' => $r->tripStatus(),
             ]),
