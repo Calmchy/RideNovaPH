@@ -114,7 +114,10 @@ export default function Dashboard({
                       badge: stats.awaiting_my_approval,
                   },
               ]),
-        { title: 'Find a ride', href: '/bookings?tab=find', icon: Route },
+               // Drivers publish rides instead of searching for them, so only passengers get this link.
+        ...(auth.isDriver
+            ? []
+            : [{ title: 'Find a ride', href: '/bookings?tab=find', icon: Route }]),
         { title: 'Transactions', href: '/transactions', icon: ReceiptText },
         { title: 'Messages', href: '/messages', icon: MessageCircle, badge: unread_messages },
         ...(auth.isDriver

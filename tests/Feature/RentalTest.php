@@ -225,3 +225,15 @@ test('a vehicle that is rented out cannot be used to publish a ride until it is 
     $rental->forceFill(['status' => RentalStatus::Completed])->save();
     $this->actingAs($owner)->post('/driver/rides', $form())->assertSessionHasNoErrors();
 });
+
+test('a rental can run longer than a month; the owner decides', function () {
+    [$owner, $vehicle] = rentableCar(1000);
+    $renter = Scenario::passenger();
+
+    $this->actingAs($renter)->post('/rentals', rentalForm($vehicle, [
+        'start_at' => now()->addDays(2)->format('Y-m-d\TH:i'),
+        'end_at' => now()->addDays(61)->format('Y-m-d\TH:i'), // 59 days
+    ]))->assertSessionHasNoErrors();
+
+    expect(RentalRequest::latest('id')->first()->days)->toBe(59);
+});

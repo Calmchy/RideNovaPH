@@ -21,7 +21,11 @@ use Illuminate\Validation\ValidationException;
  */
 class RequestRental
 {
-    public const MAX_DAYS = 30;
+    /**
+     * No practical limit: the owner reads the renter's dates and decides whether to accept. This is only a
+     * sanity ceiling (10 years) so a typo like 2026 -> 20260 can't create an absurd price.
+     */
+    public const MAX_DAYS = 3650;
 
     /** @param array<string, mixed> $data validated by StoreRentalRequest */
     public function handle(User $renter, array $data): RentalRequest
@@ -69,7 +73,7 @@ class RequestRental
         $days = RentalRequest::daysBetween($start, $end);
 
         if ($days > self::MAX_DAYS) {
-            throw ValidationException::withMessages(['end_at' => 'You can rent a vehicle for at most '.self::MAX_DAYS.' days at a time.']);
+            throw ValidationException::withMessages(['end_at' => 'Please check your dates: a rental can’t be longer than '.self::MAX_DAYS.' days.']);
         }
 
         // Licence ID photo: private disk, random name. Removed again if the request is refused below.
