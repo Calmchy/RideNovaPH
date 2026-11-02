@@ -27,8 +27,8 @@ class TransactionController extends Controller
             'from' => ['nullable', 'date'],
             'to' => ['nullable', 'date', 'after_or_equal:from'],
         ]);
-       // Drivers only ever see their earnings; passengers only their own payments.
-             $view = $user->isDriver() ? 'earned' : 'spent';
+        // Drivers only ever see their earnings; passengers only their own payments.
+        $view = $user->isDriver() ? 'earned' : 'spent';
 
         // Scope: payments whose booking belongs to me (as passenger) or whose ride I drive.
         $scope = fn (Builder $q) => $view === 'earned'

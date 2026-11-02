@@ -21,21 +21,16 @@ class MessageController extends Controller
     public function index(Request $request): Response
     {
         $me = $request->user();
-$id = (int) $me->id; // a plain integer, so it is safe to write into the SQL text
-$latest = DirectMessage::query()
 
-<<<<<<< HEAD
-    ->where(fn ($q) => $q->where('sender_id', $id)->orWhere('recipient_id', $id))
-    ->selectRaw("CASE WHEN sender_id = {$id} THEN recipient_id ELSE sender_id END AS partner_id, MAX(id) AS last_id")
-    ->groupByRaw("CASE WHEN sender_id = {$id} THEN recipient_id ELSE sender_id END")
-    ->orderByDesc('last_id')->limit(50)->get();
-=======
+        // Plain integer written into the SQL text (not a ? binding): MySQL's ONLY_FULL_GROUP_BY cannot tell that
+        // a bound value in SELECT and in GROUP BY are the same, so the two expressions must match exactly.
+        $id = (int) $me->id;
+
         $latest = DirectMessage::query()
-            ->where(fn ($q) => $q->where('sender_id', $me->id)->orWhere('recipient_id', $me->id))
-            ->selectRaw('CASE WHEN sender_id = ? THEN recipient_id ELSE sender_id END AS partner_id, MAX(id) AS last_id', [$me->id])
-            ->groupBy('partner_id')
+            ->where(fn ($q) => $q->where('sender_id', $id)->orWhere('recipient_id', $id))
+            ->selectRaw("CASE WHEN sender_id = {$id} THEN recipient_id ELSE sender_id END AS partner_id, MAX(id) AS last_id")
+            ->groupByRaw("CASE WHEN sender_id = {$id} THEN recipient_id ELSE sender_id END")
             ->orderByDesc('last_id')->limit(50)->get();
->>>>>>> d3f7309556d188033e4731f92e25ae21ceeb8d84
 
         $people = User::whereIn('id', $latest->pluck('partner_id'))->get(['id', 'name', 'last_seen_at'])->keyBy('id');
         $last = DirectMessage::whereIn('id', $latest->pluck('last_id'))->get()->keyBy('id');
