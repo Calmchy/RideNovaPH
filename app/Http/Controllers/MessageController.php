@@ -25,7 +25,7 @@ class MessageController extends Controller
         $latest = DirectMessage::query()
             ->where(fn ($q) => $q->where('sender_id', $me->id)->orWhere('recipient_id', $me->id))
             ->selectRaw('CASE WHEN sender_id = ? THEN recipient_id ELSE sender_id END AS partner_id, MAX(id) AS last_id', [$me->id])
-            ->groupByRaw('CASE WHEN sender_id = ? THEN recipient_id ELSE sender_id END', [$me->id])
+            ->groupBy('partner_id')
             ->orderByDesc('last_id')->limit(50)->get();
 
         $people = User::whereIn('id', $latest->pluck('partner_id'))->get(['id', 'name', 'last_seen_at'])->keyBy('id');
