@@ -1,5 +1,6 @@
 import { Head, Link, router } from '@inertiajs/react';
 import { Plus } from 'lucide-react';
+import { Fragment } from 'react';
 import {
     EmptyState,
     FilterBar,
@@ -39,6 +40,55 @@ type Req = {
     passenger: string;
 };
 
+/** "Today", "Tomorrow" or "Sun, Nov 8, 2026": the heading above each day's rows. */
+const dayLabel = (iso: string) => {
+    const d = new Date(iso);
+    const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+    const diff = Math.round((day(d) - day(new Date())) / 86400000);
+    const text = d.toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+
+    return diff === 0 ? `Today · ${text}` : diff === 1 ? `Tomorrow · ${text}` : diff === -1 ? `Yesterday · ${text}` : text;
+};
+
+/** Keeps the server's order and starts a new group whenever the travel day changes. */
+function groupByDay<T extends { departure_at: string }>(items: T[]): { key: string; label: string; items: T[] }[] {
+    const groups: { key: string; label: string; items: T[] }[] = [];
+
+    for (const it of items) {
+        const key = new Date(it.departure_at).toDateString();
+        const last = groups[groups.length - 1];
+
+        if (last && last.key === key) {
+            last.items.push(it);
+        } else {
+            groups.push({ key, label: dayLabel(it.departure_at), items: [it] });
+        }
+    }
+
+    return groups;
+}
+
+/** The heading row for one day, with a clear gap above every group except the first. */
+function DayHeader({ label, count, first, cols }: { label: string; count: number; first: boolean; cols: number }) {
+    return (
+        <>
+            {!first && (
+                <tr aria-hidden>
+                    <td colSpan={cols} className="h-5 bg-background p-0" />
+                </tr>
+            )}
+            <tr className="border-y bg-ocean/10">
+                <td colSpan={cols} className="px-4 py-2 text-xs font-semibold tracking-wide text-ocean uppercase dark:text-foam">
+                    {label}
+                    <span className="ml-2 font-normal text-muted-foreground normal-case">
+                        {count} {count === 1 ? 'item' : 'items'}
+                    </span>
+                </td>
+            </tr>
+        </>
+    );
+}
+
 /** PATCH a booking transition; the server decides if it is allowed and answers with a toast. */
 const act = (id: number, action: string, reason?: string) =>
     router.patch(`/bookings/${id}/${action}`, reason ? { reason } : {}, {
@@ -46,7 +96,7 @@ const act = (id: number, action: string, reason?: string) =>
     });
 
 /** Passenger seat requests for my rides, answered right here so the driver never leaves this page. */
-function RequestsPanel({ requests, pending }: { requests: Req[]; pending: number }) {
+function RequestsPanel({ requests, pending, hasDate }: { requests: Req[]; pending: number; hasDate: boolean }) {
     return (
         <Panel
             title={
@@ -76,9 +126,12 @@ function RequestsPanel({ requests, pending }: { requests: Req[]; pending: number
                                     <th className={thCls} />
                                 </tr>
                             </thead>
-                            <tbody className="divide-y">
-                                {requests.map((b) => (
-                                    <tr key={b.id} className="hover:bg-muted/30">
+                            <tbody>
+                                {groupByDay(requests).map((g, gi) => (
+                                    <Fragment key={g.key}>
+                                    <DayHeader label={g.label} count={g.items.length} first={gi === 0} cols={7} />
+                                    {g.items.map((b) => (
+                                    <tr key={b.id} className="border-b hover:bg-muted/30">
                                         <td className={tdCls}>
                                             <Link
                                                 href={`/bookings/${b.id}`}
@@ -132,6 +185,8 @@ function RequestsPanel({ requests, pending }: { requests: Req[]; pending: number
                                             </div>
                                         </td>
                                     </tr>
+                                    ))}
+                                    </Fragment>
                                 ))}
                             </tbody>
                         </table>
@@ -139,8 +194,9 @@ function RequestsPanel({ requests, pending }: { requests: Req[]; pending: number
                 </>
             ) : (
                 <EmptyState>
-                    No passenger requests waiting. New ones show up here as soon
-                    as someone reserves a seat on your rides.
+                    {hasDate
+                        ? 'No passenger requests for that date.'
+                        : 'No passenger requests waiting. New ones show up here as soon as someone reserves a seat on your rides.'}
                 </EmptyState>
             )}
         </Panel>
@@ -172,11 +228,15 @@ export default function DriverRides({
                     </Button>
                 }
             />
-            <RequestsPanel requests={requests} pending={pending_total} />
             <FilterBar
                 url="/driver/rides"
                 values={filters}
                 fields={[
+                    {
+                        name: 'date',
+                        type: 'date',
+                        label: 'Date (rides & requests)',
+                    },
                     {
                         name: 'q',
                         type: 'search',
@@ -196,6 +256,7 @@ export default function DriverRides({
                     },
                 ]}
             />
+            <RequestsPanel requests={requests} pending={pending_total} hasDate={Boolean(filters.date)} />
             {rides.data.length ? (
                 <div className="overflow-x-auto rounded-2xl border bg-card">
                     <table className={tableCls}>
@@ -216,9 +277,12 @@ export default function DriverRides({
                                 <th className={thCls} />
                             </tr>
                         </thead>
-                        <tbody className="divide-y">
-                            {rides.data.map((r) => (
-                                <tr key={r.id} className="hover:bg-muted/30">
+                        <tbody>
+                            {groupByDay(rides.data).map((g, gi) => (
+                                <Fragment key={g.key}>
+                                <DayHeader label={g.label} count={g.items.length} first={gi === 0} cols={7} />
+                                {g.items.map((r) => (
+                                <tr key={r.id} className="border-b hover:bg-muted/30">
                                     <td className={tdCls}>{r.route}</td>
                                     <td
                                         className={`${tdCls} whitespace-nowrap`}
@@ -254,6 +318,8 @@ export default function DriverRides({
                                         </Button>
                                     </td>
                                 </tr>
+                                ))}
+                                </Fragment>
                             ))}
                         </tbody>
                     </table>

@@ -105,6 +105,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/tracking/rides/{ride}/ping', [TrackingController::class, 'ping'])->middleware('throttle:90,1')->name('tracking.ping');
     Route::delete('/tracking/rides/{ride}/ping', [TrackingController::class, 'stop'])->name('tracking.stop');
     Route::post('/bookings/{booking}/arrived', [TrackingController::class, 'arrived'])->middleware('throttle:30,1')->name('tracking.arrived');
+    Route::post('/bookings/{booking}/seated', [TrackingController::class, 'seated'])->middleware('throttle:30,1')->name('tracking.seated');
 
     // Payments / receipts
     Route::get('/transactions', [TransactionController::class, 'index'])->name('transactions.index');

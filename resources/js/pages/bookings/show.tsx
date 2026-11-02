@@ -433,6 +433,8 @@ export default function BookingShow({
                         bookingId={b.id}
                         rideId={tracking.ride_id}
                         role={tracking.role}
+                        pickupPoint={b.pickup_point}
+                        departureAt={b.departure_at}
                     />
                 )}
 

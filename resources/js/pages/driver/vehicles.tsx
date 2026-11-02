@@ -1,7 +1,7 @@
 // Vehicle registration: list + add + edit + remove (all scoped to the signed-in driver on the server).
 // Each vehicle shows an editable photo banner (front / back / interior) with a description panel below.
 import { Head, router, useForm } from '@inertiajs/react';
-import { Pencil, Trash2 } from 'lucide-react';
+import { BadgeCheck, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import DocTile from '@/components/doc-tile';
 import {
@@ -44,6 +44,9 @@ type Props = {
 
 export default function Vehicles({ has_profile, vehicles, models }: Props) {
     const [editing, setEditing] = useState<Vehicle | null>(null);
+    // Once a driver has a vehicle, the form stays hidden until they ask to add another.
+    const [adding, setAdding] = useState(false);
+    const showForm = editing !== null || adding || vehicles.length === 0;
     const form = useForm<VehicleForm>({
         model_id: '',
         color: '',
@@ -54,6 +57,7 @@ export default function Vehicles({ has_profile, vehicles, models }: Props) {
 
     const reset = () => {
         setEditing(null);
+        setAdding(false);
         form.reset();
         form.clearErrors();
     };
@@ -115,10 +119,16 @@ export default function Vehicles({ has_profile, vehicles, models }: Props) {
                             >
                                 <div className="flex flex-wrap items-center justify-between gap-3">
                                     <div>
-                                        <p className="font-medium">
-                                            {v.name}{' '}
-                                            <span className="text-muted-foreground">
-                                                · {v.color}
+                                        <p className="flex flex-wrap items-center gap-2 font-medium">
+                                            <span>
+                                                {v.name}{' '}
+                                                <span className="text-muted-foreground">
+                                                    · {v.color}
+                                                </span>
+                                            </span>
+                                            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2 py-0.5 text-xs font-medium text-emerald-600 dark:text-emerald-300">
+                                                <BadgeCheck className="size-3.5" />
+                                                Registered Vehicle
                                             </span>
                                         </p>
                                         <p className="text-sm text-muted-foreground">
@@ -197,6 +207,24 @@ export default function Vehicles({ has_profile, vehicles, models }: Props) {
                     )}
                 </div>
 
+                {!showForm && (
+                    <div className="h-fit space-y-3 rounded-2xl border bg-card p-5">
+                        <p className="flex items-center gap-2 text-sm font-medium">
+                            <BadgeCheck className="size-4 text-emerald-500" />
+                            {vehicles.length === 1
+                                ? 'Your vehicle is registered'
+                                : `${vehicles.length} vehicles registered`}
+                        </p>
+                        <Button
+                            className="w-full"
+                            disabled={!has_profile}
+                            onClick={() => setAdding(true)}
+                        >
+                            <Plus /> Add another vehicle
+                        </Button>
+                    </div>
+                )}
+                {showForm && (
                 <Panel
                     title={editing ? 'Edit vehicle' : 'Add a vehicle'}
                     className="h-fit"
@@ -297,7 +325,7 @@ export default function Vehicles({ has_profile, vehicles, models }: Props) {
                             >
                                 {editing ? 'Save changes' : 'Register vehicle'}
                             </Button>
-                            {editing && (
+                            {(editing || vehicles.length > 0) && (
                                 <Button
                                     type="button"
                                     variant="outline"
@@ -309,6 +337,7 @@ export default function Vehicles({ has_profile, vehicles, models }: Props) {
                         </div>
                     </form>
                 </Panel>
+                )}
             </div>
         </>
     );

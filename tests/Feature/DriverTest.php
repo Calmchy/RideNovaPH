@@ -31,6 +31,47 @@ test('an approved driver can publish a ride on their own vehicle', function () {
     expect(Ride::count())->toBe(1);
 });
 
+test('a driver can start from a town typed or picked from the Philippine list', function () {
+    $driver = Scenario::driver();
+    $vehicle = Scenario::vehicle($driver);
+    $cities = City::count();
+
+    $this->actingAs($driver)->post('/driver/rides', rideForm($vehicle, [
+        'origin_city_id' => null, 'origin_province' => 'Leyte', 'origin_place' => '  Barangay   San Roque, Abuyog ',
+    ]))->assertSessionHasNoErrors();
+
+    $ride = Ride::latest('id')->first();
+    expect($ride->origin->name)->toBe('Barangay San Roque, Abuyog')
+        ->and($ride->origin->province->name)->toBe('Leyte')
+        ->and(City::count())->toBe($cities + 1);
+
+    // The same place typed again reuses the row instead of duplicating it.
+    $this->actingAs($driver)->post('/driver/rides', rideForm($vehicle, [
+        'origin_city_id' => null, 'origin_province' => 'leyte', 'origin_place' => 'barangay san roque, abuyog',
+    ]))->assertSessionHasNoErrors();
+    expect(City::count())->toBe($cities + 1);
+});
+
+test('an own place needs a real province, no odd symbols, and cannot equal the destination', function () {
+    $driver = Scenario::driver();
+    $vehicle = Scenario::vehicle($driver);
+
+    $this->actingAs($driver)->post('/driver/rides', rideForm($vehicle, [
+        'origin_city_id' => null, 'origin_province' => 'Atlantis', 'origin_place' => 'Somewhere',
+    ]))->assertSessionHasErrors('origin_province');
+
+    $this->actingAs($driver)->post('/driver/rides', rideForm($vehicle, [
+        'origin_city_id' => null, 'origin_province' => 'Leyte', 'origin_place' => 'Abuyog $$$ {drop}',
+    ]))->assertSessionHasErrors('origin_place');
+
+    $this->actingAs($driver)->post('/driver/rides', rideForm($vehicle, [
+        'origin_city_id' => null, 'origin_province' => 'Leyte', 'origin_place' => 'Ormoc City',
+        'destination_city_id' => City::where('name', 'Ormoc City')->first()->id,
+    ]))->assertSessionHas('errors');
+
+    expect(Ride::count())->toBe(0);
+});
+
 test('a driver cannot publish with someone else\'s vehicle, too many seats, or before approval', function () {
     $driver = Scenario::driver();
     $other = Scenario::vehicle(Scenario::driver());
@@ -144,4 +185,27 @@ test('my rides page lists the passenger requests so the driver can answer them t
 
     // Another driver does not see them.
     $this->actingAs(Scenario::driver())->get('/driver/rides')->assertInertia(fn ($p) => $p->where('pending_total', 0)->has('requests', 0));
+});
+
+test('my rides and passenger requests list the newest travel day first and filter by a chosen date', function () {
+    $driver = Scenario::driver();
+    $vehicle = Scenario::vehicle($driver);
+    $make = fn ($at) => Ride::create([
+        'vehicle_id' => $vehicle->id,
+        'origin_city_id' => City::where('name', 'Abuyog')->first()->id,
+        'destination_city_id' => City::where('name', 'Ormoc City')->first()->id,
+        'pickup_point' => 'x', 'departure_at' => $at, 'seats_offered' => 3, 'price_per_seat' => 100,
+    ]);
+    $early = $make(now()->addDays(2)->setTime(6, 0));
+    $sameDayLater = $make(now()->addDays(2)->setTime(18, 0));   // published after $early
+    $later = $make(now()->addDays(5)->setTime(9, 0));
+
+    $this->actingAs($driver)->get('/driver/rides')->assertInertia(fn ($page) => $page
+        ->where('rides.data.0.id', $later->id)            // newest day first
+        ->where('rides.data.1.id', $sameDayLater->id)     // same day: most recently published first
+        ->where('rides.data.2.id', $early->id));
+
+    $day = now()->addDays(2)->format('Y-m-d');
+    $this->actingAs($driver)->get("/driver/rides?date={$day}")->assertInertia(fn ($page) => $page->has('rides.data', 2));
+    $this->actingAs($driver)->get('/driver/rides?date=not-a-date')->assertSessionHasErrors('date');
 });
