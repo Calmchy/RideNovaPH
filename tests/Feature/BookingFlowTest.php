@@ -143,3 +143,18 @@ test('the bookings hub filters by status and reference', function () {
         ->assertInertia(fn ($page) => $page->has('bookings.data', 0));
     $this->actingAs($passenger)->get('/bookings?tab=requests')->assertNotFound(); // passengers have no requests tab
 });
+
+test('a ride that already left stays in Find a ride marked on the road, and cannot be reserved', function () {
+    $driver = Scenario::driver();
+    $left = Scenario::ride($driver, ['departure_at' => now()->subMinutes(30), 'started_at' => now()->subMinutes(20)]);
+    $gone = Scenario::ride($driver, ['departure_at' => now()->subHours(3)]); // never started: truly gone
+    $passenger = Scenario::passenger();
+
+    $this->actingAs($passenger)->get('/bookings?tab=find')->assertInertia(fn ($page) => $page
+        ->has('rides.data', 1)
+        ->where('rides.data.0.id', $left->id)
+        ->where('rides.data.0.trip_status', 'on_the_road'));
+
+    $this->actingAs($passenger)->post("/rides/{$left->id}/book", Scenario::bookingForm())->assertSessionHasErrors();
+    expect($passenger->bookings()->count())->toBe(0)->and($gone->bookings()->count())->toBe(0);
+});

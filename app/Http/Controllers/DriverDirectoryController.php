@@ -7,6 +7,7 @@ use App\Enums\BookingStatus;
 use App\Models\DriverProfile;
 use App\Models\Ride;
 use App\Models\User;
+use App\Support\DirectChat;
 use App\Support\DriverReviews;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -61,7 +62,7 @@ class DriverDirectoryController extends Controller
     /** GET /drivers/{user} : one driver's public profile. 404 unless registered and verified. */
     public function show(Request $request, User $user): Response
     {
-        $profile = self::verifiedDrivers()->with(['user:id,name,created_at', 'vehicles.model.make'])
+        $profile = self::verifiedDrivers()->with(['user:id,name,phone_number,created_at', 'vehicles.model.make'])
             ->where('user_id', $user->id)->firstOrFail();
 
         $summary = DriverReviews::summary($user->id);
@@ -80,6 +81,8 @@ class DriverDirectoryController extends Controller
             'driver' => [
                 'id' => $user->id,
                 'name' => $profile->user->name,
+                // Only signed-in people can open this page, so the number is not public.
+                'phone' => $profile->user->phone_number,
                 'member_since' => $profile->user->created_at?->toIso8601String(),
                 'bio' => $profile->bio,
                 'allows_luggage' => (bool) $profile->allows_luggage,
@@ -98,6 +101,12 @@ class DriverDirectoryController extends Controller
             'summary' => $summary,
             'upcoming' => $upcoming,
             'is_me' => $request->user()->id === $user->id,
+            // The chat box on the profile (not for the driver looking at their own page).
+            'chat' => $request->user()->id === $user->id ? null : [
+                'url' => "/messages/{$user->id}/chat",
+                'initial' => DirectChat::thread($request->user(), $user, 0, 50),
+                'partner' => DirectChat::presence($user),
+            ],
         ]);
     }
 

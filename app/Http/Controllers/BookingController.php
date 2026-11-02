@@ -50,7 +50,7 @@ class BookingController extends Controller
             'destination' => ['nullable', 'integer', 'exists:cities,id'],
             'date' => ['nullable', 'date'],
             'max_price' => ['nullable', 'numeric', 'min:0'],
-            'sort' => ['nullable', 'in:soonest,cheapest'],
+            'sort' => ['nullable', 'in:soonest,cheapest,latest'],
             'status' => ['nullable', 'in:pending,approved,confirmed,completed,cancelled'],
             'q' => ['nullable', 'string', 'max:40'],
         ]);
@@ -61,7 +61,10 @@ class BookingController extends Controller
 
         if ($tab === 'find') {
             $rides = Ride::with(RidePresenter::WITH)
-                ->available()->withSeatsLeft()
+                // Rides that already left stay listed (marked "On The Road") so a late passenger sees why they can't join.
+                ->where('status', RideStatus::Open->value)
+                ->where(fn ($q) => $q->where('departure_at', '>=', now())->orWhereNotNull('started_at'))
+                ->withSeatsLeft()
                 // Don't offer a driver their own rides.
                 ->whereDoesntHave('vehicle', fn ($q) => $q->where('driver_id', $user->id))
                 ->when($filters['origin'] ?? null, fn ($q, $v) => $q->where('origin_city_id', $v))
@@ -69,6 +72,10 @@ class BookingController extends Controller
                 ->when($filters['date'] ?? null, fn ($q, $v) => $q->whereDate('departure_at', $v))
                 ->when($filters['max_price'] ?? null, fn ($q, $v) => $q->where('price_per_seat', '<=', $v))
                 ->when(($filters['sort'] ?? 'soonest') === 'cheapest', fn ($q) => $q->orderBy('price_per_seat'))
+                // "latest" = what drivers published most recently; otherwise day by day, newest publication first within a day.
+                ->when(($filters['sort'] ?? 'soonest') === 'latest',
+                    fn ($q) => $q->orderByDesc('created_at'),
+                    fn ($q) => $q->orderByRaw('date(departure_at) asc')->orderByDesc('created_at'))
                 ->orderBy('departure_at')
                 ->simplePaginate(9)->withQueryString();
 
@@ -228,7 +235,9 @@ class BookingController extends Controller
             ],
             // Live GPS panel: only for the two people on the trip, only while the booking is confirmed
             // and the tracking window is open. The JSON itself is served by TrackingController.
-            'tracking' => $role && $booking->status === BookingStatus::Confirmed && RecordLocation::windowOpen($booking->ride)
+            // The panel shows as soon as the seat is confirmed (pick-up pin + "driver is waiting"); the driver's
+            // live position itself only flows while the tracking window is open (TrackingController).
+            'tracking' => $role && $booking->status === BookingStatus::Confirmed && in_array($booking->ride->tripStatus(), ['scheduled', 'on_the_road'], true)
                 ? ['ride_id' => $booking->ride_id, 'role' => $role]
                 : null,
             // The OTHER person's safe profile (driver for the passenger, passenger for the driver).

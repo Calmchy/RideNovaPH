@@ -12,10 +12,12 @@ use App\Http\Requests\StoreRideRequest;
 use App\Http\Requests\UpdateRideRequest;
 use App\Models\Announcement;
 use App\Models\Banner;
+use App\Models\Booking;
 use App\Models\City;
 use App\Models\Ride;
 use App\Models\Vehicle;
 use App\Support\Like;
+use App\Support\PlaceResolver;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -31,18 +33,45 @@ class RideController extends Controller
         $f = $request->validate([
             'status' => ['nullable', 'in:open,completed,cancelled'],
             'q' => ['nullable', 'string', 'max:40'],
+            'date' => ['nullable', 'date'],
         ]);
 
         $rides = Ride::with(['origin', 'destination', 'vehicle.model.make'])->withSeatsTaken()
+            ->withCount(['bookings as pending_requests' => fn ($b) => $b->where('status', BookingStatus::Pending->value)])
             ->whereHas('vehicle', fn ($q) => $q->where('driver_id', $request->user()->id))
             ->when($f['status'] ?? null, fn ($q, $v) => $q->where('status', $v))
+            ->when($f['date'] ?? null, fn ($q, $v) => $q->whereDate('departure_at', $v))
             ->when($f['q'] ?? null, fn ($q, $v) => $q->where(fn ($w) => $w
                 ->whereHas('origin', fn ($c) => $c->where('name', 'like', Like::contains($v)))
                 ->orWhereHas('destination', fn ($c) => $c->where('name', 'like', Like::contains($v)))))
-            ->orderByDesc('departure_at')->paginate(10)->withQueryString();
+            // Newest travel day first; on the same day the ride published most recently comes first.
+            ->orderByRaw('date(departure_at) desc')->orderByDesc('created_at')->orderByDesc('id')
+            ->paginate(10)->withQueryString();
+
+        // Passenger requests that still need the driver, shown right on this page (pending first).
+        $open = [BookingStatus::Pending->value, BookingStatus::Approved->value, BookingStatus::Confirmed->value];
+        $mine = fn ($q) => $q->where('driver_id', $request->user()->id);
+        $requests = Booking::whereHas('ride.vehicle', $mine)->whereIn('status', $open)
+            ->with(['ride.origin', 'ride.destination', 'passenger:id,name', 'payment'])
+            ->when($f['date'] ?? null, fn ($q, $d) => $q->whereHas('ride', fn ($r) => $r->whereDate('departure_at', $d)))
+            // Same order as the rides: newest travel day first, then the most recent request first.
+            ->orderByDesc(Ride::selectRaw('date(departure_at)')->whereColumn('rides.id', 'bookings.ride_id'))
+            ->orderByDesc('created_at')->orderByDesc('id')->limit(50)->get();
 
         return Inertia::render('driver/rides/index', [
             'filters' => $f,
+            'pending_total' => Booking::whereHas('ride.vehicle', $mine)->where('status', BookingStatus::Pending->value)->count(),
+            'requests' => $requests->map(fn (Booking $b) => [
+                'id' => $b->id,
+                'reference_no' => $b->reference_no,
+                'status' => $b->status->value,
+                'seats' => $b->seats_booked,
+                'total_fare' => $b->totalFare(),
+                'route' => $b->ride->origin->name.' → '.$b->ride->destination->name,
+                'departure_at' => $b->ride->departure_at->toIso8601String(),
+                'payment_status' => $b->payment?->status->value,
+                'passenger' => $b->passenger->name,
+            ]),
             'rides' => $rides->through(fn (Ride $r) => [
                 'id' => $r->id,
                 'route' => $r->origin->name.' → '.$r->destination->name,
@@ -50,6 +79,7 @@ class RideController extends Controller
                 'price_per_seat' => $r->price_per_seat,
                 'seats_offered' => $r->seats_offered,
                 'seats_taken' => (int) $r->seats_taken,
+                'pending_requests' => (int) $r->pending_requests,
                 'vehicle' => $r->vehicle->model->make->name.' '.$r->vehicle->model->name,
                 'trip_status' => $r->tripStatus(),
             ]),
@@ -65,10 +95,22 @@ class RideController extends Controller
             return to_route('driver.apply');
         }
 
+        // A vehicle that is out on an approved rental can't carry passengers, so it isn't offered.
+        $all = Vehicle::with('model.make')->where('driver_id', $request->user()->id)->get();
+        $free = $all->reject(fn (Vehicle $v) => $v->isRentedOut())->values();
+
+        if ($all->isNotEmpty() && $free->isEmpty()) {
+            $this->toast('Your vehicle is rented out right now, so you can’t publish a ride. You can again once it is returned.', 'warning');
+
+            return to_route('driver.rentals');
+        }
+
         return Inertia::render('driver/rides/create', [
-            'vehicles' => Vehicle::with('model.make')->where('driver_id', $request->user()->id)->get()
+            'vehicles' => $free
                 ->map(fn ($v) => ['id' => $v->id, 'label' => $v->model->make->name.' '.$v->model->name.' · '.$v->plate_number, 'seat_capacity' => $v->seat_capacity]),
-            'cities' => City::orderBy('name')->get(['id', 'name']),
+            'cities' => City::with('province:id,name')->orderBy('name')->get()
+                ->map(fn ($c) => ['id' => $c->id, 'name' => $c->name, 'province' => $c->province?->name ?? '']),
+            'places' => PlaceResolver::all(),
             'announcements' => $this->eventOptions(),
             'ride' => null,
             'prefill' => $this->prefillFromSlide($request),
@@ -150,7 +192,9 @@ class RideController extends Controller
         return Inertia::render('driver/rides/create', [
             'vehicles' => Vehicle::with('model.make')->where('driver_id', $request->user()->id)->get()
                 ->map(fn ($v) => ['id' => $v->id, 'label' => $v->model->make->name.' '.$v->model->name.' · '.$v->plate_number, 'seat_capacity' => $v->seat_capacity]),
-            'cities' => City::orderBy('name')->get(['id', 'name']),
+            'cities' => City::with('province:id,name')->orderBy('name')->get()
+                ->map(fn ($c) => ['id' => $c->id, 'name' => $c->name, 'province' => $c->province?->name ?? '']),
+            'places' => PlaceResolver::all(),
             'announcements' => $this->eventOptions($ride->announcement_id),
             'ride' => [
                 'id' => $ride->id,

@@ -37,6 +37,7 @@ class RidePresenter
             ),
             'driver_name' => $ride->vehicle->driver->user->name,
             'event' => $ride->eventLabel(),
+            'trip_status' => $ride->tripStatus(),
         ] + ($withDriverContact ? [
             'driver_id' => $driver->id,
             'driver_photo' => $driver->avatar,

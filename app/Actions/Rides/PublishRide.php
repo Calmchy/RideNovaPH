@@ -5,6 +5,7 @@ namespace App\Actions\Rides;
 use App\Models\Ride;
 use App\Models\User;
 use App\Models\Vehicle;
+use Carbon\Carbon;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -25,6 +26,10 @@ class PublishRide
 
         if (! $vehicle) {
             throw ValidationException::withMessages(['vehicle_id' => 'Choose one of your registered vehicles.']);
+        }
+
+        if ($vehicle->isRentedOut(Carbon::parse($data['departure_at']))) {
+            throw ValidationException::withMessages(['vehicle_id' => 'This vehicle is rented out, so you can’t publish a ride with it. You can again once it is returned.']);
         }
 
         if ((int) $data['seats_offered'] > $vehicle->seat_capacity) {
