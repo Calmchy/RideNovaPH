@@ -7,6 +7,7 @@ import {
     Banknote,
     CalendarCheck,
     Car,
+    MessageCircle,
     Plus,
     ReceiptText,
     Route,
@@ -41,6 +42,8 @@ type Props = {
         departure_at: string;
     }[];
     /** Drivers only: their latest published rides. */
+    /** Messages from drivers / passengers that I haven't opened yet. */
+    unread_messages: number;
     my_rides: {
         id: number;
         route: string;
@@ -93,6 +96,7 @@ export default function Dashboard({
     stats,
     upcoming,
     my_rides,
+    unread_messages,
     drivers,
 }: Props) {
     const { auth } = usePage().props;
@@ -112,6 +116,7 @@ export default function Dashboard({
               ]),
         { title: 'Find a ride', href: '/bookings?tab=find', icon: Route },
         { title: 'Transactions', href: '/transactions', icon: ReceiptText },
+        { title: 'Messages', href: '/messages', icon: MessageCircle, badge: unread_messages },
         ...(auth.isDriver
             ? [
                   {

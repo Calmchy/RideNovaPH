@@ -52,10 +52,18 @@ Route::get('/drivers/{user}/reviews', [DriverDirectoryController::class, 'review
 Route::post('/chatbot', ChatbotController::class)->middleware('throttle:20,1')->name('chatbot');
 
 // ---- Signed-in users ----
-Route::middleware(['auth', 'verified'])->group(function () {
+Route::middleware(['auth', 'verified', \App\Http\Middleware\TouchLastSeen::class])->group(function () {
+    // Heartbeat: the page pings this while open, so the person shows as online (TouchLastSeen does the work).
+    Route::post('/presence', fn () => response()->noContent())->middleware('throttle:30,1')->name('presence');
     Route::get('/reviews', [ReviewController::class, 'history'])->name('reviews.history');
     Route::get('/drivers', [DriverDirectoryController::class, 'index'])->name('drivers.index');
-    Route::get('/drivers/{user}', [DriverDirectoryController::class, 'show'])->name('drivers.show');        
+    Route::get('/drivers/{user}', [DriverDirectoryController::class, 'show'])->name('drivers.show');
+
+    // Direct messages (passenger <-> driver). Literal paths first.
+    Route::get('/messages', [\App\Http\Controllers\MessageController::class, 'index'])->name('messages.index');
+    Route::get('/messages/{user}', [\App\Http\Controllers\MessageController::class, 'show'])->name('messages.show');
+    Route::get('/messages/{user}/chat', [\App\Http\Controllers\MessageController::class, 'poll'])->middleware('throttle:60,1')->name('messages.poll');
+    Route::post('/messages/{user}/chat', [\App\Http\Controllers\MessageController::class, 'send'])->middleware('throttle:30,1')->name('messages.send');
     Route::get('dashboard', DashboardController::class)->name('dashboard');
     Route::get('/about', \App\Http\Controllers\AboutController::class)->name('about');
 
@@ -105,6 +113,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/tracking/rides/{ride}/ping', [TrackingController::class, 'ping'])->middleware('throttle:90,1')->name('tracking.ping');
     Route::delete('/tracking/rides/{ride}/ping', [TrackingController::class, 'stop'])->name('tracking.stop');
     Route::post('/bookings/{booking}/arrived', [TrackingController::class, 'arrived'])->middleware('throttle:30,1')->name('tracking.arrived');
+    Route::post('/bookings/{booking}/seated', [TrackingController::class, 'seated'])->middleware('throttle:30,1')->name('tracking.seated');
 
     // Payments / receipts
     Route::get('/transactions', [TransactionController::class, 'index'])->name('transactions.index');
@@ -131,7 +140,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('/availability', [CharterController::class, 'availability'])->name('availability');
 
     // The driver's own inbox: passenger seat requests and group "hire a driver" requests.
-    Route::get('/requests', [\App\Http\Controllers\Driver\RequestController::class, 'passengers'])->name('requests');
     Route::get('/hire', [\App\Http\Controllers\Driver\RequestController::class, 'hire'])->name('hire');
 
     // "Rent my unit": the owner's own rental page (separate from Hire a driver).

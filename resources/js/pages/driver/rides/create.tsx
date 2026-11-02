@@ -5,11 +5,15 @@ import { Pencil } from 'lucide-react';
 import { useState } from 'react';
 import { Field, inputCls, PageHeader, Panel } from '@/components/kit';
 import { peso, toLocalInput } from '@/components/lux';
+import { PlacePicker } from '@/components/place-picker';
+import type { KnownCity, Province } from '@/components/place-picker';
 import { Button } from '@/components/ui/button';
 
 type Props = {
     vehicles: { id: number; label: string; seat_capacity: number }[];
-    cities: { id: number; name: string }[];
+    cities: KnownCity[];
+    /** Philippine provinces with their towns, for the From / To picker. */
+    places: Province[];
     announcements: { id: number; title: string }[];
     /** Present when EDITING an existing ride. */
     ride: {
@@ -43,6 +47,7 @@ type Props = {
 export default function CreateRide({
     vehicles,
     cities,
+    places,
     announcements,
     ride,
     prefill,
@@ -52,8 +57,12 @@ export default function CreateRide({
     const form = useForm({
         vehicle_id: ride?.vehicle_id ?? String(vehicles[0]?.id ?? ''),
         origin_city_id: ride?.origin_city_id ?? '',
+        origin_province: '',
+        origin_place: '',
         destination_city_id:
             ride?.destination_city_id ?? prefill?.destination_city_id ?? '',
+        destination_province: '',
+        destination_place: '',
         pickup_point: ride?.pickup_point ?? '',
         dropoff_point: ride?.dropoff_point ?? '',
         departure_at: ride?.departure_at ?? prefill?.departure_at ?? '',
@@ -123,37 +132,57 @@ export default function CreateRide({
                         <div className="grid gap-4 p-5 sm:grid-cols-2">
                             <Field
                                 label="From"
-                                error={form.errors.origin_city_id}
+                                error={
+                                    form.errors.origin_city_id ??
+                                    form.errors.origin_place ??
+                                    form.errors.origin_province
+                                }
                             >
-                                <select
-                                    required
+                                <PlacePicker
                                     disabled={locked}
-                                    {...f('origin_city_id')}
-                                >
-                                    <option value="">Choose…</option>
-                                    {cities.map((c) => (
-                                        <option key={c.id} value={c.id}>
-                                            {c.name}
-                                        </option>
-                                    ))}
-                                </select>
+                                    places={places}
+                                    cities={cities}
+                                    value={{
+                                        id: form.data.origin_city_id,
+                                        province: form.data.origin_province,
+                                        place: form.data.origin_place,
+                                    }}
+                                    onChange={(v) =>
+                                        form.setData((d) => ({
+                                            ...d,
+                                            origin_city_id: v.id,
+                                            origin_province: v.province,
+                                            origin_place: v.place,
+                                        }))
+                                    }
+                                />
                             </Field>
                             <Field
                                 label="To"
-                                error={form.errors.destination_city_id}
+                                error={
+                                    form.errors.destination_city_id ??
+                                    form.errors.destination_place ??
+                                    form.errors.destination_province
+                                }
                             >
-                                <select
-                                    required
+                                <PlacePicker
                                     disabled={locked}
-                                    {...f('destination_city_id')}
-                                >
-                                    <option value="">Choose…</option>
-                                    {cities.map((c) => (
-                                        <option key={c.id} value={c.id}>
-                                            {c.name}
-                                        </option>
-                                    ))}
-                                </select>
+                                    places={places}
+                                    cities={cities}
+                                    value={{
+                                        id: form.data.destination_city_id,
+                                        province: form.data.destination_province,
+                                        place: form.data.destination_place,
+                                    }}
+                                    onChange={(v) =>
+                                        form.setData((d) => ({
+                                            ...d,
+                                            destination_city_id: v.id,
+                                            destination_province: v.province,
+                                            destination_place: v.place,
+                                        }))
+                                    }
+                                />
                             </Field>
                             <Field
                                 label="Pick-up point"

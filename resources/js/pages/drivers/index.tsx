@@ -3,7 +3,7 @@
 import { Head, Link } from '@inertiajs/react';
 import { BadgeCheck, MapPin } from 'lucide-react';
 import { EmptyState, PageHeader } from '@/components/kit';
-import { fmtDateTime, LIFT_3D } from '@/components/lux';
+import { fmtDateTime, LIFT_3D, peso } from '@/components/lux';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useInitials } from '@/hooks/use-initials';
 
@@ -29,7 +29,7 @@ export default function DriversIndex({ drivers }: { drivers: Driver[] }) {
             <div className="space-y-6 p-4 md:p-8">
                 <PageHeader
                     title="Available drivers"
-                    description="Verified drivers and the route they're on. Tap a driver to see their profile."
+                    description="Verified drivers and the route they're on. Tap a driver to see their profile, or tap their route to reserve it."
                 />
 
                 {drivers.length === 0 ? (
@@ -38,11 +38,14 @@ export default function DriversIndex({ drivers }: { drivers: Driver[] }) {
                     <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                         {drivers.map((d) => (
                             <li key={d.id}>
-                                <Link
-                                    href={`/drivers/${d.id}`}
-                                    className={`block h-full rounded-2xl border bg-card p-5 ${LIFT_3D}`}
+                                <div
+                                    className={`flex h-full flex-col gap-3 rounded-2xl border bg-card p-3 ${LIFT_3D}`}
                                 >
-                                    <div className="flex items-center gap-3">
+                                    {/* Container 1: the driver. Opens the profile. */}
+                                    <Link
+                                        href={`/drivers/${d.id}`}
+                                        className="flex items-center gap-3 rounded-xl p-2 transition hover:bg-muted/60"
+                                    >
                                         <Avatar className="size-12">
                                             <AvatarFallback className="bg-ocean font-semibold text-white">
                                                 {initials(d.name)}
@@ -54,38 +57,49 @@ export default function DriversIndex({ drivers }: { drivers: Driver[] }) {
                                             </p>
                                             <p className="inline-flex items-center gap-1 text-xs text-ocean dark:text-foam">
                                                 <BadgeCheck className="size-3.5" />{' '}
-                                                Verified
+                                                Verified · View profile →
                                             </p>
                                         </div>
-                                    </div>
+                                    </Link>
 
-                                    <div className="mt-4 rounded-xl bg-muted/50 p-3 text-sm">
-                                        {d.current_route ? (
-                                            <>
-                                                <p className="flex items-center gap-1.5 font-medium">
-                                                    <MapPin className="size-4 text-coral" />
-                                                    {d.current_route.route}
-                                                </p>
-                                                <p className="mt-0.5 text-muted-foreground">
-                                                    {fmtDateTime(
-                                                        d.current_route
-                                                            .departure_at,
-                                                    )}
-                                                </p>
-                                            </>
-                                        ) : (
-                                            <p className="text-muted-foreground">
-                                                No route published right now
+                                    {/* Container 2: the published ride. Goes straight to Review & Reserve. */}
+                                    {d.current_route ? (
+                                        <Link
+                                            href={`/rides/${d.current_route.id}/book`}
+                                            className="rounded-xl bg-muted/50 p-3 text-sm transition hover:bg-ocean/15 focus-visible:ring-2 focus-visible:ring-ocean focus-visible:outline-none"
+                                        >
+                                            <p className="flex items-center gap-1.5 font-medium">
+                                                <MapPin className="size-4 text-coral" />
+                                                {d.current_route.route}
                                             </p>
-                                        )}
-                                    </div>
+                                            <p className="mt-0.5 text-muted-foreground">
+                                                {fmtDateTime(
+                                                    d.current_route
+                                                        .departure_at,
+                                                )}{' '}
+                                                ·{' '}
+                                                {peso(
+                                                    d.current_route
+                                                        .price_per_seat,
+                                                )}{' '}
+                                                / seat
+                                            </p>
+                                            <p className="mt-2 text-xs font-semibold text-ocean dark:text-foam">
+                                                Reserve this ride →
+                                            </p>
+                                        </Link>
+                                    ) : (
+                                        <div className="rounded-xl bg-muted/50 p-3 text-sm text-muted-foreground">
+                                            No route published right now
+                                        </div>
+                                    )}
 
                                     {d.vehicles.length > 0 && (
-                                        <p className="mt-3 truncate text-xs text-muted-foreground">
+                                        <p className="mt-auto truncate px-2 text-xs text-muted-foreground">
                                             {d.vehicles.join(' · ')}
                                         </p>
                                     )}
-                                </Link>
+                                </div>
                             </li>
                         ))}
                     </ul>

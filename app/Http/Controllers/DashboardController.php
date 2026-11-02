@@ -62,6 +62,7 @@ class DashboardController extends Controller
                 'departure_at' => $b->ride->departure_at->toIso8601String(),
             ]),
             // Drivers: their latest rides (same list as Driver > My rides), so the dashboard isn't empty.
+            'unread_messages' => \App\Support\DirectChat::unreadCount($user),
             'my_rides' => $isDriver
                 ? Ride::with(['origin', 'destination', 'vehicle.model.make'])->withSeatsTaken()
                     ->whereHas('vehicle', fn ($q) => $q->where('driver_id', $user->id))

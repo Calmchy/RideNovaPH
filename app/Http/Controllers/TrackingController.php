@@ -7,6 +7,7 @@ use App\Enums\BookingStatus;
 use App\Models\Booking;
 use App\Models\LiveLocation;
 use App\Models\Ride;
+use App\Notifications\AppNotice;
 use App\Support\Geo;
 use App\Support\RidePresenter;
 use Illuminate\Http\JsonResponse;
@@ -65,6 +66,8 @@ class TrackingController extends Controller
             'window_open' => $open,
             'arrived' => $booking->driver_arrived_at !== null,
             'arrived_at' => $booking->driver_arrived_at?->toIso8601String(),
+            'seated' => $booking->seated_at !== null,
+            'seated_at' => $booking->seated_at?->toIso8601String(),
             'pickup' => $pickup,
             'destination' => $destination,
             // Each side only receives the OTHER side's position.
@@ -112,5 +115,34 @@ class TrackingController extends Controller
         RecordLocation::markArrived($booking);
 
         return response()->json(['arrived' => true]);
+    }
+
+    /** POST /bookings/{booking}/seated : the passenger taps "I'm seated" once they are in the vehicle. */
+    public function seated(Request $request, Booking $booking): JsonResponse
+    {
+        $booking->load('ride.vehicle.driver.user', 'passenger');
+        abort_unless($booking->passenger_id === $request->user()->id, 403);
+
+        $ride = $booking->ride;
+        $live = $booking->status === BookingStatus::Confirmed && in_array($ride->tripStatus(), ['scheduled', 'on_the_road'], true);
+        abort_unless($live, 422, 'This booking is not active.');
+        abort_unless(
+            $booking->driver_arrived_at !== null || $ride->started_at !== null || RecordLocation::windowOpen($ride),
+            422,
+            'You can mark yourself seated once your driver has arrived or the trip has started.',
+        );
+
+        // Once only: a second tap changes nothing and sends no second notice.
+        $changed = Booking::whereKey($booking->id)->whereNull('seated_at')->update(['seated_at' => now()]);
+
+        if ($changed) {
+            $booking->ride->vehicle->driver->user->notify(new AppNotice(
+                'Passenger is seated',
+                "{$booking->passenger->name} is seated for {$booking->reference_no}.",
+                "/bookings/{$booking->id}",
+            ));
+        }
+
+        return response()->json(['seated' => true]);
     }
 }

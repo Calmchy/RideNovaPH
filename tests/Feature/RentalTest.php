@@ -198,3 +198,30 @@ test('a driver who only rents out the vehicle still shows in the banner, with th
         ->and($entry['rentals'][0]['id'])->toBe($vehicle->id)
         ->and((float) $entry['rentals'][0]['daily_rate'])->toBe(1700.0);
 });
+
+test('a vehicle that is rented out cannot be used to publish a ride until it is returned', function () {
+    [$owner, , $rental] = openRental();
+    $this->actingAs($owner)->patch("/rentals/{$rental->id}/approve")->assertSessionHasNoErrors();
+
+    $form = fn () => [
+        'vehicle_id' => $rental->vehicle_id,
+        'origin_city_id' => App\Models\City::where('name', 'Abuyog')->first()->id,
+        'destination_city_id' => App\Models\City::where('name', 'Ormoc City')->first()->id,
+        'pickup_point' => 'Abuyog market', 'departure_at' => now()->addDays(10)->format('Y-m-d\TH:i'),
+        'seats_offered' => 2, 'price_per_seat' => 300,
+    ];
+
+    // Approved but not started yet: only the rental dates are blocked.
+    $this->actingAs($owner)->post('/driver/rides', $form())->assertSessionHasNoErrors();
+    $this->actingAs($owner)->post('/driver/rides', ['departure_at' => $rental->start_at->addHour()->format('Y-m-d\TH:i')] + $form())
+        ->assertSessionHasErrors('vehicle_id');
+
+    // The renter has the vehicle now: no ride at all, and the form is closed to the owner.
+    $rental->forceFill(['start_at' => now()->subHour(), 'end_at' => now()->addDays(2)])->save();
+    $this->actingAs($owner)->post('/driver/rides', $form())->assertSessionHasErrors('vehicle_id');
+    $this->actingAs($owner)->get('/driver/rides/create')->assertRedirect(route('driver.rentals'));
+
+    // Returned: the vehicle is the owner's again.
+    $rental->forceFill(['status' => RentalStatus::Completed])->save();
+    $this->actingAs($owner)->post('/driver/rides', $form())->assertSessionHasNoErrors();
+});

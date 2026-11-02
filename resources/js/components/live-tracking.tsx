@@ -9,7 +9,7 @@
 // what (TrackingController); this file only draws it.
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { BellRing, Car, LocateFixed, Navigation, Radio } from 'lucide-react';
+import { BellRing, Car, CheckCircle2, LocateFixed, MapPin, Navigation, Radio } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { distanceKm, PH_CENTER, routeBetween } from '@/lib/geo';
@@ -29,6 +29,8 @@ type Tracking = {
     window_open: boolean;
     arrived: boolean;
     arrived_at: string | null;
+    seated: boolean;
+    trip_status: string;
     pickup: Place | null;
     destination: Place | null;
     driver: Point | null;
@@ -96,10 +98,15 @@ export default function LiveTracking({
     bookingId,
     rideId,
     role,
+    pickupPoint,
+    departureAt,
 }: {
     bookingId: number;
     rideId: number;
     role: 'driver' | 'passenger';
+    /** The ride's pick-up point text and departure time, for the "driver is waiting" card. */
+    pickupPoint?: string;
+    departureAt?: string;
 }) {
     const [data, setData] = useState<Tracking | null>(null);
     const [sharing, setSharing] = useState(false);
@@ -443,6 +450,16 @@ export default function LiveTracking({
     const other = role === 'driver' ? data?.passenger : data?.driver;
     const live = !!other?.online;
 
+    const markSeated = async () => {
+        await api(`/bookings/${bookingId}/seated`, 'POST');
+        void load();
+    };
+    // The button appears once the driver is there (or the trip is under way / the window is open).
+    const canSit =
+        !!data &&
+        !data.seated &&
+        (data.arrived || data.trip_status === 'on_the_road' || data.window_open);
+
     const markArrived = async () => {
         await api(`/bookings/${bookingId}/arrived`, 'POST');
         void load();
@@ -450,11 +467,54 @@ export default function LiveTracking({
 
     const navTarget = target ?? data?.destination;
 
+    // Passenger-facing headline once the seat is confirmed.
+    const pickupText = data?.pickup?.label ?? pickupPoint ?? 'your pick-up point';
+    const waitingLine = data?.arrived
+        ? 'Your driver is at your pick-up point right now.'
+        : live && toPickupKm !== null
+          ? `Your driver is ${fmtKm(toPickupKm)} from your pick-up · about ${fmtMin(toPickupMin)} away.`
+          : `Be at ${pickupText}${departureAt ? ` by ${new Date(departureAt).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })}` : ''}. Your driver’s live location shows on the map below once they share it.`;
+
     return (
         <section
             className="grid gap-4 rounded-2xl border bg-card p-5"
             aria-label="Live tracking"
         >
+            {role === 'passenger' && (
+                <div className="flex items-start gap-4 rounded-2xl bg-deep p-5 text-white shadow-lg">
+                    <span className="relative mt-1.5 flex size-3 shrink-0">
+                        <span className="absolute inline-flex size-full animate-ping rounded-full bg-coral opacity-75" />
+                        <span className="relative inline-flex size-3 rounded-full bg-coral" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                        <p className="font-serif text-2xl">
+                            {data?.seated
+                                ? 'You are seated. Enjoy the ride!'
+                                : 'The Driver is Waiting for You'}
+                        </p>
+                        <p className="mt-1 flex items-start gap-1.5 text-sm text-foam/90">
+                            {data?.seated ? (
+                                <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-foam" />
+                            ) : (
+                                <MapPin className="mt-0.5 size-4 shrink-0 text-coral" />
+                            )}
+                            <span>
+                                {data?.seated
+                                    ? 'Your driver has been told you are on board.'
+                                    : waitingLine}
+                            </span>
+                        </p>
+                        {canSit && (
+                            <Button
+                                className="mt-3 bg-coral text-deep hover:bg-coral/90"
+                                onClick={() => void markSeated()}
+                            >
+                                <CheckCircle2 /> I’m seated
+                            </Button>
+                        )}
+                    </div>
+                </div>
+            )}
             <header className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                     <h2 className="flex items-center gap-2 font-serif text-xl">
@@ -469,6 +529,12 @@ export default function LiveTracking({
                 </div>
                 <Button
                     variant={sharing ? 'destructive' : 'default'}
+                    disabled={!sharing && data?.window_open === false}
+                    title={
+                        data?.window_open === false
+                            ? 'Location sharing opens shortly before departure.'
+                            : undefined
+                    }
                     onClick={() => void toggleSharing()}
                 >
                     <LocateFixed />
@@ -485,6 +551,16 @@ export default function LiveTracking({
                     {role === 'passenger'
                         ? 'Your driver has arrived at your pick-up point!'
                         : 'You have arrived at the pick-up point.'}
+                </p>
+            )}
+
+            {role === 'driver' && data?.seated && (
+                <p
+                    role="status"
+                    className="flex items-center gap-2 rounded-xl border border-ocean/40 bg-ocean/10 p-4 text-sm font-medium"
+                >
+                    <CheckCircle2 className="size-5 text-ocean" />
+                    Your passenger is seated.
                 </p>
             )}
 

@@ -1,4 +1,5 @@
-// Simple two-person chat for ONE charter request. Polls every 5 s (only while the tab is visible).
+// Simple two-person chat (a charter request, or a direct message thread). Polls every few seconds,
+// only while the tab is visible.
 // Messages are plain text rendered by React (escaped), so nothing a user types can run as HTML.
 import { Send } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
@@ -11,6 +12,36 @@ export type ChatMessage = {
     name: string;
     body: string;
     at: string;
+    /** Only on my own messages in a direct chat: sent -> delivered (they were online) -> seen. */
+    status?: 'sent' | 'delivered' | 'seen' | null;
+};
+
+export type Presence = { online: boolean; last_seen: string | null };
+
+const STATUS_LABEL = { sent: 'Sent', delivered: 'Delivered', seen: 'Seen' } as const;
+
+const ago = (iso: string) => {
+    const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+
+    if (s < 60) {
+        return 'just now';
+    }
+
+    const m = Math.floor(s / 60);
+
+    if (m < 60) {
+        return `${m} min ago`;
+    }
+
+    const h = Math.floor(m / 60);
+
+    if (h < 24) {
+        return `${h} hr ago`;
+    }
+
+    const d = Math.floor(h / 24);
+
+    return `${d} day${d === 1 ? '' : 's'} ago`;
 };
 
 /** Laravel's CSRF token travels in the XSRF-TOKEN cookie; echo it back in a header for fetch(). */
@@ -28,14 +59,27 @@ const time = (iso: string) =>
 
 export default function CharterChat({
     charterId,
+    url,
+    interval = 5000,
     initial,
     open,
+    emptyText = 'No messages yet. Say hello and discuss the details.',
+    partner,
 }: {
-    charterId: number;
+    /** A charter request's chat. Or pass `url` for any other thread (GET ?after=ID to poll, POST to send). */
+    charterId?: number;
+    url?: string;
+    /** Milliseconds between checks for new messages. */
+    interval?: number;
     initial: ChatMessage[];
     open: boolean;
+    emptyText?: string;
+    /** Direct chat only: is the other person online? Kept up to date by the poll. */
+    partner?: Presence;
 }) {
+    const base = url ?? `/charters/${charterId}/messages`;
     const [messages, setMessages] = useState(initial);
+    const [presence, setPresence] = useState<Presence | undefined>(partner);
     const [text, setText] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [sending, setSending] = useState(false);
@@ -63,7 +107,7 @@ export default function CharterChat({
 
             try {
                 const res = await fetch(
-                    `/charters/${charterId}/messages?after=${lastId.current}`,
+                    `${base}?after=${lastId.current}`,
                     {
                         credentials: 'same-origin',
                         headers: {
@@ -74,16 +118,32 @@ export default function CharterChat({
                 );
 
                 if (res.ok) {
-                    merge((await res.json()).messages);
+                    const json = await res.json();
+                    merge(json.messages);
+
+                    // Direct chat: update the Sent / Delivered / Seen labels and the online dot.
+                    if (json.statuses) {
+                        setMessages((prev) =>
+                            prev.map((m) =>
+                                m.mine && json.statuses[m.id]
+                                    ? { ...m, status: json.statuses[m.id] }
+                                    : m,
+                            ),
+                        );
+                    }
+
+                    if (json.partner) {
+                        setPresence(json.partner);
+                    }
                 }
             } catch {
                 /* offline: try again next tick */
             }
         };
-        const t = setInterval(tick, 5000);
+        const t = setInterval(tick, interval);
 
         return () => clearInterval(t);
-    }, [charterId]);
+    }, [base, interval]);
 
     useEffect(() => {
         end.current?.scrollIntoView({ block: 'nearest' });
@@ -100,7 +160,7 @@ export default function CharterChat({
         setError(null);
 
         try {
-            const res = await fetch(`/charters/${charterId}/messages`, {
+            const res = await fetch(base, {
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: {
@@ -131,13 +191,29 @@ export default function CharterChat({
 
     return (
         <div className="flex flex-col">
+            {presence && (
+                <div className="flex items-center gap-2 border-b px-4 py-2 text-xs text-muted-foreground">
+                    <span
+                        aria-hidden="true"
+                        className={cn(
+                            'size-2 rounded-full',
+                            presence.online ? 'bg-green-500' : 'bg-muted-foreground/40',
+                        )}
+                    />
+                    {presence.online
+                        ? 'Online'
+                        : presence.last_seen
+                          ? `Last active ${ago(presence.last_seen)}`
+                          : 'Offline'}
+                </div>
+            )}
             <div
                 className="flex max-h-96 min-h-48 flex-col gap-2 overflow-y-auto p-4"
                 aria-live="polite"
             >
                 {messages.length === 0 && (
                     <p className="m-auto text-sm text-muted-foreground">
-                        No messages yet. Say hello and discuss the details.
+                        {emptyText}
                     </p>
                 )}
                 {messages.map((m) => (
@@ -160,6 +236,16 @@ export default function CharterChat({
                         </p>
                         <p className="mt-0.5 text-right text-[10px] opacity-70">
                             {time(m.at)}
+                            {m.mine && m.status && (
+                                <span
+                                    className={cn(
+                                        'ml-1',
+                                        m.status === 'seen' && 'font-semibold',
+                                    )}
+                                >
+                                    · {STATUS_LABEL[m.status]}
+                                </span>
+                            )}
                         </p>
                     </div>
                 ))}
