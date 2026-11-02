@@ -1,7 +1,9 @@
 // One driver's public profile: verified badge, bio, vehicles, reviews and their open routes.
 import { Head, Link } from '@inertiajs/react';
-import { BadgeCheck, Luggage } from 'lucide-react';
-import { PageHeader, Panel } from '@/components/kit';
+import { BadgeCheck, Luggage, Phone } from 'lucide-react';
+import CharterChat from '@/components/charter-chat';
+import type { ChatMessage, Presence } from '@/components/charter-chat';
+import { Panel } from '@/components/kit';
 import { fmtDateTime, peso } from '@/components/lux';
 import ReviewsPanel from '@/components/reviews-panel';
 import type { PublicReview, RatingSummary } from '@/components/reviews-panel';
@@ -13,6 +15,7 @@ type Props = {
     driver: {
         id: number;
         name: string;
+        phone: string | null;
         member_since: string | null;
         bio: string | null;
         allows_luggage: boolean;
@@ -31,6 +34,8 @@ type Props = {
         price_per_seat: string;
     }[];
     is_me: boolean;
+    /** The message box (null when you are looking at your own profile). */
+    chat: { url: string; initial: ChatMessage[]; partner: Presence } | null;
 };
 
 export default function DriverShow({
@@ -38,6 +43,7 @@ export default function DriverShow({
     summary,
     upcoming,
     is_me,
+    chat,
 }: Props) {
     const initials = useInitials();
 
@@ -45,15 +51,11 @@ export default function DriverShow({
         <>
             <Head title={d.name} />
             <div className="space-y-6 p-4 md:p-8">
-                <PageHeader
-                    title={d.name}
-                    description="Driver profile"
-                    actions={
-                        <Button asChild variant="outline">
-                            <Link href="/drivers">← All drivers</Link>
-                        </Button>
-                    }
-                />
+                <div className="flex justify-end">
+                    <Button asChild variant="outline">
+                        <Link href="/drivers">← All drivers</Link>
+                    </Button>
+                </div>
 
                 <div className="grid gap-6 lg:grid-cols-3">
                     <Panel title="About">
@@ -63,8 +65,12 @@ export default function DriverShow({
                                     {initials(d.name)}
                                 </AvatarFallback>
                             </Avatar>
-                            <div>
-                                <p className="inline-flex items-center gap-1 rounded-full bg-foam/60 px-2.5 py-0.5 text-xs font-medium text-deep">
+                            <div className="min-w-0">
+                                {/* The name sits right beside the profile picture. */}
+                                <h1 className="font-serif text-2xl leading-tight">
+                                    {d.name}
+                                </h1>
+                                <p className="mt-1 inline-flex items-center gap-1 rounded-full bg-foam/60 px-2.5 py-0.5 text-xs font-medium text-deep">
                                     <BadgeCheck className="size-3.5" /> Verified
                                     driver
                                 </p>
@@ -77,6 +83,21 @@ export default function DriverShow({
                                 </p>
                             </div>
                         </div>
+                        <p className="mt-4 flex items-center gap-2 text-sm">
+                            <Phone className="size-4 text-ocean" />
+                            {d.phone ? (
+                                <a
+                                    href={`tel:${d.phone.replace(/\s+/g, '')}`}
+                                    className="font-medium hover:underline"
+                                >
+                                    {d.phone}
+                                </a>
+                            ) : (
+                                <span className="text-muted-foreground">
+                                    No contact number
+                                </span>
+                            )}
+                        </p>
                         {d.bio && (
                             <p className="mt-4 text-sm">“{d.bio}”</p>
                         )}
@@ -106,6 +127,18 @@ export default function DriverShow({
                     </Panel>
 
                     <div className="space-y-6 lg:col-span-2">
+                        {chat && (
+                            <Panel title={`Message ${d.name}`}>
+                                <CharterChat
+                                    url={chat.url}
+                                    interval={3000}
+                                    initial={chat.initial}
+                                    partner={chat.partner}
+                                    open
+                                    emptyText={`Ask ${d.name} about a ride or a trip. Replies show up here.`}
+                                />
+                            </Panel>
+                        )}
                         <Panel title="Current routes">
                             {upcoming.length === 0 ? (
                                 <p className="text-sm text-muted-foreground">
