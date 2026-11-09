@@ -61,9 +61,12 @@ class BookingController extends Controller
 
         if ($tab === 'find') {
             $rides = Ride::with(RidePresenter::WITH)
-                // Rides that already left stay listed (marked "On The Road") so a late passenger sees why they can't join.
-                ->where('status', RideStatus::Open->value)
-                ->where(fn ($q) => $q->where('departure_at', '>=', now())->orWhereNotNull('started_at'))
+                // Rides that left / arrived / were cancelled stay listed (in red) for 2 minutes so late passengers see why, then drop off.
+                ->where(fn ($q) => $q
+                    ->where(fn ($q) => $q->where('status', RideStatus::Open->value)->whereNull('started_at')->where('departure_at', '>=', now()))
+                    ->orWhere(fn ($q) => $q->where('status', RideStatus::Open->value)->where('started_at', '>=', now()->subMinutes(2)))
+                    ->orWhere(fn ($q) => $q->where('status', RideStatus::Completed->value)->where('completed_at', '>=', now()->subMinutes(2)))
+                    ->orWhere(fn ($q) => $q->where('status', RideStatus::Cancelled->value)->where('cancelled_at', '>=', now()->subMinutes(2))))
                 ->withSeatsLeft()
                 // Don't offer a driver their own rides.
                 ->whereDoesntHave('vehicle', fn ($q) => $q->where('driver_id', $user->id))

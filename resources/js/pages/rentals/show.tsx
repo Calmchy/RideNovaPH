@@ -2,11 +2,11 @@
 import { Head, Link, router } from '@inertiajs/react';
 import { Phone } from 'lucide-react';
 import { useState } from 'react';
+import DocTile from '@/components/doc-tile';
 import { inputCls, PageHeader, Panel, ReasonDialog } from '@/components/kit';
 import { fmtDateTime, peso, StatusBadge } from '@/components/lux';
 import { RentalTermsList } from '@/components/rental-terms';
 import type { TermRow } from '@/components/rental-terms';
-import DocTile from '@/components/doc-tile';
 import { Button } from '@/components/ui/button';
 
 type Props = {
@@ -344,7 +344,7 @@ export default function RentalShow({
                                             <label className="grid gap-1">
                                                 <span className="text-muted-foreground">
                                                     How many days do you want
-                                                    to add? (up to {ext.max_days})
+                                                    to add?
                                                 </span>
                                                 <input
                                                     type="number"

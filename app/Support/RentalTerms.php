@@ -17,7 +17,6 @@ class RentalTerms
 
     /** key => [label, kind, max]. Order = display order. */
     public const FIELDS = [
-        'vin' => ['Vehicle VIN / chassis no.', 'string', 40],
         'late_fee_amount' => ['Late return fee', 'number', 100000],
         'late_fee_unit' => ['Late return fee is charged', 'unit', 10],
         'late_fee_description' => ['Late return fee details', 'text', 500],

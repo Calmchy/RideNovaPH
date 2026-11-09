@@ -146,7 +146,7 @@ test('the bookings hub filters by status and reference', function () {
 
 test('a ride that already left stays in Find a ride marked on the road, and cannot be reserved', function () {
     $driver = Scenario::driver();
-    $left = Scenario::ride($driver, ['departure_at' => now()->subMinutes(30), 'started_at' => now()->subMinutes(20)]);
+    $left = Scenario::ride($driver, ['departure_at' => now()->subMinutes(30), 'started_at' => now()->subSeconds(30)]);
     $gone = Scenario::ride($driver, ['departure_at' => now()->subHours(3)]); // never started: truly gone
     $passenger = Scenario::passenger();
 
@@ -157,4 +157,18 @@ test('a ride that already left stays in Find a ride marked on the road, and cann
 
     $this->actingAs($passenger)->post("/rides/{$left->id}/book", Scenario::bookingForm())->assertSessionHasErrors();
     expect($passenger->bookings()->count())->toBe(0)->and($gone->bookings()->count())->toBe(0);
+});
+
+test('closed rides disappear from Find a ride 2 minutes after they close', function () {
+    $driver = Scenario::driver();
+    $stale = Scenario::ride($driver, ['departure_at' => now()->subHours(1), 'started_at' => now()->subMinutes(3)]);
+    $arrived = Scenario::ride($driver, ['status' => 'completed', 'departure_at' => now()->subHours(1), 'started_at' => now()->subMinutes(30), 'completed_at' => now()->subSeconds(40)]);
+    $arrivedOld = Scenario::ride($driver, ['status' => 'completed', 'departure_at' => now()->subHours(2), 'started_at' => now()->subHour(), 'completed_at' => now()->subMinutes(5)]);
+    $passenger = Scenario::passenger();
+
+    $this->actingAs($passenger)->get('/bookings?tab=find')->assertInertia(fn ($page) => $page
+        ->has('rides.data', 1)
+        ->where('rides.data.0.id', $arrived->id)
+        ->where('rides.data.0.trip_status', 'completed')
+        ->whereNot('rides.data.0.closed_at', null));
 });

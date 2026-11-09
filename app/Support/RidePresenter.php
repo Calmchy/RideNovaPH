@@ -38,6 +38,13 @@ class RidePresenter
             'driver_name' => $ride->vehicle->driver->user->name,
             'event' => $ride->eventLabel(),
             'trip_status' => $ride->tripStatus(),
+            // When the ride stopped being bookable (null while still open). The Find a ride list drops it 2 minutes later.
+            'closed_at' => match ($ride->tripStatus()) {
+                'on_the_road' => $ride->started_at?->toIso8601String(),
+                'completed' => $ride->completed_at?->toIso8601String(),
+                'cancelled' => $ride->cancelled_at?->toIso8601String(),
+                default => null,
+            },
         ] + ($withDriverContact ? [
             'driver_id' => $driver->id,
             'driver_photo' => $driver->avatar,

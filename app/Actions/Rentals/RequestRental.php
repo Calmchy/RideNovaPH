@@ -21,7 +21,11 @@ use Illuminate\Validation\ValidationException;
  */
 class RequestRental
 {
-    public const MAX_DAYS = 30;
+    /**
+     * No "one month" rule: the owner reads the renter's request and terms and decides.
+     * This is only a sanity ceiling (one year) so a typo can't produce a nonsense price.
+     */
+    public const MAX_DAYS = 365;
 
     /** @param array<string, mixed> $data validated by StoreRentalRequest */
     public function handle(User $renter, array $data): RentalRequest

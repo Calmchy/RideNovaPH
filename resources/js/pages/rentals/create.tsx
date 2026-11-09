@@ -428,7 +428,7 @@ export default function RentalCreate({ vehicle, defaults, max_days }: Props) {
                             <Field
                                 label="Return date & time *"
                                 error={form.errors.end_at}
-                                hint={`Up to ${max_days} days. Every started 24 hours counts as one day.`}
+                                hint="Every started 24 hours counts as one day. The owner reads your request and decides."
                             >
                                 <input
                                     required

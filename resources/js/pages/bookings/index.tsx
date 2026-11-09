@@ -206,6 +206,12 @@ export default function BookingsIndex({
                                 },
                                 { name: 'date', type: 'date', label: 'Date' },
                                 {
+                                    name: 'event',
+                                    type: 'search',
+                                    label: 'Event',
+                                    placeholder: 'Search events (LPT, TESDA…)',
+                                },
+                                {
                                     name: 'max_price',
                                     type: 'select',
                                     placeholder: 'Any price',

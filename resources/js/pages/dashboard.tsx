@@ -115,6 +115,7 @@ export default function Dashboard({
                   },
               ]),
         { title: 'Find a ride', href: '/bookings?tab=find', icon: Route },
+        ...(auth.isDriver ? [] : [{ title: 'Rent a vehicle', href: '/rent', icon: Car }]),
         { title: 'Transactions', href: '/transactions', icon: ReceiptText },
         { title: 'Messages', href: '/messages', icon: MessageCircle, badge: unread_messages },
         ...(auth.isDriver
