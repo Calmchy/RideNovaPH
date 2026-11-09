@@ -48,7 +48,11 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
         // (Their passenger requests are under Driver > Passenger requests.)
         ...(auth.isDriver
             ? []
-            : [{ title: 'Bookings', href: '/bookings', icon: CalendarCheck }]),
+            : [
+                  { title: 'Bookings', href: '/bookings', icon: CalendarCheck },
+                  // Vehicles the drivers have published for rent (the renter drives).
+                  { title: 'Rent a vehicle', href: '/rent', icon: Car },
+              ]),
         { title: 'Transactions', href: '/transactions', icon: ReceiptText },
         ...(auth.isDriver
             ? [{ title: 'Driver', href: '/driver', icon: Car }]

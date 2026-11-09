@@ -20,6 +20,7 @@ type Props = {
         min_experience_years: number | null;
     };
     defaults: { name: string; phone: string | null; address: string | null };
+    max_days: number;
 };
 
 /** Every started 24 hours counts as a day (same rule as the server). */
@@ -60,7 +61,7 @@ function splitName(full: string | null | undefined) {
     return blank;
 }
 
-export default function RentalCreate({ vehicle, defaults }: Props) {
+export default function RentalCreate({ vehicle, defaults, max_days }: Props) {
     const form = useForm({
         vehicle_id: String(vehicle.id),
         ...splitName(defaults.name),
@@ -427,7 +428,7 @@ export default function RentalCreate({ vehicle, defaults }: Props) {
                             <Field
                                 label="Return date & time *"
                                 error={form.errors.end_at}
-                                hint="Every started 24 hours counts as one day. The owner reviews your dates before accepting."
+                                hint="Every started 24 hours counts as one day. The owner reads your request and decides."
                             >
                                 <input
                                     required

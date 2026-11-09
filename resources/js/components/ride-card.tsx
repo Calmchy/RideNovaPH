@@ -1,5 +1,6 @@
 import { Link } from '@inertiajs/react';
 import { CalendarClock, MapPin, Phone, Users } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { fmtDateTime, LIFT_3D, peso } from '@/components/lux';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useInitials } from '@/hooks/use-initials';
@@ -24,6 +25,8 @@ const timeAgo = (iso: string) => {
         ? `${Math.floor(mins / 1440)}d ago`
         : new Date(iso).toLocaleDateString('en-PH', { dateStyle: 'medium' });
 };
+/** How long a closed ride stays on the Find a ride list. */
+const CLOSED_VISIBLE_MS = 2 * 60 * 1000;
 const isNewlyPublished = (iso: string) => Date.now() - new Date(iso).getTime() < 86400000;
 
 export type RideCardData = {
@@ -39,6 +42,7 @@ export type RideCardData = {
     event?: string | null;
     /** scheduled | on_the_road | completed | cancelled */
     trip_status?: string;
+    closed_at?: string | null;
     /** When the driver published it. */
     published_at?: string | null;
     /** Only sent on signed-in pages (Find a ride): the driver's profile, photo and phone number. */
@@ -52,7 +56,29 @@ export default function RideCard({ ride }: { ride: RideCardData }) {
     const initials = useInitials();
     const hasDriver = ride.driver_id !== undefined;
     // The trip already left: shown in red, and hovering the button says why.
-    const onRoad = ride.trip_status === 'on_the_road';
+    const closed = !!ride.trip_status && ride.trip_status !== 'scheduled';
+    const closedLabel = ride.trip_status === 'completed' ? 'Arrived' : ride.trip_status === 'cancelled' ? 'Cancelled' : 'On The Road';
+    // Closed rides count down and vanish 2 minutes after they closed.
+    const expiresAt = closed && ride.closed_at ? new Date(ride.closed_at).getTime() + CLOSED_VISIBLE_MS : null;
+    const [now, setNow] = useState(() => Date.now());
+
+    useEffect(() => {
+        if (expiresAt === null) {
+            return;
+        }
+
+        const t = setInterval(() => setNow(Date.now()), 1000);
+
+        return () => clearInterval(t);
+    }, [expiresAt]);
+
+    const msLeft = expiresAt === null ? null : expiresAt - now;
+
+    if (msLeft !== null && msLeft <= 0) {
+        return null;
+    }
+
+    const onRoad = closed;
     const isNew = !!ride.published_at && isNewlyPublished(ride.published_at);
 
     return (
@@ -147,7 +173,7 @@ export default function RideCard({ ride }: { ride: RideCardData }) {
                 {onRoad ? (
                     <div
                         tabIndex={0}
-                        title="On The Road"
+                        title={closedLabel}
                         className="group/closed relative flex-1 cursor-not-allowed select-none overflow-hidden rounded-lg border border-red-500/60 bg-red-100 px-3 py-2 text-center text-sm font-medium text-red-700 hover:bg-red-200 focus:bg-red-200 focus:outline-none dark:border-red-400/60 dark:bg-red-500/20 dark:text-red-200 dark:hover:bg-red-500/30 dark:focus:bg-red-500/30"
                     >
                         <span className="block transition duration-200 group-hover/closed:-translate-y-full group-hover/closed:opacity-0 group-focus/closed:-translate-y-full group-focus/closed:opacity-0">
@@ -158,7 +184,7 @@ export default function RideCard({ ride }: { ride: RideCardData }) {
                                 <span className="absolute inline-flex size-full animate-ping rounded-full bg-red-500 opacity-75 dark:bg-red-300" />
                                 <span className="relative inline-flex size-2.5 rounded-full bg-red-500 dark:bg-red-300" />
                             </span>
-                            On The Road
+                            {closedLabel}
                         </span>
                     </div>
                 ) : (

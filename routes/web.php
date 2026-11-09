@@ -68,10 +68,13 @@ Route::middleware(['auth', 'verified', \App\Http\Middleware\TouchLastSeen::class
     Route::get('/about', \App\Http\Controllers\AboutController::class)->name('about');
 
         // Self-drive vehicle rental. Literal paths come before {rental}.
+    // "Rent a vehicle": everything the drivers have published for rent (renters drive it themselves).
+    Route::get('/rent', [RentalController::class, 'browse'])->name('rentals.browse');
     Route::get('/rentals', [RentalController::class, 'index'])->name('rentals.index');
     Route::get('/rentals/new', [RentalController::class, 'create'])->name('rentals.create');
     Route::post('/rentals', [RentalController::class, 'store'])->middleware('throttle:10,1')->name('rentals.store');
     Route::patch('/rentals/vehicles/{vehicle}', [RentalController::class, 'vehicle'])->middleware('throttle:30,1')->name('rentals.vehicle');
+    Route::post('/rentals/vehicles/{vehicle}/publish', [RentalController::class, 'publish'])->middleware('throttle:20,1')->name('rentals.publish');
     Route::get('/rentals/{rental}', [RentalController::class, 'show'])->name('rentals.show');
     Route::get('/rentals/{rental}/license-id', [RentalController::class, 'licenseId'])->name('rentals.license-id');
     Route::post('/rentals/{rental}/extensions', [RentalController::class, 'extend'])->middleware('throttle:10,1')->name('rentals.extend');

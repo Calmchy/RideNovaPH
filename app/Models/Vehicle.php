@@ -18,7 +18,7 @@ class Vehicle extends Model
     ];
 
     protected $fillable = [
-        'driver_id', 'model_id', 'color', 'plate_number',
+        'driver_id', 'model_id', 'color', 'plate_number', 'vin',
         'seat_capacity', 'manufacture_year',
         'photo_front_path', 'photo_back_path', 'photo_interior_path', 'description', 'cor_image_path',
     ];

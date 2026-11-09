@@ -209,3 +209,18 @@ test('my rides and passenger requests list the newest travel day first and filte
     $this->actingAs($driver)->get("/driver/rides?date={$day}")->assertInertia(fn ($page) => $page->has('rides.data', 2));
     $this->actingAs($driver)->get('/driver/rides?date=not-a-date')->assertSessionHasErrors('date');
 });
+
+test('a driver can delete a schedule whose date already passed, but not an upcoming one', function () {
+    $driver = Scenario::driver();
+    $past = Scenario::ride($driver, ['departure_at' => now()->subDay()]);
+    $future = Scenario::ride($driver, ['departure_at' => now()->addDay()]);
+
+    $this->actingAs($driver)->get('/driver/rides')->assertInertia(fn ($page) => $page
+        ->where('rides.data', fn ($rows) => collect($rows)->firstWhere('id', $past->id)['date_passed'] === true
+            && collect($rows)->firstWhere('id', $future->id)['date_passed'] === false));
+
+    $this->actingAs($driver)->delete("/driver/rides/{$future->id}")->assertSessionHasErrors();
+    $this->actingAs($driver)->delete("/driver/rides/{$past->id}");
+
+    expect(Ride::find($past->id))->toBeNull()->and(Ride::find($future->id))->not->toBeNull();
+});

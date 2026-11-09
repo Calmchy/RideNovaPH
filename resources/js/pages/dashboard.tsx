@@ -11,15 +11,16 @@ import {
     Plus,
     ReceiptText,
     Route,
+    Star,
     UserCog,
 } from 'lucide-react';
-import AvailableDriversCard from '@/components/available-drivers-card';
 import DashboardSlideshow from '@/components/dashboard-slideshow';
 import type { Slide } from '@/components/dashboard-slideshow';
 import { EmptyState, StatCard } from '@/components/kit';
 import { fmtDateTime, peso, StatusBadge } from '@/components/lux';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import AvailableDriversCard from '@/components/available-drivers-card';
 
 type Props = {
     slides: Slide[];
@@ -113,10 +114,8 @@ export default function Dashboard({
                       badge: stats.awaiting_my_approval,
                   },
               ]),
-        // Drivers publish rides instead of searching for them, so only passengers get this link.
-        ...(auth.isDriver
-            ? []
-            : [{ title: 'Find a ride', href: '/bookings?tab=find', icon: Route }]),
+        { title: 'Find a ride', href: '/bookings?tab=find', icon: Route },
+        ...(auth.isDriver ? [] : [{ title: 'Rent a vehicle', href: '/rent', icon: Car }]),
         { title: 'Transactions', href: '/transactions', icon: ReceiptText },
         { title: 'Messages', href: '/messages', icon: MessageCircle, badge: unread_messages },
         ...(auth.isDriver
