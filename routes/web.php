@@ -178,6 +178,9 @@ Route::middleware(['auth', 'verified', 'admin'])->prefix('admin')->group(functio
     Route::post('/team/{member}', [\App\Http\Controllers\Admin\TeamController::class, 'update'])->middleware('throttle:30,1')->name('admin.team.update');
 
     Route::get('/drivers', [AdminDriverController::class, 'index'])->name('admin.drivers');
+    Route::get('/vehicles/{vehicle}/cor', [AdminDriverController::class, 'cor'])->name('admin.vehicles.cor');
+    Route::get('/vehicles', [\App\Http\Controllers\Admin\VehicleController::class, 'index'])->name('admin.vehicles');
+    Route::patch('/vehicles/{vehicle}', [\App\Http\Controllers\Admin\VehicleController::class, 'decide'])->name('admin.vehicles.decide');
     Route::get('/drivers/{driver}/license/{side?}', [AdminDriverController::class, 'license'])
         ->where('side', 'front|back')->name('admin.drivers.license');
     Route::get('/vehicles/{vehicle}/cor', [AdminDriverController::class, 'cor'])->name('admin.vehicles.cor');

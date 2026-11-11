@@ -98,7 +98,7 @@ class RideController extends Controller
         }
 
         // A vehicle that is out on an approved rental can't carry passengers, so it isn't offered.
-        $all = Vehicle::with('model.make')->where('driver_id', $request->user()->id)->get();
+        $all = Vehicle::approved()->with('model.make')->where('driver_id', $request->user()->id)->get();
         $free = $all->reject(fn (Vehicle $v) => $v->isRentedOut())->values();
 
         if ($all->isNotEmpty() && $free->isEmpty()) {
