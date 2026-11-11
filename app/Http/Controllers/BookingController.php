@@ -15,6 +15,7 @@ use App\Models\City;
 use App\Models\Ride;
 use App\Models\Setting;
 use App\Support\PartnerProfile;
+use App\Support\PlaceResolver;
 use App\Support\RidePresenter;
 use App\Support\DriverReviews;
 use Illuminate\Http\RedirectResponse;
@@ -48,9 +49,15 @@ class BookingController extends Controller
             'tab' => ['nullable', 'in:find,mine,requests'],
             'origin' => ['nullable', 'integer', 'exists:cities,id'],
             'destination' => ['nullable', 'integer', 'exists:cities,id'],
+            // The From / To picker can also send any Philippine province + town, even one nobody has published a ride for yet.
+            'origin_province' => ['nullable', 'string', 'max:80'],
+            'origin_place' => ['nullable', 'string', 'max:80'],
+            'destination_province' => ['nullable', 'string', 'max:80'],
+            'destination_place' => ['nullable', 'string', 'max:80'],
             'date' => ['nullable', 'date'],
             'max_price' => ['nullable', 'numeric', 'min:0'],
             'sort' => ['nullable', 'in:soonest,cheapest,latest'],
+            'availability' => ['nullable', 'in:available,unavailable'],
             'status' => ['nullable', 'in:pending,approved,confirmed,completed,cancelled'],
             'q' => ['nullable', 'string', 'max:40'],
         ]);
@@ -60,19 +67,39 @@ class BookingController extends Controller
         $props = ['tab' => $tab, 'filters' => $filters, 'is_driver' => $user->isDriver()];
 
         if ($tab === 'find') {
+            $seatsLeft = 'seats_offered - COALESCE((select sum(b.seats_booked) from bookings b where b.ride_id = rides.id and b.status != ?), 0) > 0';
+            $cancelled = BookingStatus::Cancelled->value;
+            $availability = $filters['availability'] ?? null;
+
             $rides = Ride::with(RidePresenter::WITH)
-                // Rides that left / arrived / were cancelled stay listed (in red) so late passengers see why: on the road until the driver arrives, then 10 more minutes (arrived / cancelled).
-                ->where(fn ($q) => $q
-                    ->where(fn ($q) => $q->where('status', RideStatus::Open->value)->whereNull('started_at')->where('departure_at', '>=', now()))
-                    // On the road: stays until the driver taps "Arrived at Destination" (24h cap so an abandoned trip can't linger forever).
-                    ->orWhere(fn ($q) => $q->where('status', RideStatus::Open->value)->where('started_at', '>=', now()->subDay()))
-                    ->orWhere(fn ($q) => $q->where('status', RideStatus::Completed->value)->where('completed_at', '>=', now()->subMinutes(10)))
-                    ->orWhere(fn ($q) => $q->where('status', RideStatus::Cancelled->value)->where('cancelled_at', '>=', now()->subMinutes(10))))
-                ->withSeatsLeft()
+                ->withSeatsTaken()
+                ->where(function ($q) use ($availability, $seatsLeft, $cancelled) {
+                    // Bookable: open, not started, still in the future, with a seat left.
+                    $bookable = fn ($q) => $q->where('status', RideStatus::Open->value)->whereNull('started_at')
+                        ->where('departure_at', '>=', now())->whereRaw($seatsLeft, [$cancelled]);
+
+                    if ($availability === 'available') {
+                        $bookable($q);
+                    } elseif ($availability === 'unavailable') {
+                        // "No longer available": everything that left, arrived, was cancelled or missed its time in the last 24 hours.
+                        $q->where(fn ($q) => $q->where('status', RideStatus::Open->value)->whereNull('started_at')
+                                ->where('departure_at', '<', now())->where('departure_at', '>=', now()->subDay()))
+                            ->orWhere(fn ($q) => $q->where('status', RideStatus::Open->value)->where('started_at', '>=', now()->subDay()))
+                            ->orWhere(fn ($q) => $q->where('status', RideStatus::Completed->value)->where('completed_at', '>=', now()->subDay()))
+                            ->orWhere(fn ($q) => $q->where('status', RideStatus::Cancelled->value)->where('cancelled_at', '>=', now()->subDay()));
+                    } else {
+                        // Default list: bookable rides, plus ones that just closed (red) so late passengers see why:
+                        // on the road until the driver arrives, then 10 more minutes (arrived / cancelled).
+                        $q->where($bookable)
+                            ->orWhere(fn ($q) => $q->where('status', RideStatus::Open->value)->where('started_at', '>=', now()->subDay()))
+                            ->orWhere(fn ($q) => $q->where('status', RideStatus::Completed->value)->where('completed_at', '>=', now()->subMinutes(10)))
+                            ->orWhere(fn ($q) => $q->where('status', RideStatus::Cancelled->value)->where('cancelled_at', '>=', now()->subMinutes(10)));
+                    }
+                })
                 // Don't offer a driver their own rides.
                 ->whereDoesntHave('vehicle', fn ($q) => $q->where('driver_id', $user->id))
-                ->when($filters['origin'] ?? null, fn ($q, $v) => $q->where('origin_city_id', $v))
-                ->when($filters['destination'] ?? null, fn ($q, $v) => $q->where('destination_city_id', $v))
+                ->tap(fn ($q) => $this->filterPlace($q, $filters, 'origin'))
+                ->tap(fn ($q) => $this->filterPlace($q, $filters, 'destination'))
                 ->when($filters['date'] ?? null, fn ($q, $v) => $q->whereDate('departure_at', $v))
                 ->when($filters['max_price'] ?? null, fn ($q, $v) => $q->where('price_per_seat', '<=', $v))
                 ->when(($filters['sort'] ?? 'soonest') === 'cheapest', fn ($q) => $q->orderBy('price_per_seat'))
@@ -86,6 +113,7 @@ class BookingController extends Controller
             $props += [
                 'rides' => $rides->through(fn (Ride $r) => RidePresenter::card($r, withDriverContact: true)),
                 // Province comes along so the From / To boxes can search by town OR province.
+                'places' => PlaceResolver::all(),
                 'cities' => City::with('province:id,name')->orderBy('name')->get(['id', 'name', 'province_id'])
                     ->map(fn (City $c) => ['id' => $c->id, 'name' => $c->name, 'province' => $c->province?->name]),
             ];
@@ -294,6 +322,19 @@ class BookingController extends Controller
         $this->toast('Booking updated.');
 
         return back();
+    }
+
+    /** Narrow rides to one end of the trip: a known city id, or a province + town (no city yet = no rides yet). */
+    private function filterPlace($query, array $filters, string $end): void
+    {
+        $column = $end.'_city_id';
+
+        if (! empty($filters[$end])) {
+            $query->where($column, $filters[$end]);
+        } elseif (! empty($filters[$end.'_place'])) {
+            $id = PlaceResolver::find((string) ($filters[$end.'_province'] ?? ''), (string) $filters[$end.'_place']);
+            $id ? $query->where($column, $id) : $query->whereRaw('1 = 0');
+        }
     }
 
     /** Is this action legal from the booking's CURRENT status? (UI hint only; TransitionBooking is the authority.) */

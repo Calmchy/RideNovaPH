@@ -7,7 +7,10 @@ import { useInitials } from '@/hooks/use-initials';
 
 /** "just now", "3h ago", "2d ago", or the date once it is over a week old. */
 const timeAgo = (iso: string) => {
-    const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+    const mins = Math.max(
+        0,
+        Math.round((Date.now() - new Date(iso).getTime()) / 60000),
+    );
 
     if (mins < 1) {
         return 'just now';
@@ -26,8 +29,35 @@ const timeAgo = (iso: string) => {
         : new Date(iso).toLocaleDateString('en-PH', { dateStyle: 'medium' });
 };
 /** How long a closed ride stays on the Find a ride list. */
+/** "25 mins ago", "1 hr 5 mins ago", "3 hrs ago", "2 days ago". */
+const agoLong = (iso: string, now: number) => {
+    const mins = Math.max(
+        0,
+        Math.floor((now - new Date(iso).getTime()) / 60000),
+    );
+
+    if (mins < 1) {
+        return 'just now';
+    }
+
+    if (mins < 60) {
+        return `${mins} ${mins === 1 ? 'min' : 'mins'} ago`;
+    }
+
+    if (mins < 1440) {
+        const h = Math.floor(mins / 60);
+        const m = mins % 60;
+
+        return `${h} ${h === 1 ? 'hr' : 'hrs'}${m ? ` ${m} ${m === 1 ? 'min' : 'mins'}` : ''} ago`;
+    }
+
+    const d = Math.floor(mins / 1440);
+
+    return `${d} ${d === 1 ? 'day' : 'days'} ago`;
+};
 const CLOSED_VISIBLE_MS = 10 * 60 * 1000;
-const isNewlyPublished = (iso: string) => Date.now() - new Date(iso).getTime() < 86400000;
+const isNewlyPublished = (iso: string) =>
+    Date.now() - new Date(iso).getTime() < 86400000;
 
 export type RideCardData = {
     id: number;
@@ -43,6 +73,10 @@ export type RideCardData = {
     /** scheduled | on_the_road | completed | cancelled */
     trip_status?: string;
     closed_at?: string | null;
+    /** Started, arrived, cancelled, or past its departure time. */
+    unavailable?: boolean;
+    /** When it actually left (driver's Start, else the scheduled time). */
+    departed_at?: string;
     /** When the driver published it. */
     published_at?: string | null;
     /** Only sent on signed-in pages (Find a ride): the driver's profile, photo and phone number. */
@@ -52,25 +86,46 @@ export type RideCardData = {
 };
 
 /** One ride. The title area opens the details page; the button goes straight to Review & Reserve. */
-export default function RideCard({ ride }: { ride: RideCardData }) {
+export default function RideCard({
+    ride,
+    keepVisible = false,
+}: {
+    ride: RideCardData;
+    keepVisible?: boolean;
+}) {
     const initials = useInitials();
     const hasDriver = ride.driver_id !== undefined;
     // The trip already left: shown in red, and hovering the button says why.
-    const closed = !!ride.trip_status && ride.trip_status !== 'scheduled';
-    const closedLabel = ride.trip_status === 'completed' ? 'Arrived' : ride.trip_status === 'cancelled' ? 'Cancelled' : 'On The Road';
+    const closed =
+        ride.unavailable ??
+        (!!ride.trip_status && ride.trip_status !== 'scheduled');
+    const closedLabel =
+        ride.trip_status === 'completed'
+            ? 'Arrived'
+            : ride.trip_status === 'cancelled'
+              ? 'Cancelled'
+              : ride.trip_status === 'on_the_road'
+                ? 'On The Road'
+                : 'Departed';
     // Closed rides count down and vanish 10 minutes after they closed.
-    const expiresAt = closed && ride.closed_at ? new Date(ride.closed_at).getTime() + CLOSED_VISIBLE_MS : null;
+    const expiresAt =
+        !keepVisible && closed && ride.closed_at
+            ? new Date(ride.closed_at).getTime() + CLOSED_VISIBLE_MS
+            : null;
     const [now, setNow] = useState(() => Date.now());
 
     useEffect(() => {
-        if (expiresAt === null) {
+        if (!closed) {
             return;
         }
 
-        const t = setInterval(() => setNow(Date.now()), 1000);
+        const t = setInterval(
+            () => setNow(Date.now()),
+            expiresAt === null ? 30000 : 1000,
+        );
 
         return () => clearInterval(t);
-    }, [expiresAt]);
+    }, [closed, expiresAt]);
 
     const msLeft = expiresAt === null ? null : expiresAt - now;
 
@@ -79,13 +134,29 @@ export default function RideCard({ ride }: { ride: RideCardData }) {
     }
 
     const onRoad = closed;
+    // "Departed 25 mins ago" (or "Arrived · left 1 hr ago"), only once it really left.
+    const left =
+        closed &&
+        ride.departed_at &&
+        new Date(ride.departed_at).getTime() <= now;
+    const leftText =
+        ride.trip_status === 'cancelled'
+            ? left
+                ? `Cancelled · was due ${agoLong(ride.departed_at!, now)}`
+                : 'Cancelled'
+            : left
+              ? `${ride.trip_status === 'completed' ? 'Arrived · left' : 'Departed'} ${agoLong(ride.departed_at!, now)}`
+              : null;
     const isNew = !!ride.published_at && isNewlyPublished(ride.published_at);
 
     return (
         <div
             className={`group flex flex-col gap-4 rounded-2xl border bg-card p-5 shadow-sm ${LIFT_3D} ${onRoad ? 'border-red-400/60 bg-red-500/5' : ''}`}
         >
-           <Link href={`/rides/${ride.id}`} className="flex flex-1 flex-col space-y-3">
+            <Link
+                href={`/rides/${ride.id}`}
+                className="flex flex-1 flex-col space-y-3"
+            >
                 <div className="flex items-start justify-between gap-3">
                     <h3 className="font-serif text-xl">
                         {ride.origin} <span className="text-coral">→</span>{' '}
@@ -95,7 +166,7 @@ export default function RideCard({ ride }: { ride: RideCardData }) {
                         {peso(ride.price_per_seat)}
                     </span>
                 </div>
-                    
+
                 {ride.event && (
                     <p className="inline-block rounded-full bg-foam/60 px-3 py-0.5 text-xs font-medium text-deep">
                         {ride.event}
@@ -109,6 +180,11 @@ export default function RideCard({ ride }: { ride: RideCardData }) {
                             </span>
                         )}
                         Published {timeAgo(ride.published_at)}
+                    </p>
+                )}
+                {closed && leftText && (
+                    <p className="rounded-lg bg-red-500/10 px-3 py-1.5 text-sm font-semibold text-red-700 dark:text-red-300">
+                        {leftText}
                     </p>
                 )}
                 <ul className="space-y-1.5 text-sm text-muted-foreground">
@@ -138,7 +214,9 @@ export default function RideCard({ ride }: { ride: RideCardData }) {
                                 alt={`Photo of ${ride.driver_name}`}
                             />
                         )}
-                        <AvatarFallback>{initials(ride.driver_name)}</AvatarFallback>
+                        <AvatarFallback>
+                            {initials(ride.driver_name)}
+                        </AvatarFallback>
                     </Avatar>
                     <div className="min-w-0 text-sm">
                         <Link
@@ -174,12 +252,12 @@ export default function RideCard({ ride }: { ride: RideCardData }) {
                     <div
                         tabIndex={0}
                         title={closedLabel}
-                        className="group/closed relative flex-1 cursor-not-allowed select-none overflow-hidden rounded-lg border border-red-500/60 bg-red-100 px-3 py-2 text-center text-sm font-medium text-red-700 hover:bg-red-200 focus:bg-red-200 focus:outline-none dark:border-red-400/60 dark:bg-red-500/20 dark:text-red-200 dark:hover:bg-red-500/30 dark:focus:bg-red-500/30"
+                        className="group/closed relative flex-1 cursor-not-allowed overflow-hidden rounded-lg border border-red-500/60 bg-red-100 px-3 py-2 text-center text-sm font-medium text-red-700 select-none hover:bg-red-200 focus:bg-red-200 focus:outline-none dark:border-red-400/60 dark:bg-red-500/20 dark:text-red-200 dark:hover:bg-red-500/30 dark:focus:bg-red-500/30"
                     >
                         <span className="block transition duration-200 group-hover/closed:-translate-y-full group-hover/closed:opacity-0 group-focus/closed:-translate-y-full group-focus/closed:opacity-0">
                             No longer open
                         </span>
-                        <span className="absolute inset-0 flex translate-y-full items-center justify-center gap-2 font-bold text-red-800 opacity-0 dark:text-white transition duration-200 group-hover/closed:translate-y-0 group-hover/closed:opacity-100 group-focus/closed:translate-y-0 group-focus/closed:opacity-100">
+                        <span className="absolute inset-0 flex translate-y-full items-center justify-center gap-2 font-bold text-red-800 opacity-0 transition duration-200 group-hover/closed:translate-y-0 group-hover/closed:opacity-100 group-focus/closed:translate-y-0 group-focus/closed:opacity-100 dark:text-white">
                             <span className="relative flex size-2.5">
                                 <span className="absolute inline-flex size-full animate-ping rounded-full bg-red-500 opacity-75 dark:bg-red-300" />
                                 <span className="relative inline-flex size-2.5 rounded-full bg-red-500 dark:bg-red-300" />

@@ -38,6 +38,10 @@ class RidePresenter
             'driver_name' => $ride->vehicle->driver->user->name,
             'event' => $ride->eventLabel(),
             'trip_status' => $ride->tripStatus(),
+            // No longer bookable: started, arrived, cancelled, or the departure time has passed.
+            'unavailable' => $ride->tripStatus() !== 'scheduled' || $ride->departure_at->isPast(),
+            // When it actually left (the driver's Start, else the scheduled time): the card shows "Departed 25 mins ago".
+            'departed_at' => ($ride->started_at ?? $ride->departure_at)->toIso8601String(),
             // When the ride stopped being bookable (null while open or still on the road). The Find a ride list drops it 10 minutes later.
             'closed_at' => match ($ride->tripStatus()) {
                 'completed' => $ride->completed_at?->toIso8601String(),

@@ -171,3 +171,32 @@ test('on-the-road rides stay until arrival, then disappear 10 minutes later', fu
         ->has('rides.data', 2)
         ->where('rides.data', fn ($rows) => collect($rows)->pluck('id')->sort()->values()->all() === collect([$arrived->id, $onRoad->id])->sort()->values()->all()));
 });
+
+test('passengers can search Find a ride by any Philippine province and town', function () {
+    $driver = Scenario::driver();
+    $ride = Scenario::ride($driver);
+    $ride->load('origin.province');
+    $passenger = Scenario::passenger();
+
+    $this->actingAs($passenger)->get('/bookings?tab=find&origin_province='.urlencode($ride->origin->province->name).'&origin_place='.urlencode($ride->origin->name))
+        ->assertInertia(fn ($page) => $page->has('rides.data', 1)->has('places'));
+
+    // A real town nobody has published a ride to yet simply has no rides.
+    $this->actingAs($passenger)->get('/bookings?tab=find&destination_province=Cebu&destination_place=Moalboal')
+        ->assertInertia(fn ($page) => $page->has('rides.data', 0));
+});
+
+test('passengers can filter for no longer available rides and see how long ago they left', function () {
+    $driver = Scenario::driver();
+    $open = Scenario::ride($driver, ['departure_at' => now()->addDay()]);
+    $missed = Scenario::ride($driver, ['departure_at' => now()->subHours(3)]); // never started, time passed
+    $arrived = Scenario::ride($driver, ['status' => 'completed', 'departure_at' => now()->subHours(5), 'started_at' => now()->subHours(4), 'completed_at' => now()->subHour()]);
+    $passenger = Scenario::passenger();
+
+    $this->actingAs($passenger)->get('/bookings?tab=find&availability=unavailable')->assertInertia(fn ($page) => $page
+        ->where('rides.data', fn ($rows) => collect($rows)->pluck('id')->sort()->values()->all() === collect([$missed->id, $arrived->id])->sort()->values()->all()
+            && collect($rows)->every(fn ($r) => $r['unavailable'] === true && ! empty($r['departed_at']))));
+
+    $this->actingAs($passenger)->get('/bookings?tab=find&availability=available')->assertInertia(fn ($page) => $page
+        ->has('rides.data', 1)->where('rides.data.0.id', $open->id)->where('rides.data.0.unavailable', false));
+});

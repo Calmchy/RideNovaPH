@@ -15,6 +15,8 @@ import {
 } from '@/components/kit';
 import type { Paginated, SimplePaginated } from '@/components/kit';
 import { fmtDateTime, peso, StatusBadge } from '@/components/lux';
+import { PlacePicker } from '@/components/place-picker';
+import type { PlaceValue, Province } from '@/components/place-picker';
 import RideCard from '@/components/ride-card';
 import type { RideCardData } from '@/components/ride-card';
 import { Button } from '@/components/ui/button';
@@ -39,6 +41,8 @@ type Props = {
     pending_requests: number;
     rides?: SimplePaginated<RideCardData>;
     cities?: { id: number; name: string; province: string | null }[];
+    /** Every Philippine province with its towns, for the From / To pickers. */
+    places?: Province[];
     bookings?: Paginated<Row>;
 };
 
@@ -113,6 +117,7 @@ export default function BookingsIndex({
     pending_requests,
     rides,
     cities,
+    places,
     bookings,
 }: Props) {
     const tabs = [
@@ -123,11 +128,48 @@ export default function BookingsIndex({
             : []),
     ];
     // "Hire a driver" lives on its own page (/charters) but sits in the same tab row.
-    const cityOptions = (cities ?? []).map((c) => ({
-        value: c.id,
-        label: c.name,
-        hint: c.province ?? undefined,
+    const knownCities = (cities ?? []).map((c) => ({
+        id: c.id,
+        name: c.name,
+        province: c.province ?? '',
     }));
+    const placeKeys = [
+        'origin',
+        'origin_province',
+        'origin_place',
+        'destination',
+        'destination_province',
+        'destination_place',
+    ];
+    const placeParams = Object.fromEntries(
+        placeKeys.filter((k) => filters[k]).map((k) => [k, filters[k]]),
+    );
+    const placeValue = (end: 'origin' | 'destination'): PlaceValue => ({
+        id: filters[end] ?? '',
+        province: filters[`${end}_province`] ?? '',
+        place: filters[`${end}_place`] ?? '',
+    });
+    // Picking a town re-runs the search with the other filters kept (page goes back to 1).
+    const pickPlace = (end: 'origin' | 'destination', v: PlaceValue) => {
+        const next: Record<string, string> = { ...filters, tab: 'find' };
+        delete next.page;
+        delete next[end];
+        delete next[`${end}_province`];
+        delete next[`${end}_place`];
+
+        if (v.id) {
+            next[end] = v.id;
+        } else if (v.place) {
+            next[`${end}_province`] = v.province;
+            next[`${end}_place`] = v.place;
+        }
+
+        router.get('/bookings', next, {
+            preserveState: true,
+            preserveScroll: true,
+            replace: true,
+        });
+    };
 
     return (
         <>
@@ -183,34 +225,52 @@ export default function BookingsIndex({
 
                 {tab === 'find' && rides && (
                     <>
+                        <div className="grid gap-3 rounded-2xl border bg-card p-4 sm:grid-cols-2">
+                            <label className="grid gap-1 text-xs text-muted-foreground">
+                                From
+                                <PlacePicker
+                                    places={places ?? []}
+                                    cities={knownCities}
+                                    value={placeValue('origin')}
+                                    onChange={(v) => pickPlace('origin', v)}
+                                    placeholder="Any province or town in the Philippines"
+                                />
+                            </label>
+                            <label className="grid gap-1 text-xs text-muted-foreground">
+                                To
+                                <PlacePicker
+                                    places={places ?? []}
+                                    cities={knownCities}
+                                    value={placeValue('destination')}
+                                    onChange={(v) =>
+                                        pickPlace('destination', v)
+                                    }
+                                    placeholder="Any province or town in the Philippines"
+                                />
+                            </label>
+                        </div>
                         <FilterBar
                             url="/bookings"
-                            extra={{ tab: 'find' }}
+                            extra={{ tab: 'find', ...placeParams }}
                             values={filters}
                             fields={[
                                 {
-                                    name: 'origin',
+                                    name: 'availability',
                                     type: 'select',
-                                    placeholder: 'Anywhere',
-                                    searchable: true,
-                                    label: 'From',
-                                    options: cityOptions,
-                                },
-                                {
-                                    name: 'destination',
-                                    type: 'select',
-                                    placeholder: 'Anywhere',
-                                    searchable: true,
-                                    label: 'To',
-                                    options: cityOptions,
+                                    placeholder: 'All rides',
+                                    label: 'Status',
+                                    options: [
+                                        {
+                                            value: 'available',
+                                            label: 'Available',
+                                        },
+                                        {
+                                            value: 'unavailable',
+                                            label: 'No longer available',
+                                        },
+                                    ],
                                 },
                                 { name: 'date', type: 'date', label: 'Date' },
-                                {
-                                    name: 'event',
-                                    type: 'search',
-                                    label: 'Event',
-                                    placeholder: 'Search events (LPT, TESDA…)',
-                                },
                                 {
                                     name: 'max_price',
                                     type: 'select',
@@ -239,15 +299,22 @@ export default function BookingsIndex({
                             <>
                                 <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
                                     {rides.data.map((r) => (
-                                        <RideCard key={r.id} ride={r} />
+                                        <RideCard
+                                            key={r.id}
+                                            ride={r}
+                                            keepVisible={
+                                                filters.availability ===
+                                                'unavailable'
+                                            }
+                                        />
                                     ))}
                                 </div>
                                 <SimplePager page={rides} />
                             </>
                         ) : (
                             <EmptyState>
-                                No rides match these filters. Try another date
-                                or destination.
+                                No rides match these filters yet. Try another
+                                date or town.
                             </EmptyState>
                         )}
                     </>
@@ -387,13 +454,12 @@ export default function BookingsIndex({
                             </EmptyState>
                         )}
                         <Pager page={bookings} />
-                                <Link
+                        <Link
                             href="/reviews"
                             className="-mb-px flex items-center gap-2 border-b-2 border-transparent px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground"
                         >
                             Review history
                         </Link>
-
                     </>
                 )}
             </div>
