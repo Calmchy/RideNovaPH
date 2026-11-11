@@ -12,6 +12,7 @@ use App\Models\RentalExtension;
 use App\Models\RentalRequest;
 use App\Models\Vehicle;
 use App\Support\Like;
+use App\Support\PlaceResolver;
 use App\Support\RentalPanels;
 use App\Support\RentalTerms;
 use Carbon\Carbon;
@@ -122,6 +123,7 @@ class RentalController extends Controller
             // Pre-fill what we already know about the renter (they can change it).
             'defaults' => ['name' => $user->name, 'phone' => $user->phone_number, 'address' => $user->address],
             'max_days' => RequestRental::MAX_DAYS,
+            'places' => PlaceResolver::all(),
         ]);
     }
 
