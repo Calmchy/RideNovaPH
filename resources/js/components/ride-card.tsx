@@ -26,7 +26,7 @@ const timeAgo = (iso: string) => {
         : new Date(iso).toLocaleDateString('en-PH', { dateStyle: 'medium' });
 };
 /** How long a closed ride stays on the Find a ride list. */
-const CLOSED_VISIBLE_MS = 2 * 60 * 1000;
+const CLOSED_VISIBLE_MS = 10 * 60 * 1000;
 const isNewlyPublished = (iso: string) => Date.now() - new Date(iso).getTime() < 86400000;
 
 export type RideCardData = {
@@ -58,7 +58,7 @@ export default function RideCard({ ride }: { ride: RideCardData }) {
     // The trip already left: shown in red, and hovering the button says why.
     const closed = !!ride.trip_status && ride.trip_status !== 'scheduled';
     const closedLabel = ride.trip_status === 'completed' ? 'Arrived' : ride.trip_status === 'cancelled' ? 'Cancelled' : 'On The Road';
-    // Closed rides count down and vanish 2 minutes after they closed.
+    // Closed rides count down and vanish 10 minutes after they closed.
     const expiresAt = closed && ride.closed_at ? new Date(ride.closed_at).getTime() + CLOSED_VISIBLE_MS : null;
     const [now, setNow] = useState(() => Date.now());
 

@@ -76,12 +76,12 @@ export default function DriverRideShow({ ride, passengers }: Props) {
                 )}
                 {onRoad && (
                     <ReasonDialog
-                        title="Complete this trip?"
-                        description="Confirmed passengers are marked completed and get receipts. Unconfirmed requests are closed."
+                        title="Arrived at the destination?"
+                        description="This completes the trip: confirmed passengers are marked completed and get receipts, and unconfirmed requests are closed."
                         askReason={false}
-                        confirmLabel="Complete trip"
+                        confirmLabel="Yes, complete trip"
                         onConfirm={() => patch('complete')}
-                        trigger={<Button>Complete trip</Button>}
+                        trigger={<Button>Arrived at Destination</Button>}
                     />
                 )}
                 {(scheduled || onRoad) && (

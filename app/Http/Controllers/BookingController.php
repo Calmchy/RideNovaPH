@@ -61,12 +61,13 @@ class BookingController extends Controller
 
         if ($tab === 'find') {
             $rides = Ride::with(RidePresenter::WITH)
-                // Rides that left / arrived / were cancelled stay listed (in red) for 2 minutes so late passengers see why, then drop off.
+                // Rides that left / arrived / were cancelled stay listed (in red) so late passengers see why: on the road until the driver arrives, then 10 more minutes (arrived / cancelled).
                 ->where(fn ($q) => $q
                     ->where(fn ($q) => $q->where('status', RideStatus::Open->value)->whereNull('started_at')->where('departure_at', '>=', now()))
-                    ->orWhere(fn ($q) => $q->where('status', RideStatus::Open->value)->where('started_at', '>=', now()->subMinutes(2)))
-                    ->orWhere(fn ($q) => $q->where('status', RideStatus::Completed->value)->where('completed_at', '>=', now()->subMinutes(2)))
-                    ->orWhere(fn ($q) => $q->where('status', RideStatus::Cancelled->value)->where('cancelled_at', '>=', now()->subMinutes(2))))
+                    // On the road: stays until the driver taps "Arrived at Destination" (24h cap so an abandoned trip can't linger forever).
+                    ->orWhere(fn ($q) => $q->where('status', RideStatus::Open->value)->where('started_at', '>=', now()->subDay()))
+                    ->orWhere(fn ($q) => $q->where('status', RideStatus::Completed->value)->where('completed_at', '>=', now()->subMinutes(10)))
+                    ->orWhere(fn ($q) => $q->where('status', RideStatus::Cancelled->value)->where('cancelled_at', '>=', now()->subMinutes(10))))
                 ->withSeatsLeft()
                 // Don't offer a driver their own rides.
                 ->whereDoesntHave('vehicle', fn ($q) => $q->where('driver_id', $user->id))

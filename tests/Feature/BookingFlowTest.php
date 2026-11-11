@@ -159,16 +159,15 @@ test('a ride that already left stays in Find a ride marked on the road, and cann
     expect($passenger->bookings()->count())->toBe(0)->and($gone->bookings()->count())->toBe(0);
 });
 
-test('closed rides disappear from Find a ride 2 minutes after they close', function () {
+test('on-the-road rides stay until arrival, then disappear 10 minutes later', function () {
     $driver = Scenario::driver();
-    $stale = Scenario::ride($driver, ['departure_at' => now()->subHours(1), 'started_at' => now()->subMinutes(3)]);
-    $arrived = Scenario::ride($driver, ['status' => 'completed', 'departure_at' => now()->subHours(1), 'started_at' => now()->subMinutes(30), 'completed_at' => now()->subSeconds(40)]);
-    $arrivedOld = Scenario::ride($driver, ['status' => 'completed', 'departure_at' => now()->subHours(2), 'started_at' => now()->subHour(), 'completed_at' => now()->subMinutes(5)]);
+    $cancelledOld = Scenario::ride($driver, ['status' => 'cancelled', 'departure_at' => now()->subHours(1), 'cancelled_at' => now()->subMinutes(11)]);
+    $onRoad = Scenario::ride($driver, ['departure_at' => now()->subHours(2), 'started_at' => now()->subHour()]); // still travelling: stays until the driver arrives
+    $arrived = Scenario::ride($driver, ['status' => 'completed', 'departure_at' => now()->subHours(1), 'started_at' => now()->subMinutes(30), 'completed_at' => now()->subMinutes(9)]);
+    $arrivedOld = Scenario::ride($driver, ['status' => 'completed', 'departure_at' => now()->subHours(2), 'started_at' => now()->subHour(), 'completed_at' => now()->subMinutes(15)]);
     $passenger = Scenario::passenger();
 
     $this->actingAs($passenger)->get('/bookings?tab=find')->assertInertia(fn ($page) => $page
-        ->has('rides.data', 1)
-        ->where('rides.data.0.id', $arrived->id)
-        ->where('rides.data.0.trip_status', 'completed')
-        ->whereNot('rides.data.0.closed_at', null));
+        ->has('rides.data', 2)
+        ->where('rides.data', fn ($rows) => collect($rows)->pluck('id')->sort()->values()->all() === collect([$arrived->id, $onRoad->id])->sort()->values()->all()));
 });
