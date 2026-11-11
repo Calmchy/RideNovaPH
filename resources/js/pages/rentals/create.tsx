@@ -1,7 +1,7 @@
 // The renter's form: who they are (the info the owner needs), when, and where.
 // The price is never typed here: it is the owner's price per day x the number of days.
 import { Head, Link, useForm } from '@inertiajs/react';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Field, inputCls, PageHeader, Panel } from '@/components/kit';
 import { peso, toLocalInput } from '@/components/lux';
 import { PlaceMultiPicker } from '@/components/place-multi-picker';
@@ -102,6 +102,9 @@ export default function RentalCreate({ vehicle, defaults, places }: Props) {
     ]
         .filter(Boolean)
         .join(' ');
+    // The signature follows the name typed in "About you" until the renter types in the signature box themselves.
+    const [signEdited, setSignEdited] = useState(false);
+    const signature = signEdited ? d.signature_name : fullName;
     const licenseFile = form.data.license_id;
     const licensePreview = useMemo(
         () => (licenseFile ? URL.createObjectURL(licenseFile) : null),
@@ -146,6 +149,12 @@ export default function RentalCreate({ vehicle, defaults, places }: Props) {
                 <form
                     onSubmit={(e) => {
                         e.preventDefault();
+                        form.transform((data) => ({
+                            ...data,
+                            signature_name: signEdited
+                                ? data.signature_name
+                                : fullName,
+                        }));
                         form.post('/rentals');
                     }}
                     className="space-y-6"
@@ -565,7 +574,15 @@ export default function RentalCreate({ vehicle, defaults, places }: Props) {
                                             required
                                             maxLength={120}
                                             autoComplete="off"
-                                            {...f('signature_name')}
+                                            className={inputCls}
+                                            value={signature}
+                                            onChange={(e) => {
+                                                setSignEdited(true);
+                                                form.setData(
+                                                    'signature_name',
+                                                    e.target.value,
+                                                );
+                                            }}
                                         />
                                     </Field>
                                 </div>
