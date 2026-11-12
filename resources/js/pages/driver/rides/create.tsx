@@ -3,6 +3,7 @@
 import { Head, Link, useForm } from '@inertiajs/react';
 import { Pencil } from 'lucide-react';
 import { useState } from 'react';
+import { DefaultPlace } from '@/components/default-place';
 import { Field, inputCls, PageHeader, Panel } from '@/components/kit';
 import { peso, toLocalInput } from '@/components/lux';
 import { PlacePicker } from '@/components/place-picker';
@@ -14,6 +15,8 @@ type Props = {
     cities: KnownCity[];
     /** Philippine provinces with their towns, for the From / To picker. */
     places: Province[];
+    /** The driver's saved default place: starts the From field. */
+    default_place?: { province: string; place: string } | null;
     announcements: { id: number; title: string }[];
     /** Present when EDITING an existing ride. */
     ride: {
@@ -48,6 +51,7 @@ export default function CreateRide({
     vehicles,
     cities,
     places,
+    default_place,
     announcements,
     ride,
     prefill,
@@ -57,8 +61,12 @@ export default function CreateRide({
     const form = useForm({
         vehicle_id: ride?.vehicle_id ?? String(vehicles[0]?.id ?? ''),
         origin_city_id: ride?.origin_city_id ?? '',
-        origin_province: '',
-        origin_place: '',
+        origin_province:
+            !ride?.origin_city_id && default_place
+                ? default_place.province
+                : '',
+        origin_place:
+            !ride?.origin_city_id && default_place ? default_place.place : '',
         destination_city_id:
             ride?.destination_city_id ?? prefill?.destination_city_id ?? '',
         destination_province: '',
@@ -71,11 +79,14 @@ export default function CreateRide({
             String(Math.min(vehicles[0]?.seat_capacity ?? 4, 4)),
         price_per_seat: ride?.price_per_seat ?? '',
         notes: ride?.notes ?? prefill?.notes ?? '',
-        announcement_id: ride?.announcement_id ?? prefill?.announcement_id ?? '',
+        announcement_id:
+            ride?.announcement_id ?? prefill?.announcement_id ?? '',
         event_name: ride?.event_name ?? prefill?.event_name ?? '',
     });
     // "Edit" lets the driver type their own event instead of picking one from the list.
-    const [ownEvent, setOwnEvent] = useState(Boolean(ride?.event_name ?? prefill?.event_name));
+    const [ownEvent, setOwnEvent] = useState(
+        Boolean(ride?.event_name ?? prefill?.event_name),
+    );
     const vehicle = vehicles.find((v) => String(v.id) === form.data.vehicle_id);
     const f = (k: keyof typeof form.data) => ({
         value: form.data[k],
@@ -156,6 +167,17 @@ export default function CreateRide({
                                         }))
                                     }
                                 />
+                                {!locked && (
+                                    <DefaultPlace
+                                        current={default_place ?? null}
+                                        cities={cities}
+                                        value={{
+                                            id: form.data.origin_city_id,
+                                            province: form.data.origin_province,
+                                            place: form.data.origin_place,
+                                        }}
+                                    />
+                                )}
                             </Field>
                             <Field
                                 label="To"
@@ -171,7 +193,8 @@ export default function CreateRide({
                                     cities={cities}
                                     value={{
                                         id: form.data.destination_city_id,
-                                        province: form.data.destination_province,
+                                        province:
+                                            form.data.destination_province,
                                         place: form.data.destination_place,
                                     }}
                                     onChange={(v) =>

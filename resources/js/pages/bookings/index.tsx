@@ -2,6 +2,7 @@
 // Every filter below is a real GET request handled by BookingController@index.
 import { Head, Link, router } from '@inertiajs/react';
 import { Eye, Plus, Receipt } from 'lucide-react';
+import { DefaultPlace } from '@/components/default-place';
 import {
     EmptyState,
     FilterBar,
@@ -44,6 +45,7 @@ type Props = {
     /** Every Philippine province with its towns, for the From / To pickers. */
     places?: Province[];
     bookings?: Paginated<Row>;
+    default_place?: { province: string; place: string } | null;
 };
 
 const STATUSES = [
@@ -119,6 +121,7 @@ export default function BookingsIndex({
     cities,
     places,
     bookings,
+    default_place,
 }: Props) {
     const tabs = [
         { id: 'find', label: 'Find a ride' },
@@ -135,6 +138,7 @@ export default function BookingsIndex({
     }));
     const placeKeys = [
         'origin',
+        'origin_any',
         'origin_province',
         'origin_place',
         'destination',
@@ -156,12 +160,16 @@ export default function BookingsIndex({
         delete next[end];
         delete next[`${end}_province`];
         delete next[`${end}_place`];
+        delete next.origin_any;
 
         if (v.id) {
             next[end] = v.id;
         } else if (v.place) {
             next[`${end}_province`] = v.province;
             next[`${end}_place`] = v.place;
+        } else if (end === 'origin') {
+            // Cleared on purpose: show every town, don't re-apply the default.
+            next.origin_any = '1';
         }
 
         router.get('/bookings', next, {
@@ -234,6 +242,11 @@ export default function BookingsIndex({
                                     value={placeValue('origin')}
                                     onChange={(v) => pickPlace('origin', v)}
                                     placeholder="Any province or town in the Philippines"
+                                />
+                                <DefaultPlace
+                                    current={default_place ?? null}
+                                    value={placeValue('origin')}
+                                    cities={knownCities}
                                 />
                             </label>
                             <label className="grid gap-1 text-xs text-muted-foreground">

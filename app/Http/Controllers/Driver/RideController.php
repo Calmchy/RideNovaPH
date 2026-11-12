@@ -113,6 +113,9 @@ class RideController extends Controller
             'cities' => City::with('province:id,name')->orderBy('name')->get()
                 ->map(fn ($c) => ['id' => $c->id, 'name' => $c->name, 'province' => $c->province?->name ?? '']),
             'places' => PlaceResolver::all(),
+            'default_place' => $request->user()->default_place
+                ? ['province' => (string) $request->user()->default_province, 'place' => (string) $request->user()->default_place]
+                : null,
             'announcements' => $this->eventOptions(),
             'ride' => null,
             'prefill' => $this->prefillFromSlide($request),

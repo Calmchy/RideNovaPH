@@ -50,6 +50,7 @@ class BookingController extends Controller
             'origin' => ['nullable', 'integer', 'exists:cities,id'],
             'destination' => ['nullable', 'integer', 'exists:cities,id'],
             // The From / To picker can also send any Philippine province + town, even one nobody has published a ride for yet.
+            'origin_any' => ['nullable', 'in:1'],
             'origin_province' => ['nullable', 'string', 'max:80'],
             'origin_place' => ['nullable', 'string', 'max:80'],
             'destination_province' => ['nullable', 'string', 'max:80'],
@@ -62,9 +63,18 @@ class BookingController extends Controller
             'q' => ['nullable', 'string', 'max:40'],
         ]);
         $tab = $filters['tab'] ?? 'find';
+
+        // "From" starts with the user's default place, unless they picked something or chose "any" on purpose.
+        $default = $this->defaultPlace($user);
+
+        if ($tab === 'find' && $default && empty($filters['origin']) && empty($filters['origin_place']) && empty($filters['origin_any'])) {
+            $filters['origin_province'] = $default['province'];
+            $filters['origin_place'] = $default['place'];
+        }
+
         abort_if($tab === 'requests' && ! $user->isDriver(), 404);
 
-        $props = ['tab' => $tab, 'filters' => $filters, 'is_driver' => $user->isDriver()];
+        $props = ['tab' => $tab, 'filters' => $filters, 'is_driver' => $user->isDriver(), 'default_place' => $default];
 
         if ($tab === 'find') {
             $seatsLeft = 'seats_offered - COALESCE((select sum(b.seats_booked) from bookings b where b.ride_id = rides.id and b.status != ?), 0) > 0';
@@ -322,6 +332,14 @@ class BookingController extends Controller
         $this->toast('Booking updated.');
 
         return back();
+    }
+
+    /** @return array{province: string, place: string}|null */
+    private function defaultPlace($user): ?array
+    {
+        return $user->default_place
+            ? ['province' => (string) $user->default_province, 'place' => (string) $user->default_place]
+            : null;
     }
 
     /** Narrow rides to one end of the trip: a known city id, or a province + town (no city yet = no rides yet). */
