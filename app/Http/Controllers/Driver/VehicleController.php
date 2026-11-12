@@ -44,6 +44,7 @@ class VehicleController extends Controller
                     'rides_count' => $v->rides_count,
                     'photos' => $v->gallery(),
                     'description' => $v->description,
+                    'vin' => $v->vin,
                     'review_status' => $v->review_status,
                     'review_remarks' => $v->review_remarks,
                     // Private file: streamed to its owner only (Settings\DocumentController@cor). ?v busts the cache on replace.
@@ -70,8 +71,8 @@ class VehicleController extends Controller
         $data = $this->withModel($request->validated());
 
         $vehicle = Vehicle::create($data + ['driver_id' => $request->user()->id]);
-        $vehicle->forceFill(['review_status' => 'pending'])->save();
-        $this->toast('Vehicle registered. Now add its photos and COR so the admin can review it.');
+        $vehicle->forceFill(['review_status' => 'draft'])->save();
+        $this->toast('Vehicle saved. Add its photos and COR, then press Submit for review.');
 
         return back();
     }
@@ -81,7 +82,6 @@ class VehicleController extends Controller
     {
         $this->owned($request, $vehicle);
         $vehicle->update($this->withModel($request->validated()));
-        $this->resubmit($vehicle);
         $this->toast('Vehicle updated.');
 
         return back();
@@ -130,7 +130,6 @@ class VehicleController extends Controller
         $old = $vehicle->{$column};
 
         $vehicle->update([$column => $this->storePhoto($request->file('photo'))]);
-        $this->resubmit($vehicle);
 
         if ($old) {
             Storage::disk('public')->delete($old);
@@ -152,7 +151,6 @@ class VehicleController extends Controller
 
         $old = $vehicle->cor_image_path;
         $vehicle->update(['cor_image_path' => $this->storeCor($request->file('cor_image'))]);
-        $this->resubmit($vehicle);
 
         if ($old) {
             Storage::disk('local')->delete($old);
@@ -192,12 +190,29 @@ class VehicleController extends Controller
         return $data;
     }
 
-    /** A rejected vehicle goes back to the admin's queue as soon as the driver fixes something. */
-    private function resubmit(Vehicle $vehicle): void
+    /** POST /driver/vehicles/{vehicle}/submit : the driver's final confirmation. Only now does the admin see it. */
+    public function submit(Request $request, Vehicle $vehicle): RedirectResponse
     {
-        if ($vehicle->review_status === 'rejected') {
-            $vehicle->forceFill(['review_status' => 'pending', 'review_remarks' => null])->save();
+        $this->owned($request, $vehicle);
+
+        if (! in_array($vehicle->review_status, ['draft', 'rejected'], true)) {
+            return back();
         }
+
+        $missing = collect($vehicle->gallery())->filter(fn ($p) => ! $p['url'])->map(fn ($p) => strtolower($p['label']).' photo')
+            ->when(! $vehicle->cor_image_path, fn ($c) => $c->push('COR'))
+            ->when(! $vehicle->vin, fn ($c) => $c->push('VIN (use Edit)'));
+
+        if ($missing->isNotEmpty()) {
+            $this->toast('Still needed before you can submit: '.$missing->implode(', ').'.', 'error');
+
+            return back();
+        }
+
+        $vehicle->forceFill(['review_status' => 'pending', 'review_remarks' => null])->save();
+        $this->toast('Submitted. An admin will review your vehicle and you will be notified.');
+
+        return back();
     }
 
     /** The moment this driver may register another vehicle, or null if they can now (2-minute spacing). */

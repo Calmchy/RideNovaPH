@@ -25,6 +25,10 @@ class StoreVehicleRequest extends FormRequest
             }
         }
 
+        if (is_string($this->input('vin'))) {
+            $this->merge(['vin' => strtoupper(trim($this->input('vin')))]);
+        }
+
         if (is_string($this->input('plate_number'))) {
             $this->merge(['plate_number' => strtoupper(trim($this->input('plate_number')))]);
         }
@@ -42,6 +46,8 @@ class StoreVehicleRequest extends FormRequest
             'color' => ['required', 'string', 'max:30', 'regex:/^[\p{L} \-]+$/u'],
             // PH plates look like ABC 1234 / ABC-1234 / 123 ABC; keep it permissive but safe.
             'plate_number' => ['required', 'string', 'max:15', 'regex:/^[A-Z0-9 \-]{5,15}$/', Rule::unique('vehicles', 'plate_number')->ignore($ignore)],
+            // A VIN is 17 characters and never contains I, O or Q. Required when registering; older vehicles can add it later.
+            'vin' => [$ignore ? 'nullable' : 'required', 'regex:/^[A-HJ-NPR-Z0-9]{17}$/', Rule::unique('vehicles', 'vin')->ignore($ignore)],
             'seat_capacity' => ['required', 'integer', 'min:1', 'max:20'],
             'manufacture_year' => ['nullable', 'integer', 'min:1990', 'max:'.(now()->year + 1)],
         ];
@@ -52,6 +58,8 @@ class StoreVehicleRequest extends FormRequest
     public function messages(): array
     {
         return [
+            'vin.required' => 'Enter the 17-character VIN.',
+            'vin.regex' => 'A VIN is 17 letters and numbers (no I, O or Q).',
             'custom_make.required' => 'Type the make (brand), e.g. Honda.',
             'custom_model.required' => 'Type the model, e.g. Civic.',
             'custom_make.regex' => 'Use letters and numbers only.',

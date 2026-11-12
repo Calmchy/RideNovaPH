@@ -28,13 +28,15 @@ type Vehicle = {
     photos: VehiclePhoto[];
     description: string | null;
     cor_url: string | null;
-    review_status: 'pending' | 'approved' | 'rejected';
+    vin: string | null;
+    review_status: 'draft' | 'pending' | 'approved' | 'rejected';
     review_remarks: string | null;
 };
 type VehicleForm = {
     model_id: string;
     color: string;
     plate_number: string;
+    vin: string;
     seat_capacity: string;
     manufacture_year: string;
     custom_make: string;
@@ -47,6 +49,57 @@ type Props = {
     /** ISO time the next vehicle may be registered (2 minutes after the last), or null. */
     next_vehicle_at: string | null;
 };
+
+/** The driver's final confirmation: nothing reaches the admin until this button is pressed. */
+function SubmitPanel({ v }: { v: Vehicle }) {
+    const missing = [
+        ...v.photos
+            .filter((p) => !p.url)
+            .map((p) => `${p.label.toLowerCase()} photo`),
+        ...(v.cor_url ? [] : ['COR']),
+        ...(v.vin ? [] : ['VIN (press Edit)']),
+    ];
+
+    return (
+        <div className="rounded-xl border border-dashed p-4">
+            <p className="text-sm font-medium">
+                {v.review_status === 'rejected'
+                    ? 'Fixed what the admin asked for?'
+                    : 'Finished adding your requirements?'}
+            </p>
+            {missing.length > 0 ? (
+                <p className="mt-1 text-sm text-muted-foreground">
+                    Still needed: {missing.join(', ')}.
+                </p>
+            ) : (
+                <p className="mt-1 text-sm text-muted-foreground">
+                    Everything is in. Nothing is sent to the admin until you
+                    press Submit.
+                </p>
+            )}
+            <ReasonDialog
+                title="Submit for admin review?"
+                description="Check that the photos and the COR are clear and correct. The admin will review them and notify you."
+                askReason={false}
+                confirmLabel="Submit"
+                onConfirm={() =>
+                    router.post(
+                        `/driver/vehicles/${v.id}/submit`,
+                        {},
+                        { preserveScroll: true },
+                    )
+                }
+                trigger={
+                    <Button className="mt-3" disabled={missing.length > 0}>
+                        {v.review_status === 'rejected'
+                            ? 'Submit again for review'
+                            : 'Submit for review'}
+                    </Button>
+                }
+            />
+        </div>
+    );
+}
 
 export default function Vehicles({
     has_profile,
@@ -75,10 +128,13 @@ export default function Vehicles({
     // Once a driver has a vehicle, the form stays hidden until they ask to add another.
     const [adding, setAdding] = useState(false);
     const showForm = editing !== null || adding || vehicles.length === 0;
+    // "Add another vehicle": hide the existing cards (pending / approved) so only the form is shown.
+    const formOnly = adding && editing === null && vehicles.length > 0;
     const form = useForm<VehicleForm>({
         model_id: '',
         color: '',
         plate_number: '',
+        vin: '',
         seat_capacity: '4',
         manufacture_year: '',
         custom_make: '',
@@ -97,6 +153,7 @@ export default function Vehicles({
             model_id: String(v.model_id),
             color: v.color,
             plate_number: v.plate_number,
+            vin: v.vin ?? '',
             seat_capacity: String(v.seat_capacity),
             manufacture_year: v.manufacture_year
                 ? String(v.manufacture_year)
@@ -115,6 +172,7 @@ export default function Vehicles({
                     model_id,
                     color,
                     plate_number,
+                    vin,
                     seat_capacity,
                     manufacture_year,
                     custom_make,
@@ -123,6 +181,7 @@ export default function Vehicles({
                     model_id,
                     color,
                     plate_number,
+                    vin,
                     seat_capacity,
                     manufacture_year,
                     custom_make,
@@ -151,8 +210,14 @@ export default function Vehicles({
                 </p>
             )}
 
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
-                <div className="space-y-3">
+            <div
+                className={
+                    formOnly
+                        ? 'mx-auto w-full max-w-xl'
+                        : 'grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]'
+                }
+            >
+                <div className={formOnly ? 'hidden' : 'space-y-3'}>
                     {vehicles.length ? (
                         vehicles.map((v) => (
                             <div
@@ -178,9 +243,14 @@ export default function Vehicles({
                                                 <span className="rounded-full border border-red-500/40 bg-red-500/15 px-2 py-0.5 text-xs font-medium text-red-600 dark:text-red-300">
                                                     Rejected
                                                 </span>
+                                            ) : v.review_status === 'draft' ? (
+                                                <span className="rounded-full border border-slate-400/40 bg-slate-400/15 px-2 py-0.5 text-xs font-medium text-slate-600 dark:text-slate-300">
+                                                    Draft · not submitted yet
+                                                </span>
                                             ) : (
                                                 <span className="rounded-full border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-300">
-                                                    Waiting for admin review
+                                                    Submitted · waiting for
+                                                    admin review
                                                 </span>
                                             )}
                                         </p>
@@ -199,14 +269,13 @@ export default function Vehicles({
                                                 {v.review_remarks ??
                                                     'no reason given'}
                                                 . Update the photos or COR and
-                                                it goes back for review.
+                                                then press Submit again.
                                             </p>
                                         )}
                                         {v.review_status === 'pending' && (
                                             <p className="mt-1 text-xs text-muted-foreground">
-                                                Add the front/back photos and
-                                                COR. You can publish rides with
-                                                this vehicle once an admin
+                                                Submitted. You can publish rides
+                                                with this vehicle once an admin
                                                 approves it.
                                             </p>
                                         )}
@@ -268,6 +337,11 @@ export default function Vehicles({
                                         }}
                                     />
                                 </div>
+
+                                {(v.review_status === 'draft' ||
+                                    v.review_status === 'rejected') && (
+                                    <SubmitPanel v={v} />
+                                )}
                             </div>
                         ))
                     ) : (
@@ -396,6 +470,25 @@ export default function Vehicles({
                                     className={inputCls}
                                 />
                             </Field>
+                            <Field
+                                label="VIN (17 characters)"
+                                error={form.errors.vin}
+                                hint="Vehicle identification number: on the OR/CR, or the dashboard and door jamb."
+                            >
+                                <input
+                                    required={!editing}
+                                    maxLength={17}
+                                    placeholder="1HGCM82633A004352"
+                                    value={form.data.vin}
+                                    onChange={(e) =>
+                                        form.setData(
+                                            'vin',
+                                            e.target.value.toUpperCase(),
+                                        )
+                                    }
+                                    className={`${inputCls} font-mono uppercase`}
+                                />
+                            </Field>
                             <div className="grid grid-cols-2 gap-3">
                                 <Field
                                     label="Passenger seats"
@@ -437,7 +530,7 @@ export default function Vehicles({
                             <p className="text-xs text-muted-foreground">
                                 {editing
                                     ? 'Change photos, the COR and the description from the vehicle’s card.'
-                                    : 'After you register, add the photos, the COR and a description from the vehicle’s card.'}
+                                    : 'After you save, add the photos, the COR and a description from the vehicle’s card. An admin reviews it before you can use it.'}
                             </p>
                             <div className="flex gap-2">
                                 <Button
@@ -445,9 +538,7 @@ export default function Vehicles({
                                     disabled={form.processing || !has_profile}
                                     className="flex-1"
                                 >
-                                    {editing
-                                        ? 'Save changes'
-                                        : 'Register vehicle'}
+                                    {editing ? 'Save changes' : 'Save vehicle'}
                                 </Button>
                                 {(editing || vehicles.length > 0) && (
                                     <Button

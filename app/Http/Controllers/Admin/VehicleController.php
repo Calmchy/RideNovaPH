@@ -23,7 +23,9 @@ class VehicleController extends Controller
             'q' => ['nullable', 'string', 'max:60'],
         ]);
 
+        // Drafts are still being prepared by the driver; the admin only sees what was submitted.
         $vehicles = Vehicle::with(['model.make', 'driver.user:id,name,email,phone_number'])
+            ->where('review_status', '!=', 'draft')
             ->when($f['status'] ?? null, fn ($q, $v) => $q->where('review_status', $v))
             ->when($f['q'] ?? null, fn ($q, $v) => $q->where(fn ($w) => $w
                 ->where('plate_number', 'like', Like::contains($v))

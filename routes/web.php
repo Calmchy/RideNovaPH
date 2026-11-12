@@ -149,6 +149,7 @@ Route::middleware(['auth', 'verified', \App\Http\Middleware\TouchLastSeen::class
     Route::get('/rentals', [RentalController::class, 'manage'])->name('rentals');
 
     Route::get('/vehicles', [VehicleController::class, 'index'])->name('vehicles.index');
+    Route::post('/vehicles/{vehicle}/submit', [VehicleController::class, 'submit'])->middleware('throttle:20,1')->name('vehicles.submit');
     Route::post('/vehicles', [VehicleController::class, 'store'])->middleware('throttle:20,1')->name('vehicles.store');
     Route::patch('/vehicles/{vehicle}', [VehicleController::class, 'update'])->name('vehicles.update');
     Route::delete('/vehicles/{vehicle}', [VehicleController::class, 'destroy'])->name('vehicles.destroy');
