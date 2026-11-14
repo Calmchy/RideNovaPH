@@ -166,6 +166,7 @@ Route::middleware(['auth', 'verified', \App\Http\Middleware\TouchLastSeen::class
     Route::patch('/rides/{ride}/start', [DriverRideController::class, 'start'])->name('rides.start');
     Route::patch('/rides/{ride}/complete', [DriverRideController::class, 'complete'])->name('rides.complete');
     Route::patch('/rides/{ride}/cancel', [DriverRideController::class, 'cancel'])->name('rides.cancel');
+    Route::delete('/rides/{ride}', [DriverRideController::class, 'destroy'])->name('rides.destroy');
 });
 
 // ---- Admin only (role checked server-side by the 'admin' middleware) ----
