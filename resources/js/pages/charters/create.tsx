@@ -2,11 +2,15 @@
 // the driver decides the PRICE after reading them, so there is no price field here.
 import { Head, Link, useForm } from '@inertiajs/react';
 import { Phone } from 'lucide-react';
+import { DatePicker } from '@/components/date-picker';
 import { Field, inputCls, PageHeader, Panel } from '@/components/kit';
 import { toLocalInput } from '@/components/lux';
 import { Button } from '@/components/ui/button';
+import { splitName } from '@/lib/split-name';
 
 type Props = {
+    /** The signed-in account's name and phone, used to prefill. */
+    defaults: { name: string; phone: string | null };
     driver: {
         id: number;
         name: string;
@@ -16,8 +20,14 @@ type Props = {
     vehicles: { id: number; label: string; seats: number }[];
 };
 
-export default function CharterCreate({ driver, vehicles }: Props) {
+export default function CharterCreate({ defaults, driver, vehicles }: Props) {
+    const name = splitName(defaults.name);
     const form = useForm({
+        passenger_last_name: name.last,
+        passenger_first_name: name.first,
+        passenger_middle_initial: name.middle,
+        passenger_name_ext: name.ext,
+        passenger_phone: defaults.phone ?? '',
         driver_id: String(driver.id),
         vehicle_id: String(vehicles[0]?.id ?? ''),
         group_size: '2',
@@ -82,6 +92,66 @@ export default function CharterCreate({ driver, vehicles }: Props) {
                         </p>
                     )}
 
+                    <Panel title="Your details">
+                        <div className="grid items-start gap-4 p-5 sm:grid-cols-2 lg:grid-cols-4">
+                            <Field
+                                label="Last name *"
+                                error={form.errors.passenger_last_name}
+                            >
+                                <input
+                                    required
+                                    maxLength={100}
+                                    {...f('passenger_last_name')}
+                                />
+                            </Field>
+                            <Field
+                                label="First name *"
+                                error={form.errors.passenger_first_name}
+                            >
+                                <input
+                                    required
+                                    maxLength={100}
+                                    {...f('passenger_first_name')}
+                                />
+                            </Field>
+                            <Field
+                                label="Middle initial (optional)"
+                                error={form.errors.passenger_middle_initial}
+                            >
+                                <input
+                                    maxLength={2}
+                                    placeholder="e.g. D"
+                                    {...f('passenger_middle_initial')}
+                                />
+                            </Field>
+                            <Field
+                                label="Extension (if any)"
+                                error={form.errors.passenger_name_ext}
+                            >
+                                <input
+                                    maxLength={10}
+                                    placeholder="e.g. Jr., Sr., III"
+                                    {...f('passenger_name_ext')}
+                                />
+                            </Field>
+                            <div className="sm:col-span-2">
+                                <Field
+                                    label="Contact number *"
+                                    error={form.errors.passenger_phone}
+                                    hint="The driver will call or text this number about your trip."
+                                >
+                                    <input
+                                        required
+                                        type="tel"
+                                        maxLength={30}
+                                        placeholder="09XX XXX XXXX"
+                                        {...f('passenger_phone')}
+                                    />
+                                </Field>
+                            </div>
+                        </div>
+                    </Panel>
+
                     <Panel title="Group &amp; vehicle">
                         <div className="grid gap-4 p-5 sm:grid-cols-2">
                             <Field
@@ -144,11 +214,13 @@ export default function CharterCreate({ driver, vehicles }: Props) {
                                 label="Pick-up date & time *"
                                 error={form.errors.pickup_at}
                             >
-                                <input
-                                    required
-                                    type="datetime-local"
+                                <DatePicker
+                                    withTime
                                     min={now}
-                                    {...f('pickup_at')}
+                                    value={form.data.pickup_at}
+                                    onChange={(v) =>
+                                        form.setData('pickup_at', v)
+                                    }
                                 />
                             </Field>
                         </div>
@@ -171,10 +243,13 @@ export default function CharterCreate({ driver, vehicles }: Props) {
                                 error={form.errors.return_at}
                                 hint="Fill in both, or leave both empty"
                             >
-                                <input
-                                    type="datetime-local"
+                                <DatePicker
+                                    withTime
                                     min={form.data.pickup_at || now}
-                                    {...f('return_at')}
+                                    value={form.data.return_at}
+                                    onChange={(v) =>
+                                        form.setData('return_at', v)
+                                    }
                                 />
                             </Field>
                         </div>

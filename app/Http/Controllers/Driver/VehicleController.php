@@ -5,7 +5,11 @@ namespace App\Http\Controllers\Driver;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreVehicleRequest;
 use App\Models\Vehicle;
+use App\Models\VehicleMake;
 use App\Models\VehicleModel;
+use App\Notifications\AppNotice;
+use Carbon\Carbon;
+use Carbon\CarbonInterface;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -25,6 +29,8 @@ class VehicleController extends Controller
 
         return Inertia::render('driver/vehicles', [
             'has_profile' => $user->driverProfile !== null,
+            // When the next vehicle may be registered (2 minutes after the last one) to stop spam.
+            'next_vehicle_at' => $this->nextVehicleAt($user->id)?->toIso8601String(),
             'models' => VehicleModel::with('make')->get()->map(fn ($m) => ['id' => $m->id, 'label' => $m->make->name.' '.$m->name])->sortBy('label')->values(),
             'vehicles' => Vehicle::with('model.make')->withCount('rides')->where('driver_id', $user->id)->latest()->get()
                 ->map(fn (Vehicle $v) => [
@@ -38,6 +44,9 @@ class VehicleController extends Controller
                     'rides_count' => $v->rides_count,
                     'photos' => $v->gallery(),
                     'description' => $v->description,
+                    'vin' => $v->vin,
+                    'review_status' => $v->review_status,
+                    'review_remarks' => $v->review_remarks,
                     // Private file: streamed to its owner only (Settings\DocumentController@cor). ?v busts the cache on replace.
                     'cor_url' => $v->cor_image_path ? "/settings/documents/cor/{$v->id}?v={$v->updated_at->timestamp}" : null,
                 ]),
@@ -50,16 +59,20 @@ class VehicleController extends Controller
         // vehicles.driver_id points at driver_profiles, so the licence submission must exist first.
         abort_unless($request->user()->driverProfile, 403, 'Submit your driver licence before registering a vehicle.');
 
-        $data = $request->safe()->except(['photo_front', 'photo_back', 'photo_interior', 'cor_image']);
+        if ($wait = $this->nextVehicleAt($request->user()->id)) {
+            $secs = max(1, (int) now()->diffInSeconds($wait, false));
+            $this->toast(sprintf('Please wait %d:%02d before registering another vehicle. This limit keeps the system free of spam.', intdiv($secs, 60), $secs % 60), 'warning');
+            $request->user()->notify(new AppNotice('Vehicle registration limit', 'You can register another vehicle 2 minutes after your last one. Please try again shortly.', '/driver/vehicles'));
 
-        foreach (Vehicle::PHOTO_SLOTS as $slot => [$column]) {
-            $data[$column] = $this->storePhoto($request->file("photo_{$slot}"));
+            return back();
         }
 
-        $data['cor_image_path'] = $this->storeCor($request->file('cor_image'));
+        // Photos, COR and description are added later from the vehicle's card. An admin reviews it before it can be used.
+        $data = $this->withModel($request->validated());
 
-        Vehicle::create($data + ['driver_id' => $request->user()->id]);
-        $this->toast('Vehicle registered.');
+        $vehicle = Vehicle::create($data + ['driver_id' => $request->user()->id]);
+        $vehicle->forceFill(['review_status' => 'draft'])->save();
+        $this->toast('Vehicle saved. Add its photos and COR, then press Submit for review.');
 
         return back();
     }
@@ -68,7 +81,7 @@ class VehicleController extends Controller
     public function update(StoreVehicleRequest $request, Vehicle $vehicle): RedirectResponse
     {
         $this->owned($request, $vehicle);
-        $vehicle->update($request->validated());
+        $vehicle->update($this->withModel($request->validated()));
         $this->toast('Vehicle updated.');
 
         return back();
@@ -159,6 +172,56 @@ class VehicleController extends Controller
         $this->toast('Description saved.');
 
         return back();
+    }
+
+    /** "Other": find or create the typed make + model (case-insensitive) and swap in its id. */
+    private function withModel(array $data): array
+    {
+        if (($data['model_id'] ?? null) === 'other') {
+            $make = VehicleMake::whereRaw('lower(name) = ?', [mb_strtolower($data['custom_make'])])->first()
+                ?? VehicleMake::create(['name' => $data['custom_make']]);
+            $model = VehicleModel::where('make_id', $make->id)->whereRaw('lower(name) = ?', [mb_strtolower($data['custom_model'])])->first()
+                ?? VehicleModel::create(['make_id' => $make->id, 'name' => $data['custom_model']]);
+            $data['model_id'] = $model->id;
+        }
+
+        unset($data['custom_make'], $data['custom_model']);
+
+        return $data;
+    }
+
+    /** POST /driver/vehicles/{vehicle}/submit : the driver's final confirmation. Only now does the admin see it. */
+    public function submit(Request $request, Vehicle $vehicle): RedirectResponse
+    {
+        $this->owned($request, $vehicle);
+
+        if (! in_array($vehicle->review_status, ['draft', 'rejected'], true)) {
+            return back();
+        }
+
+        $missing = collect($vehicle->gallery())->filter(fn ($p) => ! $p['url'])->map(fn ($p) => strtolower($p['label']).' photo')
+            ->when(! $vehicle->cor_image_path, fn ($c) => $c->push('COR'))
+            ->when(! $vehicle->vin, fn ($c) => $c->push('VIN (use Edit)'));
+
+        if ($missing->isNotEmpty()) {
+            $this->toast('Still needed before you can submit: '.$missing->implode(', ').'.', 'error');
+
+            return back();
+        }
+
+        $vehicle->forceFill(['review_status' => 'pending', 'review_remarks' => null])->save();
+        $this->toast('Submitted. An admin will review your vehicle and you will be notified.');
+
+        return back();
+    }
+
+    /** The moment this driver may register another vehicle, or null if they can now (2-minute spacing). */
+    private function nextVehicleAt(int $driverId): ?CarbonInterface
+    {
+        $last = Vehicle::where('driver_id', $driverId)->latest('created_at')->value('created_at');
+        $next = $last ? Carbon::parse($last)->addMinutes(2) : null;
+
+        return $next && $next->isFuture() ? $next : null;
     }
 
     /** PRIVATE disk: no public URL exists; only the owner and admins can stream it. */

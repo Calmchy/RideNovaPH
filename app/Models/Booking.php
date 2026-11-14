@@ -28,6 +28,7 @@ class Booking extends Model
             'approved_at' => 'datetime',
             'confirmed_at' => 'datetime',
             'driver_arrived_at' => 'datetime',
+            'seated_at' => 'datetime',
             'completed_at' => 'datetime',
             'cancelled_at' => 'datetime',
             'pickup_at' => 'datetime',

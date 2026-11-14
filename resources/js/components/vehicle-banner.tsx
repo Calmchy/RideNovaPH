@@ -35,7 +35,11 @@ const MAX_BYTES = 5 * 1024 * 1024;
 const TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_DESCRIPTION = 500;
 
-export default function VehicleBanner({ photos, description, editable }: Props) {
+export default function VehicleBanner({
+    photos,
+    description,
+    editable,
+}: Props) {
     const [i, setI] = useState(0);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -121,6 +125,27 @@ export default function VehicleBanner({ photos, description, editable }: Props) 
                         alt={`${slide.label} of the vehicle`}
                         className="size-full object-cover"
                     />
+                ) : editable ? (
+                    // The blank card itself is the upload target: click it, or drop a photo on it.
+                    <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => fileRef.current?.click()}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={(e) => {
+                            e.preventDefault();
+                            upload(e.dataTransfer.files?.[0]);
+                        }}
+                        className="flex size-full cursor-pointer flex-col items-center justify-center gap-2 bg-gradient-to-br from-deep via-ocean/60 to-deep p-6 text-center text-foam/80 transition hover:brightness-125"
+                    >
+                        <Camera className="size-8" aria-hidden />
+                        <p className="text-sm">
+                            No {slide.label.toLowerCase()} photo yet
+                        </p>
+                        <p className="text-xs">
+                            Click or drop a photo here to upload
+                        </p>
+                    </button>
                 ) : (
                     <div className="flex size-full flex-col items-center justify-center gap-2 bg-gradient-to-br from-deep via-ocean/60 to-deep p-6 text-center text-foam/80">
                         <Camera className="size-8" aria-hidden />
@@ -274,8 +299,8 @@ export default function VehicleBanner({ photos, description, editable }: Props) 
 
                 {editable && missing > 0 && (
                     <p className="text-xs text-coral">
-                        {missing} of {photos.length} photos still needed
-                        (marked •). Passengers see all three views.
+                        {missing} of {photos.length} photos still needed (marked
+                        •). Passengers see all three views.
                     </p>
                 )}
                 {error && (

@@ -15,6 +15,7 @@ import { useRef, useState } from 'react';
 import DocReplaceDialog from '@/components/doc-replace-dialog';
 import DocTile from '@/components/doc-tile';
 import { Panel } from '@/components/kit';
+import PhotoPreview from '@/components/photo-preview';
 import { StatusBadge } from '@/components/lux';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -146,15 +147,18 @@ export function ProfilePhotoPanel({
     return (
         <Panel title="Profile picture">
             <div className="flex flex-wrap items-center gap-5 p-5">
-                <Avatar className="size-24 overflow-hidden rounded-full border">
-                    <AvatarImage
-                        src={auth.user.avatar ?? undefined}
-                        alt={auth.user.name}
-                    />
-                    <AvatarFallback className="bg-neutral-200 text-2xl text-black dark:bg-neutral-700 dark:text-white">
-                        {getInitials(auth.user.name)}
-                    </AvatarFallback>
-                </Avatar>
+                {/* Click the picture to see it full size. */}
+                <PhotoPreview src={auth.user.avatar} name={auth.user.name}>
+                    <Avatar className="size-24 overflow-hidden rounded-full border">
+                        <AvatarImage
+                            src={auth.user.avatar ?? undefined}
+                            alt={auth.user.name}
+                        />
+                        <AvatarFallback className="bg-neutral-200 text-2xl text-black dark:bg-neutral-700 dark:text-white">
+                            {getInitials(auth.user.name)}
+                        </AvatarFallback>
+                    </Avatar>
+                </PhotoPreview>
                 <div className="space-y-3">
                     <div>
                         <p className="text-lg font-semibold">

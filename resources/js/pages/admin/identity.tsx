@@ -1,6 +1,7 @@
-// Admin > ID verification: review the queue, open the private images, approve or reject WITH a reason.
+// Admin > ID verification: review the queue with the submitted photos shown right on the card (click one to
+// enlarge it in a popup, no new tab), then approve or reject WITH a reason the user is notified about.
 import { Head, router } from '@inertiajs/react';
-import { Check, ExternalLink, X } from 'lucide-react';
+import { Check, X } from 'lucide-react';
 import {
     EmptyState,
     FilterBar,
@@ -9,7 +10,8 @@ import {
     ReasonDialog,
 } from '@/components/kit';
 import type { Paginated } from '@/components/kit';
-import { fmtDateTime, StatusBadge } from '@/components/lux';
+import { fmtDate, fmtDateTime, StatusBadge } from '@/components/lux';
+import ReviewCard, { ReviewPhoto } from '@/components/review-card';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -17,6 +19,16 @@ type Doc = {
     id: number;
     name: string;
     email: string;
+    profile: {
+        user_id: number;
+        photo: string | null;
+        phone: string | null;
+        address: string | null;
+        emergency: string | null;
+        member_since: string;
+        account_status: string;
+        driver_status: string | null;
+    };
     role: string;
     id_type: string;
     has_back: boolean;
@@ -33,7 +45,7 @@ export default function AdminIdentity({
     filters,
 }: {
     documents: Paginated<Doc>;
-    filters: { status: string; q: string | null };
+    filters: { status: string; q: string | null; role: string | null };
 }) {
     const decide = (d: Doc, decision: 'approved' | 'rejected', remarks = '') =>
         router.patch(
@@ -41,8 +53,6 @@ export default function AdminIdentity({
             { decision, remarks },
             { preserveScroll: true },
         );
-    const img =
-        'inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs hover:bg-muted';
 
     return (
         <>
@@ -58,7 +68,11 @@ export default function AdminIdentity({
                         href={`/admin/identity?status=${s}`}
                         onClick={(e) => {
                             e.preventDefault();
-                            router.get('/admin/identity', { status: s });
+                            router.get('/admin/identity', {
+                                status: s,
+                                ...(filters.role ? { role: filters.role } : {}),
+                                ...(filters.q ? { q: filters.q } : {}),
+                            });
                         }}
                         className={cn(
                             '-mb-px border-b-2 px-4 py-2 text-sm font-medium capitalize',
@@ -74,58 +88,39 @@ export default function AdminIdentity({
             <FilterBar
                 url="/admin/identity"
                 extra={{ status: filters.status }}
-                values={{ q: filters.q }}
+                values={{ q: filters.q, role: filters.role }}
                 fields={[
                     { name: 'q', type: 'search', placeholder: 'Name or email' },
+                    {
+                        name: 'role',
+                        type: 'select',
+                        placeholder: 'All users',
+                        label: 'User type',
+                        options: [
+                            { value: 'passenger', label: 'Passenger' },
+                            { value: 'driver', label: 'Driver' },
+                            { value: 'admin', label: 'Admin' },
+                        ],
+                    },
                 ]}
             />
 
             {documents.data.length ? (
-                <ul className="space-y-3">
+                <ul className="space-y-5">
                     {documents.data.map((d) => (
-                        <li
+                        <ReviewCard
                             key={d.id}
-                            className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border bg-card p-4"
-                        >
-                            <div className="min-w-0">
-                                <p className="font-medium">
-                                    {d.name}{' '}
-                                    <span className="text-xs font-normal text-muted-foreground capitalize">
-                                        · {d.role}
+                            title={d.name}
+                            chips={
+                                <>
+                                    <span className="rounded-full border px-2.5 py-0.5 text-xs text-muted-foreground capitalize">
+                                        {d.role}
                                     </span>
-                                </p>
-                                <p className="text-sm text-muted-foreground">
-                                    {d.email} · {d.id_type} ·{' '}
-                                    {fmtDateTime(d.submitted_at)}
-                                </p>
-                                {d.status !== 'pending' && (
-                                    <p className="mt-1 text-xs text-muted-foreground">
-                                        <StatusBadge status={d.status} /> by{' '}
-                                        {d.reviewer ?? 'admin'}
-                                        {d.remarks && ` — ${d.remarks}`}
-                                    </p>
-                                )}
-                            </div>
-                            <div className="flex flex-wrap items-center gap-2">
-                                <a
-                                    className={img}
-                                    href={`/admin/identity-documents/${d.id}/front`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                >
-                                    <ExternalLink className="size-3" /> Front
-                                </a>
-                                {d.has_back && (
-                                    <a
-                                        className={img}
-                                        href={`/admin/identity-documents/${d.id}/back`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                    >
-                                        <ExternalLink className="size-3" /> Back
-                                    </a>
-                                )}
-                                {d.status === 'pending' && (
+                                    <StatusBadge status={d.status} />
+                                </>
+                            }
+                            actions={
+                                d.status === 'pending' && (
                                     <>
                                         <Button
                                             size="sm"
@@ -155,9 +150,68 @@ export default function AdminIdentity({
                                             }
                                         />
                                     </>
-                                )}
-                            </div>
-                        </li>
+                                )
+                            }
+                            facts={[
+                                { label: 'ID type', value: d.id_type },
+                                {
+                                    label: 'Submitted',
+                                    value: fmtDateTime(d.submitted_at),
+                                },
+                                { label: 'Email', value: d.email },
+                                {
+                                    label: 'Sides uploaded',
+                                    value: d.has_back
+                                        ? 'Front and back'
+                                        : 'Front only',
+                                },
+                            ]}
+                            person={{
+                                id: d.profile.user_id,
+                                name: d.name,
+                                photo: d.profile.photo,
+                                rows: [
+                                    ['Contact number', d.profile.phone],
+                                    ['Address', d.profile.address],
+                                    ['Emergency contact', d.profile.emergency],
+                                    [
+                                        'Member since',
+                                        fmtDate(d.profile.member_since),
+                                    ],
+                                    ['Account', d.profile.account_status],
+                                    [
+                                        'Driver application',
+                                        d.profile.driver_status,
+                                    ],
+                                ],
+                            }}
+                            note={
+                                d.status !== 'pending' && (
+                                    <p className="rounded-xl bg-muted/40 px-4 py-2 text-sm text-muted-foreground">
+                                        {d.status === 'approved'
+                                            ? 'Approved'
+                                            : 'Rejected'}{' '}
+                                        by {d.reviewer ?? 'admin'}
+                                        {d.remarks && ` — ${d.remarks}`}
+                                    </p>
+                                )
+                            }
+                        >
+                            <ReviewPhoto
+                                src={`/admin/identity-documents/${d.id}/front`}
+                                label="Front"
+                                name={d.name}
+                            />
+                            <ReviewPhoto
+                                src={
+                                    d.has_back
+                                        ? `/admin/identity-documents/${d.id}/back`
+                                        : null
+                                }
+                                label="Back"
+                                name={d.name}
+                            />
+                        </ReviewCard>
                     ))}
                 </ul>
             ) : (

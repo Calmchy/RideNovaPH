@@ -1,0 +1,279 @@
+<?php
+
+use App\Enums\RentalStatus;
+use App\Models\RentalRequest;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
+use Tests\Support\Scenario;
+
+// Self-drive rental: owner sets the daily rate, renter sends details + when/where, owner approves.
+
+beforeEach(function () {
+    Scenario::lookups();
+    Storage::fake('local');
+});
+
+function rentableCar(float $rate = 1500): array
+{
+    $owner = Scenario::driver();
+    $owner->forceFill(['phone_number' => '09175554444'])->save();
+    $vehicle = Scenario::vehicle($owner, 5);
+    $vehicle->forceFill(['available_for_rent' => true, 'daily_rate' => $rate])->save();
+
+    return [$owner, $vehicle];
+}
+
+function rentalForm($vehicle, array $over = []): array
+{
+    return $over + [
+        'vehicle_id' => $vehicle->id,
+        'renter_last_name' => 'Dela Cruz', 'renter_first_name' => 'Juan', 'renter_phone' => '09171234567', 'renter_address' => 'Abuyog, Leyte',
+        'license_id' => UploadedFile::fake()->image('licence.jpg'),
+        'birth_date' => '1995-05-05', 'license_type' => 'non_professional', 'driving_years' => 5, 'passenger_count' => 2,
+        'emergency_name' => 'Maria Dela Cruz', 'emergency_phone' => '09170001111',
+        'emergency_relationship' => 'Mother', 'emergency_address' => 'Abuyog, Leyte', 'destination' => 'Tacloban',
+        'signature_name' => 'Juan Dela Cruz', 'accept_terms' => true,
+        'start_at' => now()->addDays(3)->format('Y-m-d\TH:i'),
+        'end_at' => now()->addDays(5)->format('Y-m-d\TH:i'),
+        'pickup_location' => 'Abuyog plaza', 'return_location' => 'Abuyog plaza',
+        'purpose' => 'Family trip',
+    ];
+}
+
+function openRental(): array
+{
+    [$owner, $vehicle] = rentableCar();
+    $renter = Scenario::passenger();
+    test()->actingAs($renter)->post('/rentals', rentalForm($vehicle))->assertSessionHasNoErrors();
+
+    return [$owner, $renter, RentalRequest::firstOrFail()];
+}
+
+test('a verified renter can request a vehicle; price is rate x days and the owner is notified', function () {
+    [$owner, $renter, $rental] = openRental();
+
+    expect($rental->status)->toBe(RentalStatus::Pending)
+        ->and($rental->days)->toBe(2)
+        ->and((float) $rental->daily_rate)->toBe(1500.0)
+        ->and((float) $rental->total_price)->toBe(3000.0)
+        ->and(Storage::disk('local')->exists($rental->license_id_path))->toBeTrue()
+        ->and($rental->birth_date)->toBe('1995-05-05')
+        ->and($owner->notifications()->count())->toBe(1);
+
+    // The date of birth is encrypted at rest (the raw column is not the plain text).
+    expect(\Illuminate\Support\Facades\DB::table('rental_requests')->value('birth_date'))->not->toBe('1995-05-05');
+});
+
+test('the renter cannot choose the price, only the owner rate counts', function () {
+    [, $vehicle] = rentableCar(2000);
+
+    $this->actingAs(Scenario::passenger())->post('/rentals', rentalForm($vehicle, ['total_price' => 1, 'daily_rate' => 1]));
+
+    expect((float) RentalRequest::firstOrFail()->total_price)->toBe(4000.0);
+});
+
+test('only the owner can switch a vehicle on and set the daily rate', function () {
+    $owner = Scenario::driver();
+    $vehicle = Scenario::vehicle($owner, 4);
+    $other = Scenario::driver();
+
+    $this->actingAs($other)->patch("/rentals/vehicles/{$vehicle->id}", ['available_for_rent' => true, 'daily_rate' => 1])->assertForbidden();
+    $this->actingAs(Scenario::passenger())->patch("/rentals/vehicles/{$vehicle->id}", ['available_for_rent' => true, 'daily_rate' => 1])->assertForbidden();
+
+    $this->actingAs($owner)->patch("/rentals/vehicles/{$vehicle->id}", ['available_for_rent' => true, 'daily_rate' => 1800])->assertSessionHasNoErrors();
+    expect((float) $vehicle->fresh()->daily_rate)->toBe(1800.0)->and((bool) $vehicle->fresh()->available_for_rent)->toBeTrue();
+
+    // Rate is required when switching on, and must be sane.
+    $this->actingAs($owner)->patch("/rentals/vehicles/{$vehicle->id}", ['available_for_rent' => true, 'daily_rate' => null])->assertSessionHasErrors('daily_rate');
+    $this->actingAs($owner)->patch("/rentals/vehicles/{$vehicle->id}", ['available_for_rent' => true, 'daily_rate' => 99999999])->assertSessionHasErrors('daily_rate');
+});
+
+test('a vehicle that is not for rent, or my own, cannot be requested', function () {
+    $owner = Scenario::driver();
+    $off = Scenario::vehicle($owner, 4);
+    $renter = Scenario::passenger();
+
+    $this->actingAs($renter)->post('/rentals', rentalForm($off))->assertSessionHasErrors('vehicle_id');
+
+    [$owner2, $mine] = rentableCar();
+    $this->actingAs($owner2)->post('/rentals', rentalForm($mine))->assertSessionHasErrors('vehicle_id');
+
+    expect(RentalRequest::count())->toBe(0);
+});
+
+test('renter details and the licence ID photo are required', function () {
+    [, $vehicle] = rentableCar();
+    $renter = Scenario::passenger();
+
+    $this->actingAs($renter)->post('/rentals', rentalForm($vehicle, ['renter_first_name' => '', 'license_id' => null]))
+        ->assertSessionHasErrors(['renter_first_name', 'license_id']);
+});
+
+test('a renter without an approved ID cannot rent', function () {
+    [, $vehicle] = rentableCar();
+
+    $this->actingAs(Scenario::passenger(idApproved: false))->post('/rentals', rentalForm($vehicle))->assertSessionHasErrors('vehicle_id');
+});
+
+test('the owner approves, and two approved rentals can never overlap', function () {
+    [$owner, $renter, $rental] = openRental();
+    $second = Scenario::passenger();
+    $this->actingAs($second)->post('/rentals', rentalForm($rental->vehicle, ['start_at' => now()->addDays(4)->format('Y-m-d\TH:i'), 'end_at' => now()->addDays(6)->format('Y-m-d\TH:i')]))
+        ->assertSessionHasNoErrors();
+    $other = RentalRequest::where('renter_id', $second->id)->firstOrFail();
+
+    // The renter can't approve their own request.
+    $this->actingAs($renter)->patch("/rentals/{$rental->id}/approve")->assertForbidden();
+
+    $this->actingAs($owner)->patch("/rentals/{$rental->id}/approve")->assertSessionHasNoErrors();
+    expect($rental->fresh()->status)->toBe(RentalStatus::Approved)->and($renter->notifications()->count())->toBe(1);
+
+    // The overlapping second request can't be approved now.
+    $this->actingAs($owner)->patch("/rentals/{$other->id}/approve")->assertSessionHasErrors('status');
+    expect($other->fresh()->status)->toBe(RentalStatus::Pending);
+
+    // And nobody can newly request the reserved dates.
+    $this->actingAs(Scenario::passenger())->post('/rentals', rentalForm($rental->vehicle))->assertSessionHasErrors('start_at');
+});
+
+test('declining and cancelling need a reason; strangers cannot see or touch a rental', function () {
+    [$owner, $renter, $rental] = openRental();
+    $stranger = Scenario::passenger();
+
+    $this->actingAs($stranger)->get("/rentals/{$rental->id}")->assertForbidden();
+    $this->actingAs($stranger)->patch("/rentals/{$rental->id}/cancel", ['reason' => 'because I can'])->assertForbidden();
+
+    $this->actingAs($owner)->patch("/rentals/{$rental->id}/decline", ['reason' => 'no'])->assertSessionHasErrors('reason');
+    $this->actingAs($owner)->patch("/rentals/{$rental->id}/decline", ['reason' => 'Vehicle is in the shop'])->assertSessionHasNoErrors();
+
+    expect($rental->fresh()->status)->toBe(RentalStatus::Declined)->and($rental->fresh()->reason)->toBe('Vehicle is in the shop');
+
+    // A closed request can't be reopened.
+    $this->actingAs($renter)->patch("/rentals/{$rental->id}/cancel", ['reason' => 'changed my mind'])->assertSessionHasErrors('status');
+});
+
+test('the owner cannot mark a rental returned before it starts', function () {
+    [$owner, , $rental] = openRental();
+    $this->actingAs($owner)->patch("/rentals/{$rental->id}/approve");
+
+    $this->actingAs($owner)->patch("/rentals/{$rental->id}/complete")->assertSessionHasErrors('status');
+
+    $rental->forceFill(['start_at' => now()->subDay(), 'end_at' => now()->addDay()])->save();
+    $this->actingAs($owner)->patch("/rentals/{$rental->id}/complete")->assertSessionHasNoErrors();
+    expect($rental->fresh()->status)->toBe(RentalStatus::Completed);
+});
+
+test('the owner phone is hidden from the renter until approved; the pages render', function () {
+    $this->withoutVite();
+    [$owner, $renter, $rental] = openRental();
+
+    $before = $this->actingAs($renter)->get("/rentals/{$rental->id}")->assertOk()->viewData('page')['props'];
+    expect($before['partner']['phone'])->toBeNull();
+
+    $this->actingAs($owner)->patch("/rentals/{$rental->id}/approve");
+    $after = $this->actingAs($renter)->get("/rentals/{$rental->id}")->assertOk()->viewData('page')['props'];
+    expect($after['partner']['phone'])->toBe('09175554444');
+
+    // Rentals live on the "Hire a driver" page; the old /rentals URL just redirects there.
+    $this->actingAs($renter)->get('/rentals')->assertRedirect('/charters');
+    $this->actingAs($renter)->get('/charters')->assertOk();
+    $this->actingAs($owner)->get('/charters')->assertOk();
+    $this->actingAs($renter)->get('/rentals/new?vehicle='.$rental->vehicle_id)->assertOk();
+});
+
+test('guests are sent to log in', function () {
+    $this->get('/rentals')->assertRedirect('/login');
+});
+
+test('a driver who only rents out the vehicle still shows in the banner, with the rent option and rate', function () {
+    $this->withoutVite();
+    [$owner, $vehicle] = rentableCar(1700);
+    $owner->driverProfile->forceFill(['available_for_hire' => false])->save();
+
+    $drivers = collect($this->actingAs(Scenario::passenger())->get('/charters')->assertOk()->viewData('page')['props']['drivers']);
+    $entry = $drivers->firstWhere('id', $owner->id);
+
+    expect($entry)->not->toBeNull()
+        ->and($entry['can_hire'])->toBeFalse()
+        ->and($entry['rentals'][0]['id'])->toBe($vehicle->id)
+        ->and((float) $entry['rentals'][0]['daily_rate'])->toBe(1700.0);
+});
+
+test('a vehicle that is rented out cannot be used to publish a ride until it is returned', function () {
+    [$owner, , $rental] = openRental();
+    $this->actingAs($owner)->patch("/rentals/{$rental->id}/approve")->assertSessionHasNoErrors();
+
+    $form = fn () => [
+        'vehicle_id' => $rental->vehicle_id,
+        'origin_city_id' => App\Models\City::where('name', 'Abuyog')->first()->id,
+        'destination_city_id' => App\Models\City::where('name', 'Ormoc City')->first()->id,
+        'pickup_point' => 'Abuyog market', 'departure_at' => now()->addDays(10)->format('Y-m-d\TH:i'),
+        'seats_offered' => 2, 'price_per_seat' => 300,
+    ];
+
+    // Approved but not started yet: only the rental dates are blocked.
+    $this->actingAs($owner)->post('/driver/rides', $form())->assertSessionHasNoErrors();
+    $this->actingAs($owner)->post('/driver/rides', ['departure_at' => $rental->start_at->addHour()->format('Y-m-d\TH:i')] + $form())
+        ->assertSessionHasErrors('vehicle_id');
+
+    // The renter has the vehicle now: no ride at all, and the form is closed to the owner.
+    $rental->forceFill(['start_at' => now()->subHour(), 'end_at' => now()->addDays(2)])->save();
+    $this->actingAs($owner)->post('/driver/rides', $form())->assertSessionHasErrors('vehicle_id');
+    $this->actingAs($owner)->get('/driver/rides/create')->assertRedirect(route('driver.rentals'));
+
+    // Returned: the vehicle is the owner's again.
+    $rental->forceFill(['status' => RentalStatus::Completed])->save();
+    $this->actingAs($owner)->post('/driver/rides', $form())->assertSessionHasNoErrors();
+});
+
+test('a rental can run longer than a month; the owner decides', function () {
+    [$owner, $vehicle] = rentableCar(1000);
+    $renter = Scenario::passenger();
+
+    $this->actingAs($renter)->post('/rentals', rentalForm($vehicle, [
+        'start_at' => now()->addDays(2)->format('Y-m-d\TH:i'),
+        'end_at' => now()->addDays(61)->format('Y-m-d\TH:i'), // 59 days
+    ]))->assertSessionHasNoErrors();
+
+    expect(RentalRequest::latest('id')->first()->days)->toBe(59);
+});
+
+test('an owner publishes a unit for rent with plate, VIN and front/back photos', function () {
+    Storage::fake('public');
+    $owner = Scenario::driver();
+    $vehicle = Scenario::vehicle($owner, 5);
+
+    $form = fn (array $over = []) => $over + [
+        'plate_number' => 'abc 1234', 'vin' => '1hgcm82633a004352', 'daily_rate' => 1800,
+        'photo_front' => UploadedFile::fake()->image('front.jpg'), 'photo_back' => UploadedFile::fake()->image('back.jpg'),
+    ];
+
+    $this->actingAs($owner)->post("/rentals/vehicles/{$vehicle->id}/publish", $form(['vin' => 'SHORT']))->assertSessionHasErrors('vin');
+    $this->actingAs($owner)->post("/rentals/vehicles/{$vehicle->id}/publish", $form(['photo_back' => null]))->assertSessionHasErrors('photo_back');
+
+    $this->actingAs($owner)->post("/rentals/vehicles/{$vehicle->id}/publish", $form())->assertSessionHasNoErrors();
+
+    $vehicle->refresh();
+    expect($vehicle->available_for_rent)->toBeTrue()
+        ->and($vehicle->vin)->toBe('1HGCM82633A004352')
+        ->and($vehicle->plate_number)->toBe('ABC 1234')
+        ->and($vehicle->photo_front_path)->not->toBeNull()
+        ->and($vehicle->photo_back_path)->not->toBeNull();
+
+    $other = Scenario::driver();
+    $this->actingAs($other)->post("/rentals/vehicles/{$vehicle->id}/publish", $form())->assertForbidden();
+});
+
+test('renters can browse listed vehicles on their own page, but not unlisted or their own', function () {
+    [$owner, $listed] = rentableCar(1200);
+    $hidden = Scenario::vehicle($owner, 5);
+    $renter = Scenario::passenger();
+
+    $this->actingAs($renter)->get('/rent')->assertInertia(fn ($page) => $page
+        ->component('rentals/browse')
+        ->has('vehicles.data', 1)
+        ->where('vehicles.data.0.id', $listed->id));
+
+    // The owner never sees their own unit as something to rent.
+    $this->actingAs($owner)->get('/rent')->assertInertia(fn ($page) => $page->has('vehicles.data', 0));
+});

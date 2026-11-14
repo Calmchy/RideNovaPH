@@ -3,6 +3,7 @@
 import { Head, Link, useForm } from '@inertiajs/react';
 import { Crosshair, MapPin, Search } from 'lucide-react';
 import { useState } from 'react';
+import { DatePicker } from '@/components/date-picker';
 import { Field, inputCls, Panel } from '@/components/kit';
 import { fmtDateTime, peso, toLocalInput } from '@/components/lux';
 import TripMap from '@/components/trip-map';
@@ -350,18 +351,13 @@ export default function BookingCreate({
                                     label="Pick-up date & time"
                                     error={form.errors.pickup_at}
                                 >
-                                    <input
-                                        required
-                                        type="datetime-local"
+                                    <DatePicker
+                                        withTime
                                         value={d.pickup_at}
                                         min={toLocalInput(new Date())}
-                                        onChange={(e) =>
-                                            form.setData(
-                                                'pickup_at',
-                                                e.target.value,
-                                            )
+                                        onChange={(v) =>
+                                            form.setData('pickup_at', v)
                                         }
-                                        className={inputCls}
                                     />
                                 </Field>
                             </div>
@@ -393,17 +389,16 @@ export default function BookingCreate({
                                         label="Return date & time"
                                         error={form.errors.return_at}
                                     >
-                                        <input
-                                            type="datetime-local"
+                                        <DatePicker
+                                            withTime
                                             value={d.return_at}
-                                            min={d.pickup_at}
-                                            onChange={(e) =>
-                                                form.setData(
-                                                    'return_at',
-                                                    e.target.value,
-                                                )
+                                            min={
+                                                d.pickup_at ||
+                                                toLocalInput(new Date())
                                             }
-                                            className={inputCls}
+                                            onChange={(v) =>
+                                                form.setData('return_at', v)
+                                            }
                                         />
                                     </Field>
                                 </div>

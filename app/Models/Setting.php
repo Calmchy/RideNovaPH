@@ -24,7 +24,7 @@ class Setting extends Model
 
     /** @var array<string, string> */
     public const DEFAULTS = [
-        'platform_fee_percent' => '10',        // % of each fare kept by the platform
+        'platform_fee_percent' => '0',         // % of each fare kept by the platform (0 = drivers keep the full fare)
         'cancellation_cutoff_hours' => '2',    // passengers can't cancel closer to departure than this
         'max_seats_per_booking' => '6',
         // --- anti-abuse rules ---

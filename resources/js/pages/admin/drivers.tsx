@@ -1,6 +1,6 @@
 // Admin > Drivers: licence review (approve / reject with reason) and a quick look at each driver's vehicles.
 import { Head, router } from '@inertiajs/react';
-import { Check, ExternalLink, X } from 'lucide-react';
+import { Check, X } from 'lucide-react';
 import {
     EmptyState,
     FilterBar,
@@ -10,6 +10,7 @@ import {
 } from '@/components/kit';
 import type { Paginated } from '@/components/kit';
 import { fmtDate, StatusBadge } from '@/components/lux';
+import ReviewCard, { ReviewPhoto } from '@/components/review-card';
 import { Button } from '@/components/ui/button';
 
 type D = {
@@ -17,6 +18,13 @@ type D = {
     name: string;
     email: string;
     phone: string | null;
+    profile: {
+        photo: string | null;
+        address: string | null;
+        emergency: string | null;
+        member_since: string;
+        account_status: string;
+    };
     license_number: string;
     license_expiry: string;
     expired: boolean;
@@ -73,82 +81,14 @@ export default function AdminDrivers({
                 ]}
             />
             {drivers.data.length ? (
-                <ul className="space-y-3">
+                <ul className="space-y-5">
                     {drivers.data.map((d) => (
-                        <li
+                        <ReviewCard
                             key={d.id}
-                            className="grid gap-3 rounded-2xl border bg-card p-4 md:grid-cols-[minmax(0,1fr)_auto]"
-                        >
-                            <div>
-                                <p className="font-medium">
-                                    {d.name} <StatusBadge status={d.status} />
-                                </p>
-                                <p className="text-sm text-muted-foreground">
-                                    {d.email}
-                                    {d.phone && ` · ${d.phone}`}
-                                </p>
-                                <p className="mt-1 text-sm">
-                                    Licence{' '}
-                                    <span className="font-mono">
-                                        {d.license_number}
-                                    </span>{' '}
-                                    · expires {fmtDate(d.license_expiry)}{' '}
-                                    {d.expired && (
-                                        <span className="font-semibold text-destructive">
-                                            (expired)
-                                        </span>
-                                    )}
-                                </p>
-                                <p className="mt-1 text-xs text-muted-foreground">
-                                    Vehicles:{' '}
-                                    {d.vehicles.length
-                                        ? d.vehicles.join(', ')
-                                        : 'none registered'}
-                                </p>
-                                {d.remarks && (
-                                    <p className="mt-1 text-xs text-destructive">
-                                        Rejection reason: {d.remarks}
-                                    </p>
-                                )}
-                            </div>
-                            <div className="flex flex-wrap items-center gap-2 md:justify-end">
-                                <a
-                                    className="inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs hover:bg-muted"
-                                    href={`/admin/drivers/${d.id}/license`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                >
-                                    <ExternalLink className="size-3" /> Licence
-                                    front
-                                </a>
-                                {d.has_license_back ? (
-                                    <a
-                                        className="inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs hover:bg-muted"
-                                        href={`/admin/drivers/${d.id}/license/back`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                    >
-                                        <ExternalLink className="size-3" />{' '}
-                                        Licence back
-                                    </a>
-                                ) : (
-                                    <span className="text-xs text-muted-foreground">
-                                        Licence back: not uploaded
-                                    </span>
-                                )}
-                                {d.cors.map((c) => (
-                                    <a
-                                        key={c.id}
-                                        className="inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs hover:bg-muted"
-                                        href={`/admin/vehicles/${c.id}/cor`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                    >
-                                        <ExternalLink className="size-3" /> COR{' '}
-                                        {c.plate}
-                                    </a>
-                                ))}
-                                {d.status === 'pending' && (
+                            title={d.name}
+                            chips={<StatusBadge status={d.status} />}
+                            actions={
+                                d.status === 'pending' && (
                                     <>
                                         <Button
                                             size="sm"
@@ -179,9 +119,84 @@ export default function AdminDrivers({
                                             }
                                         />
                                     </>
-                                )}
-                            </div>
-                        </li>
+                                )
+                            }
+                            facts={[
+                                {
+                                    label: 'Licence number',
+                                    value: d.license_number,
+                                    mono: true,
+                                },
+                                {
+                                    label: 'Licence expires',
+                                    value: (
+                                        <>
+                                            {fmtDate(d.license_expiry)}
+                                            {d.expired && (
+                                                <span className="ml-1 font-semibold text-destructive">
+                                                    (expired)
+                                                </span>
+                                            )}
+                                        </>
+                                    ),
+                                },
+                                { label: 'Email', value: d.email },
+                                {
+                                    label: 'Vehicles',
+                                    value: d.vehicles.length
+                                        ? d.vehicles.join(', ')
+                                        : 'None registered',
+                                },
+                            ]}
+                            person={{
+                                id: d.id,
+                                name: d.name,
+                                photo: d.profile.photo,
+                                rows: [
+                                    ['Contact number', d.phone],
+                                    ['Address', d.profile.address],
+                                    ['Emergency contact', d.profile.emergency],
+                                    [
+                                        'Member since',
+                                        fmtDate(d.profile.member_since),
+                                    ],
+                                    ['Account', d.profile.account_status],
+                                ],
+                            }}
+                            note={
+                                d.remarks && (
+                                    <p className="rounded-xl bg-red-500/10 px-4 py-2 text-sm text-red-700 dark:text-red-300">
+                                        <span className="font-semibold">
+                                            Rejection reason:
+                                        </span>{' '}
+                                        {d.remarks}
+                                    </p>
+                                )
+                            }
+                        >
+                            <ReviewPhoto
+                                src={`/admin/drivers/${d.id}/license`}
+                                label="Licence front"
+                                name={d.name}
+                            />
+                            <ReviewPhoto
+                                src={
+                                    d.has_license_back
+                                        ? `/admin/drivers/${d.id}/license/back`
+                                        : null
+                                }
+                                label="Licence back"
+                                name={d.name}
+                            />
+                            {d.cors.map((c) => (
+                                <ReviewPhoto
+                                    key={c.id}
+                                    src={`/admin/vehicles/${c.id}/cor`}
+                                    label={`COR · ${c.plate}`}
+                                    name={d.name}
+                                />
+                            ))}
+                        </ReviewCard>
                     ))}
                 </ul>
             ) : (

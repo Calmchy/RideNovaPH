@@ -2,28 +2,28 @@ import { Link } from '@inertiajs/react';
 import type { AuthLayoutProps } from '@/types';
 
 /**
- * Login / register / reset layout. No photo: a deep navy gradient with a soft gold glow.
- * The wrapper carries the `dark` class so every shadcn input and button inside renders
- * with its dark-theme colours regardless of the user's appearance setting.
+ * Login / register / reset layout. No photo: a soft gradient with a gold glow.
+ * It follows the user's appearance setting (light / dark / system): every colour below is a
+ * theme token or has an explicit `dark:` variant, so inputs, labels and links adapt too.
  */
 export default function AuthSimpleLayout({ children, title, description }: AuthLayoutProps) {
     return (
-        <div className="dark relative isolate flex min-h-svh flex-col items-center justify-center overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 p-6 text-white md:p-10">
-            <div aria-hidden className="pointer-events-none absolute -top-40 left-1/2 -z-10 size-[640px] -translate-x-1/2 rounded-full bg-amber-300/10 blur-3xl" />
+        <div className="relative isolate flex min-h-svh flex-col items-center justify-center overflow-hidden bg-gradient-to-br from-sky-50 via-white to-amber-50 p-6 text-foreground md:p-10 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950">
+            <div aria-hidden className="pointer-events-none absolute -top-40 left-1/2 -z-10 size-[640px] -translate-x-1/2 rounded-full bg-amber-300/30 blur-3xl dark:bg-amber-300/10" />
 
             <Link href="/" className="mb-8 font-serif text-3xl tracking-wide">
-                RideNova<span className="text-amber-300">PH</span>
+                RideNova<span className="text-amber-600 dark:text-amber-300">PH</span>
             </Link>
 
-            <div className="w-full max-w-md rounded-3xl border border-amber-300/20 bg-white/5 p-8 shadow-2xl backdrop-blur-md md:p-10">
+            <div className="w-full max-w-md rounded-3xl border border-amber-500/30 bg-white/80 p-8 shadow-xl backdrop-blur-md md:p-10 dark:border-amber-300/20 dark:bg-white/5 dark:shadow-2xl">
                 <div className="mb-8 space-y-2 text-center">
                     <h1 className="font-serif text-3xl">{title}</h1>
-                    <p className="text-sm text-white/60">{description}</p>
+                    <p className="text-sm text-muted-foreground">{description}</p>
                 </div>
                 {children}
             </div>
 
-            <Link href="/rides" className="mt-8 text-sm text-white/50 transition hover:text-amber-300">
+            <Link href="/rides" className="mt-8 text-sm text-muted-foreground transition hover:text-amber-600 dark:hover:text-amber-300">
                 Just browsing? See available rides →
             </Link>
         </div>

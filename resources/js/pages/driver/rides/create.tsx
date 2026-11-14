@@ -3,13 +3,21 @@
 import { Head, Link, useForm } from '@inertiajs/react';
 import { Pencil } from 'lucide-react';
 import { useState } from 'react';
+import { DatePicker } from '@/components/date-picker';
+import { DefaultPlace } from '@/components/default-place';
 import { Field, inputCls, PageHeader, Panel } from '@/components/kit';
 import { peso, toLocalInput } from '@/components/lux';
+import { PlacePicker } from '@/components/place-picker';
+import type { KnownCity, Province } from '@/components/place-picker';
 import { Button } from '@/components/ui/button';
 
 type Props = {
     vehicles: { id: number; label: string; seat_capacity: number }[];
-    cities: { id: number; name: string }[];
+    cities: KnownCity[];
+    /** Philippine provinces with their towns, for the From / To picker. */
+    places: Province[];
+    /** The driver's saved default place: starts the From field. */
+    default_place?: { province: string; place: string } | null;
     announcements: { id: number; title: string }[];
     /** Present when EDITING an existing ride. */
     ride: {
@@ -27,6 +35,15 @@ type Props = {
         event_name: string;
         seats_booked: number;
     } | null;
+    /** Present when the driver came from a dashboard banner / announcement: starting values for the form. */
+    prefill?: {
+        source: string;
+        announcement_id: string;
+        event_name: string;
+        destination_city_id: string;
+        departure_at: string;
+        notes: string;
+    } | null;
     /** True once passengers have booked: route, pick-up, time, price and vehicle are frozen. */
     locked: boolean;
 };
@@ -34,28 +51,43 @@ type Props = {
 export default function CreateRide({
     vehicles,
     cities,
+    places,
+    default_place,
     announcements,
     ride,
+    prefill,
     locked,
 }: Props) {
     const editing = ride !== null;
     const form = useForm({
         vehicle_id: ride?.vehicle_id ?? String(vehicles[0]?.id ?? ''),
         origin_city_id: ride?.origin_city_id ?? '',
-        destination_city_id: ride?.destination_city_id ?? '',
+        origin_province:
+            !ride?.origin_city_id && default_place
+                ? default_place.province
+                : '',
+        origin_place:
+            !ride?.origin_city_id && default_place ? default_place.place : '',
+        destination_city_id:
+            ride?.destination_city_id ?? prefill?.destination_city_id ?? '',
+        destination_province: '',
+        destination_place: '',
         pickup_point: ride?.pickup_point ?? '',
         dropoff_point: ride?.dropoff_point ?? '',
-        departure_at: ride?.departure_at ?? '',
+        departure_at: ride?.departure_at ?? prefill?.departure_at ?? '',
         seats_offered:
             ride?.seats_offered ??
             String(Math.min(vehicles[0]?.seat_capacity ?? 4, 4)),
         price_per_seat: ride?.price_per_seat ?? '',
-        notes: ride?.notes ?? '',
-        announcement_id: ride?.announcement_id ?? '',
-        event_name: ride?.event_name ?? '',
+        notes: ride?.notes ?? prefill?.notes ?? '',
+        announcement_id:
+            ride?.announcement_id ?? prefill?.announcement_id ?? '',
+        event_name: ride?.event_name ?? prefill?.event_name ?? '',
     });
     // "Edit" lets the driver type their own event instead of picking one from the list.
-    const [ownEvent, setOwnEvent] = useState(Boolean(ride?.event_name));
+    const [ownEvent, setOwnEvent] = useState(
+        Boolean(ride?.event_name ?? prefill?.event_name),
+    );
     const vehicle = vehicles.find((v) => String(v.id) === form.data.vehicle_id);
     const f = (k: keyof typeof form.data) => ({
         value: form.data[k],
@@ -78,6 +110,14 @@ export default function CreateRide({
                     title={editing ? 'Edit ride' : 'Publish a ride'}
                     description="Passengers will see this in Bookings → Find a ride."
                 />
+                {prefill && !editing && (
+                    <p className="rounded-xl border border-ocean/40 bg-ocean/10 p-4 text-sm">
+                        Started from “{prefill.source}”. The event, destination,
+                        date and notes are filled in from it. Choose your
+                        vehicle, starting town, time, seats and price, then
+                        publish.
+                    </p>
+                )}
                 {locked && (
                     <p className="rounded-xl border border-sand/60 bg-sand/20 p-4 text-sm">
                         Passengers have already booked this ride, so the route,
@@ -104,37 +144,69 @@ export default function CreateRide({
                         <div className="grid gap-4 p-5 sm:grid-cols-2">
                             <Field
                                 label="From"
-                                error={form.errors.origin_city_id}
+                                error={
+                                    form.errors.origin_city_id ??
+                                    form.errors.origin_place ??
+                                    form.errors.origin_province
+                                }
                             >
-                                <select
-                                    required
+                                <PlacePicker
                                     disabled={locked}
-                                    {...f('origin_city_id')}
-                                >
-                                    <option value="">Choose…</option>
-                                    {cities.map((c) => (
-                                        <option key={c.id} value={c.id}>
-                                            {c.name}
-                                        </option>
-                                    ))}
-                                </select>
+                                    places={places}
+                                    cities={cities}
+                                    value={{
+                                        id: form.data.origin_city_id,
+                                        province: form.data.origin_province,
+                                        place: form.data.origin_place,
+                                    }}
+                                    onChange={(v) =>
+                                        form.setData((d) => ({
+                                            ...d,
+                                            origin_city_id: v.id,
+                                            origin_province: v.province,
+                                            origin_place: v.place,
+                                        }))
+                                    }
+                                />
+                                {!locked && (
+                                    <DefaultPlace
+                                        current={default_place ?? null}
+                                        cities={cities}
+                                        value={{
+                                            id: form.data.origin_city_id,
+                                            province: form.data.origin_province,
+                                            place: form.data.origin_place,
+                                        }}
+                                    />
+                                )}
                             </Field>
                             <Field
                                 label="To"
-                                error={form.errors.destination_city_id}
+                                error={
+                                    form.errors.destination_city_id ??
+                                    form.errors.destination_place ??
+                                    form.errors.destination_province
+                                }
                             >
-                                <select
-                                    required
+                                <PlacePicker
                                     disabled={locked}
-                                    {...f('destination_city_id')}
-                                >
-                                    <option value="">Choose…</option>
-                                    {cities.map((c) => (
-                                        <option key={c.id} value={c.id}>
-                                            {c.name}
-                                        </option>
-                                    ))}
-                                </select>
+                                    places={places}
+                                    cities={cities}
+                                    value={{
+                                        id: form.data.destination_city_id,
+                                        province:
+                                            form.data.destination_province,
+                                        place: form.data.destination_place,
+                                    }}
+                                    onChange={(v) =>
+                                        form.setData((d) => ({
+                                            ...d,
+                                            destination_city_id: v.id,
+                                            destination_province: v.province,
+                                            destination_place: v.place,
+                                        }))
+                                    }
+                                />
                             </Field>
                             <Field
                                 label="Pick-up point"
@@ -161,16 +233,19 @@ export default function CreateRide({
                                 label="Departure"
                                 error={form.errors.departure_at}
                             >
-                                <input
-                                    required
-                                    type="datetime-local"
+                                <DatePicker
+                                    withTime
                                     disabled={locked}
+                                    allowPast={editing}
                                     min={
                                         editing
                                             ? undefined
                                             : toLocalInput(new Date())
                                     }
-                                    {...f('departure_at')}
+                                    value={form.data.departure_at}
+                                    onChange={(v) =>
+                                        form.setData('departure_at', v)
+                                    }
                                 />
                             </Field>
                             <Field

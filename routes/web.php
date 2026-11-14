@@ -28,6 +28,7 @@ use App\Http\Controllers\TrackingController;
 use App\Http\Controllers\TransactionController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\DriverDirectoryController;
+use App\Http\Controllers\RentalController;
 
 /*
 |--------------------------------------------------------------------------
@@ -51,12 +52,36 @@ Route::get('/drivers/{user}/reviews', [DriverDirectoryController::class, 'review
 Route::post('/chatbot', ChatbotController::class)->middleware('throttle:20,1')->name('chatbot');
 
 // ---- Signed-in users ----
-Route::middleware(['auth', 'verified'])->group(function () {
+Route::middleware(['auth', 'verified', \App\Http\Middleware\TouchLastSeen::class])->group(function () {
+    // Heartbeat: the page pings this while open, so the person shows as online (TouchLastSeen does the work).
+    Route::post('/presence', fn () => response()->noContent())->middleware('throttle:30,1')->name('presence');
     Route::get('/reviews', [ReviewController::class, 'history'])->name('reviews.history');
     Route::get('/drivers', [DriverDirectoryController::class, 'index'])->name('drivers.index');
-    Route::get('/drivers/{user}', [DriverDirectoryController::class, 'show'])->name('drivers.show');        
+    Route::get('/drivers/{user}', [DriverDirectoryController::class, 'show'])->name('drivers.show');
+
+    // Direct messages (passenger <-> driver). Literal paths first.
+    Route::get('/messages', [\App\Http\Controllers\MessageController::class, 'index'])->name('messages.index');
+    Route::get('/messages/{user}', [\App\Http\Controllers\MessageController::class, 'show'])->name('messages.show');
+    Route::get('/messages/{user}/chat', [\App\Http\Controllers\MessageController::class, 'poll'])->middleware('throttle:60,1')->name('messages.poll');
+    Route::post('/messages/{user}/chat', [\App\Http\Controllers\MessageController::class, 'send'])->middleware('throttle:30,1')->name('messages.send');
     Route::get('dashboard', DashboardController::class)->name('dashboard');
-    Route::inertia('/about', 'about')->name('about');
+    Route::get('/about', \App\Http\Controllers\AboutController::class)->name('about');
+
+        // Self-drive vehicle rental. Literal paths come before {rental}.
+    // "Rent a vehicle": everything the drivers have published for rent (renters drive it themselves).
+    Route::get('/rent', [RentalController::class, 'browse'])->name('rentals.browse');
+    Route::get('/rentals', [RentalController::class, 'index'])->name('rentals.index');
+    Route::get('/rentals/new', [RentalController::class, 'create'])->name('rentals.create');
+    Route::post('/rentals', [RentalController::class, 'store'])->middleware('throttle:10,1')->name('rentals.store');
+    Route::patch('/rentals/vehicles/{vehicle}', [RentalController::class, 'vehicle'])->middleware('throttle:30,1')->name('rentals.vehicle');
+    Route::post('/rentals/vehicles/{vehicle}/publish', [RentalController::class, 'publish'])->middleware('throttle:20,1')->name('rentals.publish');
+    Route::get('/rentals/{rental}', [RentalController::class, 'show'])->name('rentals.show');
+    Route::get('/rentals/{rental}/license-id', [RentalController::class, 'licenseId'])->name('rentals.license-id');
+    Route::post('/rentals/{rental}/extensions', [RentalController::class, 'extend'])->middleware('throttle:10,1')->name('rentals.extend');
+    Route::patch('/rentals/{rental}/extensions/{extension}/{action}', [RentalController::class, 'extension'])
+        ->where('action', 'approve|decline')->middleware('throttle:30,1')->name('rentals.extension');
+    Route::patch('/rentals/{rental}/{action}', [RentalController::class, 'transition'])
+        ->where('action', 'approve|decline|cancel|complete')->middleware('throttle:30,1')->name('rentals.transition');
 
     // Valid-ID upload (rate limited: uploads are expensive and a brute-force target).
     Route::get('/identity', [IdentityDocumentController::class, 'create'])->name('identity.create');
@@ -91,6 +116,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/tracking/rides/{ride}/ping', [TrackingController::class, 'ping'])->middleware('throttle:90,1')->name('tracking.ping');
     Route::delete('/tracking/rides/{ride}/ping', [TrackingController::class, 'stop'])->name('tracking.stop');
     Route::post('/bookings/{booking}/arrived', [TrackingController::class, 'arrived'])->middleware('throttle:30,1')->name('tracking.arrived');
+    Route::post('/bookings/{booking}/seated', [TrackingController::class, 'seated'])->middleware('throttle:30,1')->name('tracking.seated');
 
     // Payments / receipts
     Route::get('/transactions', [TransactionController::class, 'index'])->name('transactions.index');
@@ -105,7 +131,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 });
 
 // ---- Drivers (role checked server-side by the 'driver' middleware) ----
-Route::middleware(['auth', 'verified', 'driver'])->prefix('driver')->name('driver.')->group(function () {
+    Route::middleware(['auth', 'verified', 'driver'])->prefix('driver')->name('driver.')->group(function () {
     Route::get('/', DriverDashboardController::class)->name('index');
 
     Route::get('/apply', [DriverApplicationController::class, 'create'])->name('apply');
@@ -116,7 +142,14 @@ Route::middleware(['auth', 'verified', 'driver'])->prefix('driver')->name('drive
     // Driver's on/off switch for the "Hire a driver" banner.
     Route::patch('/availability', [CharterController::class, 'availability'])->name('availability');
 
+    // The driver's own inbox: passenger seat requests and group "hire a driver" requests.
+    Route::get('/hire', [\App\Http\Controllers\Driver\RequestController::class, 'hire'])->name('hire');
+
+    // "Rent my unit": the owner's own rental page (separate from Hire a driver).
+    Route::get('/rentals', [RentalController::class, 'manage'])->name('rentals');
+
     Route::get('/vehicles', [VehicleController::class, 'index'])->name('vehicles.index');
+    Route::post('/vehicles/{vehicle}/submit', [VehicleController::class, 'submit'])->middleware('throttle:20,1')->name('vehicles.submit');
     Route::post('/vehicles', [VehicleController::class, 'store'])->middleware('throttle:20,1')->name('vehicles.store');
     Route::patch('/vehicles/{vehicle}', [VehicleController::class, 'update'])->name('vehicles.update');
     Route::delete('/vehicles/{vehicle}', [VehicleController::class, 'destroy'])->name('vehicles.destroy');
@@ -133,17 +166,23 @@ Route::middleware(['auth', 'verified', 'driver'])->prefix('driver')->name('drive
     Route::patch('/rides/{ride}/start', [DriverRideController::class, 'start'])->name('rides.start');
     Route::patch('/rides/{ride}/complete', [DriverRideController::class, 'complete'])->name('rides.complete');
     Route::patch('/rides/{ride}/cancel', [DriverRideController::class, 'cancel'])->name('rides.cancel');
+    Route::delete('/rides/{ride}', [DriverRideController::class, 'destroy'])->name('rides.destroy');
 });
 
 // ---- Admin only (role checked server-side by the 'admin' middleware) ----
 Route::middleware(['auth', 'verified', 'admin'])->prefix('admin')->group(function () {
     Route::get('/', [AdminController::class, 'index'])->name('admin');
+    Route::delete('/users/{user}', [AdminUserController::class, 'destroy'])->name('admin.users.destroy');
 
     Route::get('/users', [AdminUserController::class, 'index'])->name('admin.users');
     Route::get('/users/{user}', [AdminUserController::class, 'show'])->name('admin.users.show');
     Route::patch('/users/{user}', [AdminUserController::class, 'update'])->name('admin.users.update');
+    Route::post('/team/{member}', [\App\Http\Controllers\Admin\TeamController::class, 'update'])->middleware('throttle:30,1')->name('admin.team.update');
 
     Route::get('/drivers', [AdminDriverController::class, 'index'])->name('admin.drivers');
+    Route::get('/vehicles/{vehicle}/cor', [AdminDriverController::class, 'cor'])->name('admin.vehicles.cor');
+    Route::get('/vehicles', [\App\Http\Controllers\Admin\VehicleController::class, 'index'])->name('admin.vehicles');
+    Route::patch('/vehicles/{vehicle}', [\App\Http\Controllers\Admin\VehicleController::class, 'decide'])->name('admin.vehicles.decide');
     Route::get('/drivers/{driver}/license/{side?}', [AdminDriverController::class, 'license'])
         ->where('side', 'front|back')->name('admin.drivers.license');
     Route::get('/vehicles/{vehicle}/cor', [AdminDriverController::class, 'cor'])->name('admin.vehicles.cor');

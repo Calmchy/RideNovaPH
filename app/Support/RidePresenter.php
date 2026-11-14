@@ -15,8 +15,14 @@ class RidePresenter
     /** Relations every card needs; use with Ride::with(RidePresenter::WITH). */
     public const WITH = ['origin', 'destination', 'vehicle.model.make', 'vehicle.driver.user', 'announcement'];
 
-    public static function card(Ride $ride): array
+    /**
+     * @param bool $withDriverContact Add the driver's photo, profile link and phone number.
+     *        Only pass true on pages that need a signed-in user (never on the public home page).
+     */
+    public static function card(Ride $ride, bool $withDriverContact = false): array
     {
+        $driver = $ride->vehicle->driver->user;
+
         return [
             'id' => $ride->id,
             'origin' => $ride->origin->name,
@@ -31,7 +37,22 @@ class RidePresenter
             ),
             'driver_name' => $ride->vehicle->driver->user->name,
             'event' => $ride->eventLabel(),
-        ];
+            'trip_status' => $ride->tripStatus(),
+            // No longer bookable: started, arrived, cancelled, or the departure time has passed.
+            'unavailable' => $ride->tripStatus() !== 'scheduled' || $ride->departure_at->isPast(),
+            // When it actually left (the driver's Start, else the scheduled time): the card shows "Departed 25 mins ago".
+            'departed_at' => ($ride->started_at ?? $ride->departure_at)->toIso8601String(),
+            // When the ride stopped being bookable (null while open or still on the road). The Find a ride list drops it 10 minutes later.
+            'closed_at' => match ($ride->tripStatus()) {
+                'completed' => $ride->completed_at?->toIso8601String(),
+                'cancelled' => $ride->cancelled_at?->toIso8601String(),
+                default => null,
+            },
+        ] + ($withDriverContact ? [
+            'driver_id' => $driver->id,
+            'driver_photo' => $driver->avatar,
+            'driver_phone' => $driver->phone_number,
+        ] : []);
     }
 
     /** City centre as [lat, lng] for map centring, or null when not seeded. */

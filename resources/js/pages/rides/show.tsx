@@ -51,6 +51,15 @@ export default function RideShow({
         ride.trip_status === 'scheduled' &&
         ride.seats_left > 0;
 
+    // Why the ride is closed, shown when the passenger hovers the red button.
+    const closedHover =
+        ({
+            on_the_road: 'On The Road',
+            completed: 'Trip completed',
+            cancelled: 'Ride cancelled',
+        } as Record<string, string>)[ride.trip_status] ??
+        (ride.status !== 'open' ? 'Ride closed' : null);
+
     return (
         <>
             <Head title={`${ride.origin} to ${ride.destination}`} />
@@ -132,13 +141,31 @@ export default function RideShow({
                                     View my booking
                                 </Link>
                             ) : !open ? (
-                                <p
-                                    className={`${cta} cursor-not-allowed bg-white/5 text-white/50`}
+                                <div
+                                    tabIndex={0}
+                                    title={closedHover ?? undefined}
+                                    className={`${cta} group relative cursor-not-allowed select-none overflow-hidden border border-red-400/60 bg-red-500/20 text-red-200 shadow-[0_0_0_1px_rgba(248,113,113,0.15)] hover:bg-red-500/30 focus:bg-red-500/30 focus:outline-none`}
                                 >
-                                    {ride.seats_left < 1
-                                        ? 'Fully booked'
-                                        : 'No longer open'}
-                                </p>
+                                    <span
+                                        className={`block transition duration-200 ${closedHover ? 'group-hover:-translate-y-full group-hover:opacity-0 group-focus:-translate-y-full group-focus:opacity-0' : ''}`}
+                                    >
+                                        {ride.seats_left < 1
+                                            ? 'Fully booked'
+                                            : 'No longer open'}
+                                    </span>
+                                    {closedHover && (
+                                        <span className="absolute inset-0 flex translate-y-full items-center justify-center gap-2 font-bold text-white opacity-0 transition duration-200 group-hover:translate-y-0 group-hover:opacity-100 group-focus:translate-y-0 group-focus:opacity-100">
+                                            {ride.trip_status ===
+                                                'on_the_road' && (
+                                                <span className="relative flex size-2.5">
+                                                    <span className="absolute inline-flex size-full animate-ping rounded-full bg-red-300 opacity-75" />
+                                                    <span className="relative inline-flex size-2.5 rounded-full bg-red-300" />
+                                                </span>
+                                            )}
+                                            {closedHover}
+                                        </span>
+                                    )}
+                                </div>
                             ) : !auth.user ? (
                                 <Link href="/login" className={primary}>
                                     Log in to reserve

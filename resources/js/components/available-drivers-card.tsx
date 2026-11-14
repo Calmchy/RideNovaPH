@@ -1,5 +1,5 @@
 // Dashboard card: a few verified drivers (alphabetical, never ranked) and the route they're on.
-// Clicking a driver opens their profile; "View all" opens the full directory.
+// Clicking a driver's name opens their profile; clicking their route goes straight to reserve it.
 import { Link } from '@inertiajs/react';
 import { fmtDateTime } from '@/components/lux';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -37,27 +37,42 @@ export default function AvailableDriversCard({
             ) : (
                 <ul className="mt-3 space-y-1">
                     {drivers.map((d) => (
-                        <li key={d.id}>
+                        <li key={d.id} className="rounded-xl p-2 transition hover:bg-muted/40">
+                            {/* Profile: opens the driver's profile */}
                             <Link
                                 href={`/drivers/${d.id}`}
-                                className="flex items-center gap-3 rounded-xl p-2 transition hover:bg-muted/60"
+                                className="flex items-center gap-3 rounded-lg transition hover:opacity-80"
                             >
                                 <Avatar className="size-10">
                                     <AvatarFallback className="bg-ocean text-white">
                                         {initials(d.name)}
                                     </AvatarFallback>
                                 </Avatar>
-                                <span className="min-w-0">
-                                    <span className="block truncate font-medium">
-                                        {d.name}
-                                    </span>
-                                    <span className="block truncate text-xs text-muted-foreground">
-                                        {d.next_ride
-                                            ? `${d.next_ride.route} · ${fmtDateTime(d.next_ride.departure_at)}`
-                                            : 'No route published'}
-                                    </span>
+                                <span className="truncate font-medium">
+                                    {d.name}
                                 </span>
                             </Link>
+                            {/* Published ride: goes straight to reserve it */}
+                            {d.next_ride ? (
+                                <Link
+                                    href={`/rides/${d.next_ride.id}/book`}
+                                    className="mt-1.5 block rounded-lg bg-muted/50 px-3 py-1.5 text-xs transition hover:bg-ocean/15"
+                                >
+                                    <span className="block truncate font-medium">
+                                        {d.next_ride.route}
+                                    </span>
+                                    <span className="block truncate text-muted-foreground">
+                                        {fmtDateTime(d.next_ride.departure_at)} ·{' '}
+                                        <span className="font-semibold text-ocean dark:text-foam">
+                                            Reserve →
+                                        </span>
+                                    </span>
+                                </Link>
+                            ) : (
+                                <p className="mt-1.5 px-3 text-xs text-muted-foreground">
+                                    No route published
+                                </p>
+                            )}
                         </li>
                     ))}
                 </ul>
