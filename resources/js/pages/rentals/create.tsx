@@ -2,6 +2,7 @@
 // The price is never typed here: it is the owner's price per day x the number of days.
 import { Head, Link, useForm } from '@inertiajs/react';
 import { useMemo, useState } from 'react';
+import { DatePicker } from '@/components/date-picker';
 import { Field, inputCls, PageHeader, Panel } from '@/components/kit';
 import { peso, toLocalInput } from '@/components/lux';
 import { PlaceMultiPicker } from '@/components/place-multi-picker';
@@ -442,11 +443,13 @@ export default function RentalCreate({ vehicle, defaults, places }: Props) {
                                         label="Start date & time *"
                                         error={form.errors.start_at}
                                     >
-                                        <input
-                                            required
-                                            type="datetime-local"
+                                        <DatePicker
+                                            withTime
                                             min={now}
-                                            {...f('start_at')}
+                                            value={form.data.start_at}
+                                            onChange={(v) =>
+                                                form.setData('start_at', v)
+                                            }
                                         />
                                     </Field>
                                     <Field
@@ -454,11 +457,13 @@ export default function RentalCreate({ vehicle, defaults, places }: Props) {
                                         error={form.errors.end_at}
                                         hint="Every started 24 hours counts as one day. The owner reviews your dates before accepting."
                                     >
-                                        <input
-                                            required
-                                            type="datetime-local"
+                                        <DatePicker
+                                            withTime
                                             min={form.data.start_at || now}
-                                            {...f('end_at')}
+                                            value={form.data.end_at}
+                                            onChange={(v) =>
+                                                form.setData('end_at', v)
+                                            }
                                         />
                                     </Field>
                                 </div>

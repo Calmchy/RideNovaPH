@@ -3,6 +3,7 @@
 import { Head, Link, useForm } from '@inertiajs/react';
 import { Pencil } from 'lucide-react';
 import { useState } from 'react';
+import { DatePicker } from '@/components/date-picker';
 import { DefaultPlace } from '@/components/default-place';
 import { Field, inputCls, PageHeader, Panel } from '@/components/kit';
 import { peso, toLocalInput } from '@/components/lux';
@@ -232,16 +233,19 @@ export default function CreateRide({
                                 label="Departure"
                                 error={form.errors.departure_at}
                             >
-                                <input
-                                    required
-                                    type="datetime-local"
+                                <DatePicker
+                                    withTime
                                     disabled={locked}
+                                    allowPast={editing}
                                     min={
                                         editing
                                             ? undefined
                                             : toLocalInput(new Date())
                                     }
-                                    {...f('departure_at')}
+                                    value={form.data.departure_at}
+                                    onChange={(v) =>
+                                        form.setData('departure_at', v)
+                                    }
                                 />
                             </Field>
                             <Field
