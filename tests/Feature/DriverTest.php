@@ -315,3 +315,18 @@ test('a new vehicle stays a draft, invisible to the admin, until the driver pres
     expect($vehicle->fresh()->review_status)->toBe('pending');
     $this->actingAs($admin)->get('/admin/vehicles')->assertInertia(fn ($page) => $page->has('vehicles.data', 1));
 });
+
+it('saves the back of the licence when a driver submits it', function () {
+    Storage::fake('local');
+    $user = Scenario::passenger();
+
+    $this->actingAs($user)->post('/driver/apply', [
+        'license_number' => 'N01-23-456789',
+        'license_expiry' => now()->addYear()->toDateString(),
+        'license_image' => UploadedFile::fake()->image('front.jpg'),
+        'license_back_image' => UploadedFile::fake()->image('back.jpg'),
+        'consent' => true,
+    ])->assertSessionHasNoErrors();
+
+    expect($user->fresh()->driverProfile->license_back_image_path)->not->toBeNull();
+});
