@@ -18,6 +18,7 @@ import DashboardSlideshow from '@/components/dashboard-slideshow';
 import type { Slide } from '@/components/dashboard-slideshow';
 import { EmptyState, StatCard } from '@/components/kit';
 import { fmtDateTime, peso, StatusBadge } from '@/components/lux';
+import PassengerRequestsCard from '@/components/passenger-requests-card';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -52,6 +53,14 @@ type Props = {
         seats_taken: number;
         vehicle: string;
         trip_status: string;
+    }[];
+    /** Drivers only: newest booking requests waiting for their answer. */
+    passenger_requests: {
+        id: number;
+        passenger: string;
+        route: string;
+        departure_at: string;
+        seats: number;
     }[];
     drivers: {
         id: number;
@@ -97,6 +106,7 @@ export default function Dashboard({
     my_rides,
     unread_messages,
     drivers,
+    passenger_requests,
 }: Props) {
     const { auth } = usePage().props;
     const idCopy = ID_COPY[id_status ?? 'none'];
@@ -383,8 +393,15 @@ export default function Dashboard({
                         </Link>
                     )}
 
-                    {/* Available Drivers */}
-                    <AvailableDriversCard drivers={drivers} />
+                    {/* Drivers see passengers asking for a seat; passengers see available drivers */}
+                    {auth.isDriver ? (
+                        <PassengerRequestsCard
+                            requests={passenger_requests}
+                            total={stats.awaiting_my_approval}
+                        />
+                    ) : (
+                        <AvailableDriversCard drivers={drivers} />
+                    )}
                 </aside>
             </div>
         </>

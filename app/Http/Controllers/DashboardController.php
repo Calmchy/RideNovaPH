@@ -78,7 +78,21 @@ class DashboardController extends Controller
                         'trip_status' => $r->tripStatus(),
                     ])
                 : [],
-            'drivers' => $this->drivers(),
+            // Drivers see who is asking for a seat (waiting for their answer) instead of the drivers list.
+            'drivers' => $isDriver ? [] : $this->drivers(),
+            'passenger_requests' => $isDriver
+                ? Booking::with(['passenger:id,name', 'ride.origin', 'ride.destination'])
+                    ->whereHas('ride.vehicle', fn ($q) => $q->where('driver_id', $user->id))
+                    ->where('status', BookingStatus::Pending->value)
+                    ->latest()->limit(5)->get()
+                    ->map(fn (Booking $b) => [
+                        'id' => $b->id,
+                        'passenger' => $b->passenger->name,
+                        'route' => $b->ride->origin->name.' → '.$b->ride->destination->name,
+                        'departure_at' => $b->ride->departure_at->toIso8601String(),
+                        'seats' => $b->seats_booked,
+                    ])
+                : [],
         ]);
     }
 
