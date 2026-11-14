@@ -11,11 +11,16 @@ use App\Http\Requests\StoreRentalRequest;
 use App\Models\RentalExtension;
 use App\Models\RentalRequest;
 use App\Models\Vehicle;
+use App\Support\Like;
+use App\Support\PlaceResolver;
 use App\Support\RentalPanels;
 use App\Support\RentalTerms;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rules\File;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Inertia\Inertia;
@@ -34,6 +39,46 @@ class RentalController extends Controller
     private function label(Vehicle $v): string
     {
         return RentalPanels::label($v);
+    }
+
+    /** GET /rent : everyone signed in can browse the vehicles owners listed for rent. */
+    public function browse(Request $request): Response
+    {
+        $f = $request->validate([
+            'q' => ['nullable', 'string', 'max:40'],
+            'sort' => ['nullable', 'in:price_asc,price_desc,newest'],
+        ]);
+
+        $vehicles = Vehicle::approved()->with(['model.make', 'driver.user:id,name'])
+            ->where('available_for_rent', true)->whereNotNull('daily_rate')
+            ->whereHas('driver', fn ($d) => $d->where('status', ApprovalStatus::Approved->value))
+            // Never offer someone their own vehicle.
+            ->where('driver_id', '!=', $request->user()->id)
+            ->when($f['q'] ?? null, fn ($q, $v) => $q->where(fn ($w) => $w
+                ->whereHas('model', fn ($m) => $m->where('name', 'like', Like::contains($v))
+                    ->orWhereHas('make', fn ($k) => $k->where('name', 'like', Like::contains($v))))
+                ->orWhere('color', 'like', Like::contains($v))))
+            ->when(($f['sort'] ?? null) === 'price_asc', fn ($q) => $q->orderBy('daily_rate'))
+            ->when(($f['sort'] ?? null) === 'price_desc', fn ($q) => $q->orderByDesc('daily_rate'))
+            ->when(! ($f['sort'] ?? null) || $f['sort'] === 'newest', fn ($q) => $q->latest('updated_at'))
+            ->paginate(12)->withQueryString();
+
+        return Inertia::render('rentals/browse', [
+            'filters' => $f,
+            'vehicles' => $vehicles->through(fn (Vehicle $v) => [
+                'id' => $v->id,
+                'name' => $this->label($v),
+                'plate_number' => $v->plate_number,
+                'seats' => $v->seat_capacity,
+                'year' => $v->manufacture_year,
+                'daily_rate' => $v->daily_rate,
+                'owner' => $v->driver->user->name,
+                'photo_front' => $v->photo_front_path ? '/storage/'.$v->photo_front_path : null,
+                'photo_back' => $v->photo_back_path ? '/storage/'.$v->photo_back_path : null,
+                'description' => $v->description,
+                'rented_out' => $v->isRentedOut(),
+            ]),
+        ]);
     }
 
     /** GET /rentals : rentals live inside the "Hire a driver" page, so send people there. */
@@ -78,6 +123,7 @@ class RentalController extends Controller
             // Pre-fill what we already know about the renter (they can change it).
             'defaults' => ['name' => $user->name, 'phone' => $user->phone_number, 'address' => $user->address],
             'max_days' => RequestRental::MAX_DAYS,
+            'places' => PlaceResolver::all(),
         ]);
     }
 
@@ -262,6 +308,10 @@ class RentalController extends Controller
             'daily_rate' => ['nullable', 'numeric', 'min:1', 'max:100000', 'required_if:available_for_rent,true'],
         ] + RentalTerms::rules());
 
+        if ($data['available_for_rent'] && ! $vehicle->isApproved()) {
+            return back()->withErrors(['available_for_rent' => 'An admin has to approve this vehicle before it can be listed for rent.']);
+        }
+
         $vehicle->forceFill([
             'available_for_rent' => (bool) $data['available_for_rent'],
             'daily_rate' => isset($data['daily_rate']) ? round((float) $data['daily_rate'], 2) : $vehicle->daily_rate,
@@ -270,6 +320,66 @@ class RentalController extends Controller
         ])->save();
 
         $this->toast($vehicle->available_for_rent ? 'Saved. Your vehicle is listed for rent.' : 'Saved. Your vehicle is hidden from rentals.');
+
+        return back();
+    }
+
+    /** POST /rentals/vehicles/{vehicle}/publish : the owner's "Publish my unit for rent" form. */
+    public function publish(Request $request, Vehicle $vehicle): RedirectResponse
+    {
+        $user = $request->user();
+        abort_unless($user->isApprovedDriver() && $vehicle->driver_id === $user->id, 403);
+
+        if (! $vehicle->isApproved()) {
+            return back()->withErrors(['vehicle' => 'An admin has to approve this vehicle before it can be listed for rent.']);
+        }
+
+        $request->merge([
+            'plate_number' => strtoupper(trim((string) $request->input('plate_number'))),
+            'vin' => strtoupper(trim((string) $request->input('vin'))),
+        ]);
+
+        $photo = fn (string $existing) => [
+            $existing ? 'nullable' : 'required',
+            File::image()->types(['jpg', 'jpeg', 'png', 'webp'])->max(5 * 1024),
+        ];
+
+        $data = $request->validate([
+            'plate_number' => ['required', 'string', 'min:5', 'max:15', 'regex:/^[A-Z0-9 -]+$/', 'unique:vehicles,plate_number,'.$vehicle->id],
+            // A real VIN is 17 characters and never contains I, O or Q.
+            'vin' => ['required', 'regex:/^[A-HJ-NPR-Z0-9]{17}$/', 'unique:vehicles,vin,'.$vehicle->id],
+            'photo_front' => $photo((string) $vehicle->photo_front_path),
+            'photo_back' => $photo((string) $vehicle->photo_back_path),
+            'daily_rate' => ['required', 'numeric', 'min:1', 'max:100000'],
+        ], [
+            'vin.regex' => 'A VIN is 17 letters and numbers (no I, O or Q).',
+            'plate_number.regex' => 'Use letters, numbers, spaces or dashes only.',
+            'photo_front.required' => 'Upload a photo of the front of the unit.',
+            'photo_back.required' => 'Upload a photo of the back of the unit.',
+        ]);
+
+        $changes = [
+            'plate_number' => $data['plate_number'],
+            'vin' => $data['vin'],
+            'daily_rate' => round((float) $data['daily_rate'], 2),
+            'available_for_rent' => true,
+        ];
+
+        foreach (['photo_front' => 'photo_front_path', 'photo_back' => 'photo_back_path'] as $field => $column) {
+            if ($request->hasFile($field)) {
+                /** @var UploadedFile $file */
+                $file = $request->file($field);
+                $old = $vehicle->{$column};
+                $changes[$column] = $file->storeAs('vehicles', Str::uuid().'.'.$file->guessExtension(), 'public');
+
+                if ($old) {
+                    Storage::disk('public')->delete($old);
+                }
+            }
+        }
+
+        $vehicle->forceFill($changes)->save();
+        $this->toast('Published. Your unit is now listed for rent.');
 
         return back();
     }

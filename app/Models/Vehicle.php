@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\RentalStatus;
 use Carbon\CarbonInterface;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -18,14 +19,25 @@ class Vehicle extends Model
     ];
 
     protected $fillable = [
-        'driver_id', 'model_id', 'color', 'plate_number',
+        'driver_id', 'model_id', 'color', 'plate_number', 'vin',
         'seat_capacity', 'manufacture_year',
         'photo_front_path', 'photo_back_path', 'photo_interior_path', 'description', 'cor_image_path',
     ];
 
     protected function casts(): array
     {
-        return ['rental_terms' => 'array'];
+        return ['rental_terms' => 'array', 'reviewed_at' => 'datetime'];
+    }
+
+    /** Only vehicles an admin has approved may carry rides or be listed for rent. */
+    public function scopeApproved(Builder $query): Builder
+    {
+        return $query->where('review_status', 'approved');
+    }
+
+    public function isApproved(): bool
+    {
+        return $this->review_status === 'approved';
     }
 
     public function driver(): BelongsTo

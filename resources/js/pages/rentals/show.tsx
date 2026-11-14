@@ -2,12 +2,84 @@
 import { Head, Link, router } from '@inertiajs/react';
 import { Phone } from 'lucide-react';
 import { useState } from 'react';
+import DocTile from '@/components/doc-tile';
 import { inputCls, PageHeader, Panel, ReasonDialog } from '@/components/kit';
 import { fmtDateTime, peso, StatusBadge } from '@/components/lux';
 import { RentalTermsList } from '@/components/rental-terms';
 import type { TermRow } from '@/components/rental-terms';
-import DocTile from '@/components/doc-tile';
 import { Button } from '@/components/ui/button';
+
+const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
+
+/** Calendar length between two dates: "1 year, 2 months, 3 days". */
+function lengthText(startIso: string, endIso: string): string {
+    const a = new Date(startIso);
+    const b = new Date(endIso);
+    let years = b.getFullYear() - a.getFullYear();
+    let months = b.getMonth() - a.getMonth();
+    let days = b.getDate() - a.getDate();
+
+    if (days < 0) {
+        months -= 1;
+        days += new Date(b.getFullYear(), b.getMonth(), 0).getDate();
+    }
+
+    if (months < 0) {
+        years -= 1;
+        months += 12;
+    }
+
+    const parts = [
+        years && plural(years, 'year'),
+        months && plural(months, 'month'),
+        days && plural(days, 'day'),
+    ].filter(Boolean);
+
+    return parts.length ? parts.join(', ') : 'Less than a day';
+}
+
+/** "3 days 4 hrs", "5 hrs 10 mins" for a span in milliseconds. */
+function spanText(ms: number): string {
+    const mins = Math.max(1, Math.round(ms / 60000));
+    const d = Math.floor(mins / 1440);
+    const h = Math.floor((mins % 1440) / 60);
+    const m = mins % 60;
+
+    if (d > 0) {
+        return h ? `${plural(d, 'day')} ${plural(h, 'hr')}` : plural(d, 'day');
+    }
+
+    return h
+        ? `${plural(h, 'hr')}${m ? ` ${plural(m, 'min')}` : ''}`
+        : plural(m, 'min');
+}
+
+/** Where the rental is right now: starts in…, returns in…, overdue by…, returned. */
+function returnStatus(
+    status: string,
+    startIso: string,
+    endIso: string,
+): { text: string; late: boolean } | null {
+    if (status === 'completed') {
+        return { text: 'Vehicle returned', late: false };
+    }
+
+    if (status !== 'approved') {
+        return null;
+    }
+
+    const now = Date.now();
+    const start = new Date(startIso).getTime();
+    const end = new Date(endIso).getTime();
+
+    if (now < start) {
+        return { text: `Starts in ${spanText(start - now)}`, late: false };
+    }
+
+    return now <= end
+        ? { text: `Returns in ${spanText(end - now)}`, late: false }
+        : { text: `Overdue by ${spanText(now - end)}`, late: true };
+}
 
 type Props = {
     rental: {
@@ -120,7 +192,8 @@ export default function RentalShow({
                     setExtSending(true);
                     setExtError(null);
                 },
-                onError: (e) => setExtError(e.days ?? 'Could not send the request.'),
+                onError: (e) =>
+                    setExtError(e.days ?? 'Could not send the request.'),
                 onSuccess: () => setExtDays(''),
                 onFinish: () => setExtSending(false),
             },
@@ -137,10 +210,15 @@ export default function RentalShow({
             preserveScroll: true,
         });
 
+    const ret = returnStatus(r.status, r.start_at, r.end_at);
     const when: [string, string][] = [
         ['Vehicle', r.vehicle],
         ['Starts', fmtDateTime(r.start_at)],
         ['Returns', fmtDateTime(r.end_at)],
+        [
+            'Rental length',
+            `${lengthText(r.start_at, r.end_at)} (${plural(r.days, 'day')} billed)`,
+        ],
         ['Pick-up place', r.pickup_location],
         ['Return place', r.return_location],
     ];
@@ -269,9 +347,21 @@ export default function RentalShow({
                 <div className="grid gap-6 md:grid-cols-2">
                     <Panel title="When and where">
                         <dl className="grid gap-3 p-5 text-sm">
+                            {ret && (
+                                <div
+                                    className={`rounded-lg px-3 py-2 text-sm font-semibold ${ret.late ? 'bg-red-500/10 text-red-700 dark:text-red-300' : 'bg-foam/40 text-deep dark:bg-foam/10 dark:text-foam'}`}
+                                >
+                                    {ret.text}
+                                </div>
+                            )}
                             {when.map(([k, v]) => (
-                                <div key={k} className="flex justify-between gap-4">
-                                    <dt className="text-muted-foreground">{k}</dt>
+                                <div
+                                    key={k}
+                                    className="flex justify-between gap-4"
+                                >
+                                    <dt className="text-muted-foreground">
+                                        {k}
+                                    </dt>
                                     <dd className="text-right">{v}</dd>
                                 </div>
                             ))}
@@ -332,9 +422,10 @@ export default function RentalShow({
                             <p className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
                                 <strong>Notice:</strong> an extension must be
                                 requested at least {ext.notice_hours} hours
-                                before the return time ({fmtDateTime(ext.deadline)}
-                                ). The owner will be notified and will accept
-                                or decline your request.
+                                before the return time (
+                                {fmtDateTime(ext.deadline)}
+                                ). The owner will be notified and will accept or
+                                decline your request.
                             </p>
 
                             {role === 'renter' && r.status === 'approved' && (
@@ -343,8 +434,8 @@ export default function RentalShow({
                                         <div className="flex flex-wrap items-end gap-3">
                                             <label className="grid gap-1">
                                                 <span className="text-muted-foreground">
-                                                    How many days do you want
-                                                    to add? (up to {ext.max_days})
+                                                    How many days do you want to
+                                                    add?
                                                 </span>
                                                 <input
                                                     type="number"
@@ -352,7 +443,11 @@ export default function RentalShow({
                                                     max={ext.max_days}
                                                     step={1}
                                                     value={extDays}
-                                                    onChange={(e) => setExtDays(e.target.value)}
+                                                    onChange={(e) =>
+                                                        setExtDays(
+                                                            e.target.value,
+                                                        )
+                                                    }
                                                     className={`${inputCls} w-32`}
                                                 />
                                             </label>
@@ -360,28 +455,44 @@ export default function RentalShow({
                                                 onClick={requestExtension}
                                                 disabled={
                                                     extSending ||
-                                                    !(extN >= 1 && extN <= ext.max_days)
+                                                    !(
+                                                        extN >= 1 &&
+                                                        extN <= ext.max_days
+                                                    )
                                                 }
                                             >
-                                                {extSending ? 'Sending…' : 'Request extension'}
+                                                {extSending
+                                                    ? 'Sending…'
+                                                    : 'Request extension'}
                                             </Button>
-                                            {extN >= 1 && extN <= ext.max_days && (
-                                                <span className="text-muted-foreground">
-                                                    + {extN} day{extN === 1 ? '' : 's'} ×{' '}
-                                                    {peso(ext.daily_rate)} ={' '}
-                                                    {peso(extN * Number(ext.daily_rate))}
-                                                </span>
-                                            )}
+                                            {extN >= 1 &&
+                                                extN <= ext.max_days && (
+                                                    <span className="text-muted-foreground">
+                                                        + {extN} day
+                                                        {extN === 1 ? '' : 's'}{' '}
+                                                        × {peso(ext.daily_rate)}{' '}
+                                                        ={' '}
+                                                        {peso(
+                                                            extN *
+                                                                Number(
+                                                                    ext.daily_rate,
+                                                                ),
+                                                        )}
+                                                    </span>
+                                                )}
                                         </div>
                                     ) : pendingExt ? (
                                         <p className="text-muted-foreground">
-                                            Your extension is waiting for the owner.
+                                            Your extension is waiting for the
+                                            owner.
                                         </p>
                                     ) : (
                                         <p className="text-muted-foreground">
-                                            The {ext.notice_hours}-hour notice time has passed, so
-                                            you can’t request an extension here anymore. Please
-                                            contact the owner or return the vehicle on time.
+                                            The {ext.notice_hours}-hour notice
+                                            time has passed, so you can’t
+                                            request an extension here anymore.
+                                            Please contact the owner or return
+                                            the vehicle on time.
                                         </p>
                                     )}
                                     {extError && (
@@ -401,11 +512,13 @@ export default function RentalShow({
                                         >
                                             <div>
                                                 <p className="font-medium">
-                                                    +{e.days} day{e.days === 1 ? '' : 's'} ·{' '}
+                                                    +{e.days} day
+                                                    {e.days === 1 ? '' : 's'} ·{' '}
                                                     {peso(e.extra_price)}
                                                 </p>
                                                 <p className="text-xs text-muted-foreground">
-                                                    New return time: {fmtDateTime(e.new_end_at)}
+                                                    New return time:{' '}
+                                                    {fmtDateTime(e.new_end_at)}
                                                 </p>
                                                 {e.reason && (
                                                     <p className="text-xs text-muted-foreground">
@@ -414,17 +527,30 @@ export default function RentalShow({
                                                 )}
                                             </div>
                                             <div className="flex items-center gap-2">
-                                                <StatusBadge status={e.status} />
+                                                <StatusBadge
+                                                    status={e.status}
+                                                />
                                                 {e.status === 'pending' &&
                                                     ext.can_decide && (
                                                         <>
                                                             <ReasonDialog
                                                                 title="Accept this extension?"
                                                                 description={`The return time moves to ${fmtDateTime(e.new_end_at)} and ${peso(e.extra_price)} is added to the total.`}
-                                                                askReason={false}
+                                                                askReason={
+                                                                    false
+                                                                }
                                                                 confirmLabel="Accept"
-                                                                onConfirm={() => answerExtension(e.id, 'approve')}
-                                                                trigger={<Button size="sm">Accept</Button>}
+                                                                onConfirm={() =>
+                                                                    answerExtension(
+                                                                        e.id,
+                                                                        'approve',
+                                                                    )
+                                                                }
+                                                                trigger={
+                                                                    <Button size="sm">
+                                                                        Accept
+                                                                    </Button>
+                                                                }
                                                             />
                                                             <ReasonDialog
                                                                 title="Decline this extension?"
@@ -432,11 +558,22 @@ export default function RentalShow({
                                                                 reasonRequired
                                                                 confirmLabel="Decline"
                                                                 destructive
-                                                                onConfirm={(reason) =>
-                                                                    answerExtension(e.id, 'decline', { reason })
+                                                                onConfirm={(
+                                                                    reason,
+                                                                ) =>
+                                                                    answerExtension(
+                                                                        e.id,
+                                                                        'decline',
+                                                                        {
+                                                                            reason,
+                                                                        },
+                                                                    )
                                                                 }
                                                                 trigger={
-                                                                    <Button size="sm" variant="outline">
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant="outline"
+                                                                    >
                                                                         Decline
                                                                     </Button>
                                                                 }
@@ -466,7 +603,9 @@ export default function RentalShow({
                     </Panel>
                 )}
 
-                <Panel title={role === 'owner' ? 'Renter details' : 'Your details'}>
+                <Panel
+                    title={role === 'owner' ? 'Renter details' : 'Your details'}
+                >
                     <dl className="grid gap-3 p-5 text-sm sm:grid-cols-2">
                         {renter.map(([k, v]) => (
                             <div key={k}>

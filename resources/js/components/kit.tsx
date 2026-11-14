@@ -6,6 +6,7 @@ import type { LucideIcon } from 'lucide-react';
 import { RotateCcw, Search } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
+import { DatePicker } from '@/components/date-picker';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -126,7 +127,10 @@ export function Panel({
 }) {
     return (
         <section
-            className={cn('min-w-0 rounded-2xl border bg-card shadow-sm', className)}
+            className={cn(
+                'min-w-0 rounded-2xl border bg-card shadow-sm',
+                className,
+            )}
         >
             {(title || actions) && (
                 <div className="flex items-center justify-between gap-3 border-b px-5 py-3">
@@ -333,7 +337,8 @@ function SearchSelect({
                             onMouseEnter={() => setActive(i)}
                             className={cn(
                                 'flex cursor-pointer items-baseline justify-between gap-3 rounded-md px-2 py-1.5',
-                                i === active && 'bg-accent text-accent-foreground',
+                                i === active &&
+                                    'bg-accent text-accent-foreground',
                                 String(o.value) === value && 'font-semibold',
                             )}
                         >
@@ -470,13 +475,10 @@ export function FilterBar({
                             ))}
                         </select>
                     ) : (
-                        <input
-                            type="date"
+                        <DatePicker
+                            allowPast
                             value={state[f.name]}
-                            onChange={(e) =>
-                                update(f.name, e.target.value, false)
-                            }
-                            className={inputCls}
+                            onChange={(v) => update(f.name, v, false)}
                         />
                     )}
                 </label>
@@ -589,14 +591,16 @@ export function Field({
     return (
         <label className="grid gap-1.5 text-sm">
             <span className="font-medium">
-    {label.endsWith('*') ? (
-        <>
-            {label.slice(0, -1).trimEnd()}{' '}
-            <span className="text-red-500" aria-hidden="true">*</span>
-                 </>
-                  ) : (
-               label
-                  )}
+                {label.endsWith('*') ? (
+                    <>
+                        {label.slice(0, -1).trimEnd()}{' '}
+                        <span className="text-red-500" aria-hidden="true">
+                            *
+                        </span>
+                    </>
+                ) : (
+                    label
+                )}
             </span>
             {children}
             {hint && !error && (

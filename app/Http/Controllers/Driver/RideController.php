@@ -82,6 +82,8 @@ class RideController extends Controller
                 'pending_requests' => (int) $r->pending_requests,
                 'vehicle' => $r->vehicle->model->make->name.' '.$r->vehicle->model->name,
                 'trip_status' => $r->tripStatus(),
+                // The scheduled date has gone by and the trip never started: it can only be removed now.
+                'date_passed' => $r->tripStatus() === 'scheduled' && $r->departure_at->isPast(),
             ]),
         ]);
     }
@@ -96,7 +98,7 @@ class RideController extends Controller
         }
 
         // A vehicle that is out on an approved rental can't carry passengers, so it isn't offered.
-        $all = Vehicle::with('model.make')->where('driver_id', $request->user()->id)->get();
+        $all = Vehicle::approved()->with('model.make')->where('driver_id', $request->user()->id)->get();
         $free = $all->reject(fn (Vehicle $v) => $v->isRentedOut())->values();
 
         if ($all->isNotEmpty() && $free->isEmpty()) {
@@ -111,6 +113,9 @@ class RideController extends Controller
             'cities' => City::with('province:id,name')->orderBy('name')->get()
                 ->map(fn ($c) => ['id' => $c->id, 'name' => $c->name, 'province' => $c->province?->name ?? '']),
             'places' => PlaceResolver::all(),
+            'default_place' => $request->user()->default_place
+                ? ['province' => (string) $request->user()->default_province, 'place' => (string) $request->user()->default_place]
+                : null,
             'announcements' => $this->eventOptions(),
             'ride' => null,
             'prefill' => $this->prefillFromSlide($request),
@@ -317,6 +322,27 @@ class RideController extends Controller
         $reason = $request->validate(['reason' => ['nullable', 'string', 'max:255']])['reason'] ?? null;
         $trip->cancel($ride, $reason, $request->user());
         $this->toast('Ride cancelled. Passengers were notified.');
+
+        return back();
+    }
+
+    /** DELETE /driver/rides/{ride}: remove a schedule whose date already passed without the trip starting. */
+    public function destroy(Request $request, Ride $ride, UpdateTripStatus $trip): RedirectResponse
+    {
+        $this->owned($request, $ride);
+
+        if ($ride->tripStatus() !== 'scheduled' || ! $ride->departure_at->isPast()) {
+            return back()->withErrors(['ride' => 'Only schedules whose date has already passed can be deleted.']);
+        }
+
+        if ($ride->bookings()->exists()) {
+            // Keep the booking history: close it out (passengers notified, open bookings cancelled).
+            $trip->cancel($ride, 'Schedule date passed.', $request->user());
+        } else {
+            $ride->delete();
+        }
+
+        $this->toast('Ride schedule deleted.');
 
         return back();
     }

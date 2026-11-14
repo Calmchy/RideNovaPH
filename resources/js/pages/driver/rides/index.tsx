@@ -1,6 +1,6 @@
 import { Head, Link, router } from '@inertiajs/react';
 import { Plus } from 'lucide-react';
-import { Fragment } from 'react';
+import type { ReactNode } from 'react';
 import {
     EmptyState,
     FilterBar,
@@ -26,6 +26,7 @@ type Ride = {
     pending_requests: number;
     price_per_seat: string;
     trip_status: string;
+    date_passed?: boolean;
 };
 
 type Req = {
@@ -43,15 +44,29 @@ type Req = {
 /** "Today", "Tomorrow" or "Sun, Nov 8, 2026": the heading above each day's rows. */
 const dayLabel = (iso: string) => {
     const d = new Date(iso);
-    const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+    const day = (x: Date) =>
+        new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
     const diff = Math.round((day(d) - day(new Date())) / 86400000);
-    const text = d.toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+    const text = d.toLocaleDateString('en-PH', {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+    });
 
-    return diff === 0 ? `Today · ${text}` : diff === 1 ? `Tomorrow · ${text}` : diff === -1 ? `Yesterday · ${text}` : text;
+    return diff === 0
+        ? `Today · ${text}`
+        : diff === 1
+          ? `Tomorrow · ${text}`
+          : diff === -1
+            ? `Yesterday · ${text}`
+            : text;
 };
 
 /** Keeps the server's order and starts a new group whenever the travel day changes. */
-function groupByDay<T extends { departure_at: string }>(items: T[]): { key: string; label: string; items: T[] }[] {
+function groupByDay<T extends { departure_at: string }>(
+    items: T[],
+): { key: string; label: string; items: T[] }[] {
     const groups: { key: string; label: string; items: T[] }[] = [];
 
     for (const it of items) {
@@ -68,24 +83,42 @@ function groupByDay<T extends { departure_at: string }>(items: T[]): { key: stri
     return groups;
 }
 
-/** The heading row for one day, with a clear gap above every group except the first. */
-function DayHeader({ label, count, first, cols }: { label: string; count: number; first: boolean; cols: number }) {
+/** One separate card per day: a heading, then that day's table. */
+function DayCard({
+    label,
+    count,
+    head,
+    children,
+}: {
+    label: string;
+    count: number;
+    head: string[];
+    children: ReactNode;
+}) {
     return (
-        <>
-            {!first && (
-                <tr aria-hidden>
-                    <td colSpan={cols} className="h-5 bg-background p-0" />
-                </tr>
-            )}
-            <tr className="border-y bg-ocean/10">
-                <td colSpan={cols} className="px-4 py-2 text-xs font-semibold tracking-wide text-ocean uppercase dark:text-foam">
-                    {label}
-                    <span className="ml-2 font-normal text-muted-foreground normal-case">
-                        {count} {count === 1 ? 'item' : 'items'}
-                    </span>
-                </td>
-            </tr>
-        </>
+        <section className="overflow-hidden rounded-2xl border bg-card shadow-sm">
+            <div className="border-b bg-ocean/10 px-4 py-2 text-xs font-semibold tracking-wide text-ocean uppercase dark:text-foam">
+                {label}
+                <span className="ml-2 font-normal text-muted-foreground normal-case">
+                    {count} {count === 1 ? 'item' : 'items'}
+                </span>
+            </div>
+            <div className="overflow-x-auto">
+                <table className={tableCls}>
+                    <thead className="border-b bg-muted/50">
+                        <tr>
+                            {head.map((h) => (
+                                <th key={h} className={thCls}>
+                                    {h}
+                                </th>
+                            ))}
+                            <th className={thCls} />
+                        </tr>
+                    </thead>
+                    <tbody>{children}</tbody>
+                </table>
+            </div>
+        </section>
     );
 }
 
@@ -96,7 +129,15 @@ const act = (id: number, action: string, reason?: string) =>
     });
 
 /** Passenger seat requests for my rides, answered right here so the driver never leaves this page. */
-function RequestsPanel({ requests, pending, hasDate }: { requests: Req[]; pending: number; hasDate: boolean }) {
+function RequestsPanel({
+    requests,
+    pending,
+    hasDate,
+}: {
+    requests: Req[];
+    pending: number;
+    hasDate: boolean;
+}) {
     return (
         <Panel
             title={
@@ -106,92 +147,102 @@ function RequestsPanel({ requests, pending, hasDate }: { requests: Req[]; pendin
             }
         >
             {requests.length ? (
-                <>
-                    <div className="overflow-x-auto">
-                        <table className={tableCls}>
-                            <thead className="border-b bg-muted/50">
-                                <tr>
-                                    {[
-                                        'Passenger',
-                                        'Route',
-                                        'Departure',
-                                        'Seats',
-                                        'Total',
-                                        'Status',
-                                    ].map((h) => (
-                                        <th key={h} className={thCls}>
-                                            {h}
-                                        </th>
-                                    ))}
-                                    <th className={thCls} />
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {groupByDay(requests).map((g, gi) => (
-                                    <Fragment key={g.key}>
-                                    <DayHeader label={g.label} count={g.items.length} first={gi === 0} cols={7} />
-                                    {g.items.map((b) => (
-                                    <tr key={b.id} className="border-b hover:bg-muted/30">
-                                        <td className={tdCls}>
-                                            <Link
-                                                href={`/bookings/${b.id}`}
-                                                className="font-medium text-ocean hover:underline dark:text-foam"
-                                            >
-                                                {b.passenger}
-                                            </Link>
-                                            <p className="font-mono text-[11px] text-muted-foreground">
-                                                {b.reference_no}
-                                            </p>
-                                        </td>
-                                        <td className={tdCls}>{b.route}</td>
-                                        <td className={`${tdCls} whitespace-nowrap`}>
-                                            {fmtDateTime(b.departure_at)}
-                                        </td>
-                                        <td className={tdCls}>{b.seats}</td>
-                                        <td className={tdCls}>{peso(b.total_fare)}</td>
-                                        <td className={tdCls}>
-                                            <StatusBadge status={b.status} />
-                                        </td>
-                                        <td className={tdCls}>
-                                            <div className="flex flex-wrap items-center justify-end gap-1.5">
-                                                {b.status === 'pending' && (
-                                                    <Button
-                                                        size="sm"
-                                                        onClick={() => act(b.id, 'approve')}
-                                                    >
-                                                        Approve
-                                                    </Button>
-                                                )}
-                                                {b.status === 'confirmed' && (
-                                                    <Button
-                                                        size="sm"
-                                                        onClick={() => act(b.id, 'complete')}
-                                                    >
-                                                        Complete
-                                                    </Button>
-                                                )}
-                                                <ReasonDialog
-                                                    title={`${b.status === 'pending' ? 'Decline' : 'Cancel'} ${b.reference_no}?`}
-                                                    description="The passenger will be notified. This cannot be undone."
-                                                    confirmLabel={b.status === 'pending' ? 'Decline request' : 'Cancel booking'}
-                                                    destructive
-                                                    onConfirm={(r) => act(b.id, 'cancel', r)}
-                                                    trigger={
-                                                        <Button size="sm" variant="outline">
-                                                            {b.status === 'pending' ? 'Decline' : 'Cancel'}
-                                                        </Button>
+                <div className="space-y-4 p-4">
+                    {groupByDay(requests).map((g) => (
+                        <DayCard
+                            key={g.key}
+                            label={g.label}
+                            count={g.items.length}
+                            head={[
+                                'Passenger',
+                                'Route',
+                                'Departure',
+                                'Seats',
+                                'Total',
+                                'Status',
+                            ]}
+                        >
+                            {g.items.map((b) => (
+                                <tr
+                                    key={b.id}
+                                    className="border-b hover:bg-muted/30"
+                                >
+                                    <td className={tdCls}>
+                                        <Link
+                                            href={`/bookings/${b.id}`}
+                                            className="font-medium text-ocean hover:underline dark:text-foam"
+                                        >
+                                            {b.passenger}
+                                        </Link>
+                                        <p className="font-mono text-[11px] text-muted-foreground">
+                                            {b.reference_no}
+                                        </p>
+                                    </td>
+                                    <td className={tdCls}>{b.route}</td>
+                                    <td
+                                        className={`${tdCls} whitespace-nowrap`}
+                                    >
+                                        {fmtDateTime(b.departure_at)}
+                                    </td>
+                                    <td className={tdCls}>{b.seats}</td>
+                                    <td className={tdCls}>
+                                        {peso(b.total_fare)}
+                                    </td>
+                                    <td className={tdCls}>
+                                        <StatusBadge status={b.status} />
+                                    </td>
+                                    <td className={tdCls}>
+                                        <div className="flex flex-wrap items-center justify-end gap-1.5">
+                                            {b.status === 'pending' && (
+                                                <Button
+                                                    size="sm"
+                                                    onClick={() =>
+                                                        act(b.id, 'approve')
                                                     }
-                                                />
-                                            </div>
-                                        </td>
-                                    </tr>
-                                    ))}
-                                    </Fragment>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </>
+                                                >
+                                                    Approve
+                                                </Button>
+                                            )}
+                                            {b.status === 'confirmed' && (
+                                                <Button
+                                                    size="sm"
+                                                    onClick={() =>
+                                                        act(b.id, 'complete')
+                                                    }
+                                                >
+                                                    Complete
+                                                </Button>
+                                            )}
+                                            <ReasonDialog
+                                                title={`${b.status === 'pending' ? 'Decline' : 'Cancel'} ${b.reference_no}?`}
+                                                description="The passenger will be notified. This cannot be undone."
+                                                confirmLabel={
+                                                    b.status === 'pending'
+                                                        ? 'Decline request'
+                                                        : 'Cancel booking'
+                                                }
+                                                destructive
+                                                onConfirm={(r) =>
+                                                    act(b.id, 'cancel', r)
+                                                }
+                                                trigger={
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                    >
+                                                        {b.status === 'pending'
+                                                            ? 'Decline'
+                                                            : 'Cancel'}
+                                                    </Button>
+                                                }
+                                            />
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </DayCard>
+                    ))}
+                </div>
             ) : (
                 <EmptyState>
                     {hasDate
@@ -256,33 +307,32 @@ export default function DriverRides({
                     },
                 ]}
             />
-            <RequestsPanel requests={requests} pending={pending_total} hasDate={Boolean(filters.date)} />
+            <RequestsPanel
+                requests={requests}
+                pending={pending_total}
+                hasDate={Boolean(filters.date)}
+            />
             {rides.data.length ? (
-                <div className="overflow-x-auto rounded-2xl border bg-card">
-                    <table className={tableCls}>
-                        <thead className="border-b bg-muted/50">
-                            <tr>
-                                {[
-                                    'Route',
-                                    'Departure',
-                                    'Vehicle',
-                                    'Seats',
-                                    'Price',
-                                    'Trip',
-                                ].map((h) => (
-                                    <th key={h} className={thCls}>
-                                        {h}
-                                    </th>
-                                ))}
-                                <th className={thCls} />
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {groupByDay(rides.data).map((g, gi) => (
-                                <Fragment key={g.key}>
-                                <DayHeader label={g.label} count={g.items.length} first={gi === 0} cols={7} />
-                                {g.items.map((r) => (
-                                <tr key={r.id} className="border-b hover:bg-muted/30">
+                <div className="space-y-4">
+                    {groupByDay(rides.data).map((g) => (
+                        <DayCard
+                            key={g.key}
+                            label={g.label}
+                            count={g.items.length}
+                            head={[
+                                'Route',
+                                'Departure',
+                                'Vehicle',
+                                'Seats',
+                                'Price',
+                                'Trip',
+                            ]}
+                        >
+                            {g.items.map((r) => (
+                                <tr
+                                    key={r.id}
+                                    className="border-b hover:bg-muted/30"
+                                >
                                     <td className={tdCls}>{r.route}</td>
                                     <td
                                         className={`${tdCls} whitespace-nowrap`}
@@ -302,9 +352,42 @@ export default function DriverRides({
                                         {peso(r.price_per_seat)}
                                     </td>
                                     <td className={tdCls}>
-                                        <StatusBadge status={r.trip_status} />
+                                        {r.date_passed ? (
+                                            <span className="rounded-full bg-red-500/15 px-2 py-0.5 text-xs font-medium text-red-700 dark:text-red-300">
+                                                Date passed · no longer
+                                                available
+                                            </span>
+                                        ) : (
+                                            <StatusBadge
+                                                status={r.trip_status}
+                                            />
+                                        )}
                                     </td>
-                                    <td className={tdCls}>
+                                    <td
+                                        className={`${tdCls} space-x-2 whitespace-nowrap`}
+                                    >
+                                        {r.date_passed && (
+                                            <Button
+                                                size="sm"
+                                                variant="destructive"
+                                                onClick={() => {
+                                                    if (
+                                                        window.confirm(
+                                                            'Delete this ride schedule? Its date has already passed.',
+                                                        )
+                                                    ) {
+                                                        router.delete(
+                                                            `/driver/rides/${r.id}`,
+                                                            {
+                                                                preserveScroll: true,
+                                                            },
+                                                        );
+                                                    }
+                                                }}
+                                            >
+                                                Delete Ride Schedule
+                                            </Button>
+                                        )}
                                         <Button
                                             size="sm"
                                             variant="outline"
@@ -318,11 +401,9 @@ export default function DriverRides({
                                         </Button>
                                     </td>
                                 </tr>
-                                ))}
-                                </Fragment>
                             ))}
-                        </tbody>
-                    </table>
+                        </DayCard>
+                    ))}
                 </div>
             ) : (
                 <EmptyState>No rides found.</EmptyState>

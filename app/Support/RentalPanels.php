@@ -43,6 +43,10 @@ class RentalPanels
                 ? Vehicle::with('model.make')->where('driver_id', $user->id)->get()->map(fn (Vehicle $v) => [
                     'id' => $v->id,
                     'label' => self::label($v).' · '.$v->plate_number,
+                    'plate_number' => $v->plate_number,
+                    'vin' => $v->vin,
+                    'photo_front' => $v->photo_front_path ? '/storage/'.$v->photo_front_path : null,
+                    'photo_back' => $v->photo_back_path ? '/storage/'.$v->photo_back_path : null,
                     'available_for_rent' => (bool) $v->available_for_rent,
                     'daily_rate' => $v->daily_rate,
                     'rental_terms' => $v->rental_terms ?? (object) [],

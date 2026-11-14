@@ -21,12 +21,6 @@ const FUEL: [string, string][] = [
 // Same keys and order as App\Support\RentalTerms::FIELDS on the server.
 const SECTIONS: { title: string; fields: FieldDef[] }[] = [
     {
-        title: 'Vehicle',
-        fields: [
-            { key: 'vin', label: 'VIN / chassis number', kind: 'string', max: 40 },
-        ],
-    },
-    {
         title: 'Late return fee',
         fields: [
             {

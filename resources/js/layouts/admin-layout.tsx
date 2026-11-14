@@ -13,6 +13,7 @@ import {
     ReceiptText,
     Route as RouteIcon,
     Settings,
+    Truck,
     Users,
 } from 'lucide-react';
 import { useState } from 'react';
@@ -26,6 +27,7 @@ const NAV = [
     { title: 'Overview', href: '/admin', icon: LayoutDashboard, exact: true },
     { title: 'Users', href: '/admin/users', icon: Users },
     { title: 'Drivers', href: '/admin/drivers', icon: Car },
+    { title: 'Vehicles', href: '/admin/vehicles', icon: Truck },
     { title: 'ID verification', href: '/admin/identity', icon: BadgeCheck },
     { title: 'Rides', href: '/admin/rides', icon: RouteIcon },
     { title: 'Bookings', href: '/admin/bookings', icon: CalendarCheck },

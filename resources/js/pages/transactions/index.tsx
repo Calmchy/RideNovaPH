@@ -34,7 +34,6 @@ type Payment = {
 
 type Props = {
     view: 'spent' | 'earned';
-    can_earn: boolean;
     filters: Record<string, string>;
     summary: {
         paid: number;
@@ -47,7 +46,6 @@ type Props = {
 
 export default function Transactions({
     view,
-    can_earn,
     filters,
     summary,
     payments,
@@ -66,33 +64,6 @@ export default function Transactions({
                             : 'Every payment for your trips, with receipts and refund status.'
                     }
                 />
-
-                {can_earn && (
-                    <nav
-                        className="flex gap-1 border-b"
-                        aria-label="Transaction view"
-                    >
-                        {(
-                            [
-                                ['earned', 'Earnings'],
-                                ['spent', 'My payments'],
-                            ] as const
-                        ).map(([id, label]) => (
-                            <Link
-                                key={id}
-                                href={`/transactions?view=${id}`}
-                                className={cn(
-                                    '-mb-px border-b-2 px-4 py-2 text-sm font-medium',
-                                    view === id
-                                        ? 'border-ocean text-ocean dark:border-foam dark:text-foam'
-                                        : 'border-transparent text-muted-foreground',
-                                )}
-                            >
-                                {label}
-                            </Link>
-                        ))}
-                    </nav>
-                )}
 
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                     <StatCard

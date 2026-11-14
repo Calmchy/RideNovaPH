@@ -22,10 +22,14 @@ class MessageController extends Controller
     {
         $me = $request->user();
 
+        // Plain integer written into the SQL text (not a ? binding): MySQL's ONLY_FULL_GROUP_BY cannot tell that
+        // a bound value in SELECT and in GROUP BY are the same, so the two expressions must match exactly.
+        $id = (int) $me->id;
+
         $latest = DirectMessage::query()
-            ->where(fn ($q) => $q->where('sender_id', $me->id)->orWhere('recipient_id', $me->id))
-            ->selectRaw('CASE WHEN sender_id = ? THEN recipient_id ELSE sender_id END AS partner_id, MAX(id) AS last_id', [$me->id])
-            ->groupBy('partner_id')
+            ->where(fn ($q) => $q->where('sender_id', $id)->orWhere('recipient_id', $id))
+            ->selectRaw("CASE WHEN sender_id = {$id} THEN recipient_id ELSE sender_id END AS partner_id, MAX(id) AS last_id")
+            ->groupByRaw("CASE WHEN sender_id = {$id} THEN recipient_id ELSE sender_id END")
             ->orderByDesc('last_id')->limit(50)->get();
 
         $people = User::whereIn('id', $latest->pluck('partner_id'))->get(['id', 'name', 'last_seen_at'])->keyBy('id');

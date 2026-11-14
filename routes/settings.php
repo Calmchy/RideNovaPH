@@ -5,12 +5,15 @@ use App\Http\Controllers\Settings\ProfileController;
 use App\Http\Controllers\Settings\SecurityController;
 use Illuminate\Auth\Middleware\RequirePassword;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Settings\DefaultPlaceController;
 
 Route::middleware(['auth'])->group(function () {
     Route::redirect('settings', '/settings/profile');
 
     Route::get('settings/profile', [ProfileController::class, 'edit'])->name('profile.edit');
-    Route::patch('settings/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::patch('settings/profile', [ProfileController::class, 'update'])->name('profile.update');Route::post('settings/default-place', [DefaultPlaceController::class, 'store'])->middleware('throttle:20,1')->name('default-place.store');
+    Route::delete('settings/default-place', [DefaultPlaceController::class, 'destroy'])->name('default-place.destroy');
+    
 
     // Profile picture: always the logged-in user's own (nothing in the URL says whose).
     Route::post('settings/profile/photo', [ProfileController::class, 'photo'])->middleware('throttle:10,1')->name('profile.photo');

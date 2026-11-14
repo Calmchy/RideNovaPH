@@ -181,3 +181,16 @@ test('a driver can switch their hire listing off and on', function () {
     $this->actingAs($driver)->patch('/driver/availability');
     expect($driver->driverProfile->fresh()->available_for_hire)->toBeTrue();
 });
+
+test('the driver dashboard card lists hire requests from passengers, and passengers do not get it', function () {
+    [$driver, $passenger] = openCharter();
+
+    $this->actingAs($driver)->get('/dashboard')->assertInertia(fn ($p) => $p
+        ->where('passenger_requests.total', 1)
+        ->where('passenger_requests.items.0.kind', 'hire')
+        ->where('passenger_requests.items.0.href', '/charters/'.CharterRequest::firstOrFail()->id));
+
+    $this->actingAs($passenger)->get('/dashboard')->assertInertia(fn ($p) => $p
+        ->where('passenger_requests.total', 0)
+        ->where('passenger_requests.items', []));
+});

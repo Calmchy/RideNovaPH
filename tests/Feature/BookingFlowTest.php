@@ -146,7 +146,7 @@ test('the bookings hub filters by status and reference', function () {
 
 test('a ride that already left stays in Find a ride marked on the road, and cannot be reserved', function () {
     $driver = Scenario::driver();
-    $left = Scenario::ride($driver, ['departure_at' => now()->subMinutes(30), 'started_at' => now()->subMinutes(20)]);
+    $left = Scenario::ride($driver, ['departure_at' => now()->subMinutes(30), 'started_at' => now()->subSeconds(30)]);
     $gone = Scenario::ride($driver, ['departure_at' => now()->subHours(3)]); // never started: truly gone
     $passenger = Scenario::passenger();
 
@@ -157,4 +157,46 @@ test('a ride that already left stays in Find a ride marked on the road, and cann
 
     $this->actingAs($passenger)->post("/rides/{$left->id}/book", Scenario::bookingForm())->assertSessionHasErrors();
     expect($passenger->bookings()->count())->toBe(0)->and($gone->bookings()->count())->toBe(0);
+});
+
+test('on-the-road rides stay until arrival, then disappear 10 minutes later', function () {
+    $driver = Scenario::driver();
+    $cancelledOld = Scenario::ride($driver, ['status' => 'cancelled', 'departure_at' => now()->subHours(1), 'cancelled_at' => now()->subMinutes(11)]);
+    $onRoad = Scenario::ride($driver, ['departure_at' => now()->subHours(2), 'started_at' => now()->subHour()]); // still travelling: stays until the driver arrives
+    $arrived = Scenario::ride($driver, ['status' => 'completed', 'departure_at' => now()->subHours(1), 'started_at' => now()->subMinutes(30), 'completed_at' => now()->subMinutes(9)]);
+    $arrivedOld = Scenario::ride($driver, ['status' => 'completed', 'departure_at' => now()->subHours(2), 'started_at' => now()->subHour(), 'completed_at' => now()->subMinutes(15)]);
+    $passenger = Scenario::passenger();
+
+    $this->actingAs($passenger)->get('/bookings?tab=find')->assertInertia(fn ($page) => $page
+        ->has('rides.data', 2)
+        ->where('rides.data', fn ($rows) => collect($rows)->pluck('id')->sort()->values()->all() === collect([$arrived->id, $onRoad->id])->sort()->values()->all()));
+});
+
+test('passengers can search Find a ride by any Philippine province and town', function () {
+    $driver = Scenario::driver();
+    $ride = Scenario::ride($driver);
+    $ride->load('origin.province');
+    $passenger = Scenario::passenger();
+
+    $this->actingAs($passenger)->get('/bookings?tab=find&origin_province='.urlencode($ride->origin->province->name).'&origin_place='.urlencode($ride->origin->name))
+        ->assertInertia(fn ($page) => $page->has('rides.data', 1)->has('places'));
+
+    // A real town nobody has published a ride to yet simply has no rides.
+    $this->actingAs($passenger)->get('/bookings?tab=find&destination_province=Cebu&destination_place=Moalboal')
+        ->assertInertia(fn ($page) => $page->has('rides.data', 0));
+});
+
+test('passengers can filter for no longer available rides and see how long ago they left', function () {
+    $driver = Scenario::driver();
+    $open = Scenario::ride($driver, ['departure_at' => now()->addDay()]);
+    $missed = Scenario::ride($driver, ['departure_at' => now()->subHours(3)]); // never started, time passed
+    $arrived = Scenario::ride($driver, ['status' => 'completed', 'departure_at' => now()->subHours(5), 'started_at' => now()->subHours(4), 'completed_at' => now()->subHour()]);
+    $passenger = Scenario::passenger();
+
+    $this->actingAs($passenger)->get('/bookings?tab=find&availability=unavailable')->assertInertia(fn ($page) => $page
+        ->where('rides.data', fn ($rows) => collect($rows)->pluck('id')->sort()->values()->all() === collect([$missed->id, $arrived->id])->sort()->values()->all()
+            && collect($rows)->every(fn ($r) => $r['unavailable'] === true && ! empty($r['departed_at']))));
+
+    $this->actingAs($passenger)->get('/bookings?tab=find&availability=available')->assertInertia(fn ($page) => $page
+        ->has('rides.data', 1)->where('rides.data.0.id', $open->id)->where('rides.data.0.unavailable', false));
 });
