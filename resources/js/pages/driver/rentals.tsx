@@ -255,11 +255,12 @@ export default function DriverRentals({
                 title="Rent my unit"
                 description="Let someone rent your vehicle and drive it themselves. You set the price per day and your terms and conditions."
             />
-            <PublishUnitPanel vehicles={my_vehicles} />
-            <MyVehiclesPanel vehicles={my_vehicles} />
+            {/* Requests first, so the owner sees new ones right away. */}
             <Panel title="Rental requests for my vehicles">
                 <RentalRequestsTable rows={incoming_rentals} who="Renter" />
             </Panel>
+            <PublishUnitPanel vehicles={my_vehicles} />
+            <MyVehiclesPanel vehicles={my_vehicles} />
         </>
     );
 }

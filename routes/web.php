@@ -149,6 +149,7 @@ Route::middleware(['auth', 'verified', \App\Http\Middleware\TouchLastSeen::class
     Route::get('/rentals', [RentalController::class, 'manage'])->name('rentals');
 
     Route::get('/vehicles', [VehicleController::class, 'index'])->name('vehicles.index');
+    Route::post('/vehicles/{vehicle}/submit', [VehicleController::class, 'submit'])->middleware('throttle:20,1')->name('vehicles.submit');
     Route::post('/vehicles', [VehicleController::class, 'store'])->middleware('throttle:20,1')->name('vehicles.store');
     Route::patch('/vehicles/{vehicle}', [VehicleController::class, 'update'])->name('vehicles.update');
     Route::delete('/vehicles/{vehicle}', [VehicleController::class, 'destroy'])->name('vehicles.destroy');
@@ -165,6 +166,7 @@ Route::middleware(['auth', 'verified', \App\Http\Middleware\TouchLastSeen::class
     Route::patch('/rides/{ride}/start', [DriverRideController::class, 'start'])->name('rides.start');
     Route::patch('/rides/{ride}/complete', [DriverRideController::class, 'complete'])->name('rides.complete');
     Route::patch('/rides/{ride}/cancel', [DriverRideController::class, 'cancel'])->name('rides.cancel');
+    Route::delete('/rides/{ride}', [DriverRideController::class, 'destroy'])->name('rides.destroy');
 });
 
 // ---- Admin only (role checked server-side by the 'admin' middleware) ----
@@ -178,6 +180,9 @@ Route::middleware(['auth', 'verified', 'admin'])->prefix('admin')->group(functio
     Route::post('/team/{member}', [\App\Http\Controllers\Admin\TeamController::class, 'update'])->middleware('throttle:30,1')->name('admin.team.update');
 
     Route::get('/drivers', [AdminDriverController::class, 'index'])->name('admin.drivers');
+    Route::get('/vehicles/{vehicle}/cor', [AdminDriverController::class, 'cor'])->name('admin.vehicles.cor');
+    Route::get('/vehicles', [\App\Http\Controllers\Admin\VehicleController::class, 'index'])->name('admin.vehicles');
+    Route::patch('/vehicles/{vehicle}', [\App\Http\Controllers\Admin\VehicleController::class, 'decide'])->name('admin.vehicles.decide');
     Route::get('/drivers/{driver}/license/{side?}', [AdminDriverController::class, 'license'])
         ->where('side', 'front|back')->name('admin.drivers.license');
     Route::get('/vehicles/{vehicle}/cor', [AdminDriverController::class, 'cor'])->name('admin.vehicles.cor');

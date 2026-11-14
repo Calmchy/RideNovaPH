@@ -100,8 +100,9 @@ test('a driver only edits their own vehicles', function () {
 test('vehicle registration validates the plate and is unique', function () {
     $driver = Scenario::driver();
     $first = Scenario::vehicle($driver);
-    $body = ['model_id' => $first->model_id, 'color' => 'Blue', 'plate_number' => 'XYZ 9999', 'seat_capacity' => 4];
+    $body = ['model_id' => $first->model_id, 'color' => 'Blue', 'plate_number' => 'XYZ 9999', 'vin' => '1HGCM82633A004352', 'seat_capacity' => 4];
 
+    $this->travel(3)->minutes(); // registrations are spaced 2 minutes apart
     $this->actingAs($driver)->post('/driver/vehicles', $body)->assertSessionHasNoErrors();
     $this->actingAs($driver)->post('/driver/vehicles', $body)->assertSessionHasErrors('plate_number');
     $this->actingAs($driver)->post('/driver/vehicles', ['plate_number' => '<script>'] + $body)->assertSessionHasErrors('plate_number');
@@ -223,4 +224,109 @@ test('a driver can delete a schedule whose date already passed, but not an upcom
     $this->actingAs($driver)->delete("/driver/rides/{$past->id}");
 
     expect(Ride::find($past->id))->toBeNull()->and(Ride::find($future->id))->not->toBeNull();
+});
+
+test('a driver must wait 2 minutes between vehicle registrations', function () {
+    $driver = Scenario::driver();
+    $first = Scenario::vehicle($driver);
+    $body = fn (string $plate) => ['model_id' => $first->model_id, 'color' => 'Blue', 'plate_number' => $plate, 'vin' => '2HGCM82633A004353', 'seat_capacity' => 4];
+
+    $this->actingAs($driver)->post('/driver/vehicles', $body('AAA 1111')); // too soon after $first
+    expect(Vehicle::where('plate_number', 'AAA 1111')->exists())->toBeFalse();
+    expect($driver->notifications()->count())->toBe(1);
+
+    $this->travel(3)->minutes();
+    $this->actingAs($driver)->post('/driver/vehicles', $body('AAA 1111'));
+    $new = Vehicle::where('plate_number', 'AAA 1111')->first();
+    expect($new)->not->toBeNull()->and($new->review_status)->toBe('draft');
+});
+
+test('admin reviews a vehicle: reason is required, the driver is notified, and only approved vehicles can publish', function () {
+    $admin = Scenario::admin();
+    $driver = Scenario::driver();
+    $vehicle = Scenario::vehicle($driver);
+    $vehicle->forceFill(['review_status' => 'pending', 'cor_image_path' => 'vehicle-cor/x.jpg'])->save();
+
+    // The list shows it, with its photos.
+    $this->actingAs($admin)->get('/admin/vehicles?status=pending')->assertInertia(fn ($page) => $page
+        ->component('admin/vehicles')->has('vehicles.data', 1)->where('vehicles.data.0.has_cor', true));
+
+    // Rejecting needs a reason.
+    $this->actingAs($admin)->patch("/admin/vehicles/{$vehicle->id}", ['decision' => 'rejected'])->assertSessionHasErrors('remarks');
+    $this->actingAs($admin)->patch("/admin/vehicles/{$vehicle->id}", ['decision' => 'rejected', 'remarks' => 'COR photo is blurry']);
+
+    expect($vehicle->fresh()->review_status)->toBe('rejected')
+        ->and($driver->notifications()->first()->data['body'])->toContain('COR photo is blurry');
+
+    // Not usable until approved.
+    $this->actingAs($driver)->get('/driver/rides/create')->assertSuccessful();
+    $this->actingAs($admin)->patch("/admin/vehicles/{$vehicle->id}", ['decision' => 'approved']);
+    expect($vehicle->fresh()->review_status)->toBe('approved')->and(Vehicle::approved()->whereKey($vehicle->id)->exists())->toBeTrue();
+
+    // Drivers can't use the admin page.
+    $this->actingAs($driver)->patch("/admin/vehicles/{$vehicle->id}", ['decision' => 'approved'])->assertForbidden();
+});
+
+test('a driver can type their own make and model when it is not in the list', function () {
+    $driver = Scenario::driver();
+    $body = ['model_id' => 'other', 'custom_make' => 'Honda', 'custom_model' => 'Civic', 'color' => 'Red', 'plate_number' => 'HND 2024', 'vin' => '3HGCM82633A004354', 'seat_capacity' => 4];
+
+    $this->actingAs($driver)->post('/driver/vehicles', ['custom_model' => ''] + $body)->assertSessionHasErrors('custom_model');
+    $this->actingAs($driver)->post('/driver/vehicles', $body)->assertSessionHasNoErrors();
+
+    $vehicle = Vehicle::where('plate_number', 'HND 2024')->first();
+    expect($vehicle->model->name)->toBe('Civic')->and($vehicle->model->make->name)->toBe('Honda');
+
+    // Typing it again (any case) reuses the same make and model instead of duplicating them.
+    $this->travel(3)->minutes();
+    $this->actingAs($driver)->post('/driver/vehicles', ['custom_make' => 'honda', 'custom_model' => 'CIVIC', 'plate_number' => 'HND 2025', 'vin' => '4HGCM82633A004355'] + $body);
+    expect(Vehicle::where('plate_number', 'HND 2025')->first()->model_id)->toBe($vehicle->model_id);
+});
+
+test('registering a vehicle needs a valid, unique 17-character VIN', function () {
+    $driver = Scenario::driver();
+    $first = Scenario::vehicle($driver);
+    $this->travel(3)->minutes();
+    $body = ['model_id' => $first->model_id, 'color' => 'Blue', 'plate_number' => 'VIN 1234', 'seat_capacity' => 4];
+
+    $this->actingAs($driver)->post('/driver/vehicles', $body)->assertSessionHasErrors('vin');
+    $this->actingAs($driver)->post('/driver/vehicles', ['vin' => 'SHORTVIN'] + $body)->assertSessionHasErrors('vin');
+    $this->actingAs($driver)->post('/driver/vehicles', ['vin' => '5HGCM82633A004356'] + $body)->assertSessionHasNoErrors();
+    expect(Vehicle::where('plate_number', 'VIN 1234')->value('vin'))->toBe('5HGCM82633A004356');
+    $this->actingAs($driver)->post('/driver/vehicles', ['vin' => '5hgcm82633a004356', 'plate_number' => 'VIN 5678'] + $body)->assertSessionHasErrors('vin');
+});
+
+test('a new vehicle stays a draft, invisible to the admin, until the driver presses Submit', function () {
+    $admin = Scenario::admin();
+    $driver = Scenario::driver();
+    $vehicle = Scenario::vehicle($driver);
+    $vehicle->forceFill(['review_status' => 'draft', 'vin' => '6HGCM82633A004357'])->save();
+
+    $this->actingAs($admin)->get('/admin/vehicles')->assertInertia(fn ($page) => $page->has('vehicles.data', 0));
+
+    // Missing photos / COR: refused.
+    $this->actingAs($driver)->post("/driver/vehicles/{$vehicle->id}/submit");
+    expect($vehicle->fresh()->review_status)->toBe('draft');
+
+    $vehicle->forceFill(['photo_front_path' => 'v/f.jpg', 'photo_back_path' => 'v/b.jpg', 'photo_interior_path' => 'v/i.jpg', 'cor_image_path' => 'vehicle-cor/c.jpg'])->save();
+    $this->actingAs(Scenario::driver())->post("/driver/vehicles/{$vehicle->id}/submit")->assertForbidden();
+    $this->actingAs($driver)->post("/driver/vehicles/{$vehicle->id}/submit");
+
+    expect($vehicle->fresh()->review_status)->toBe('pending');
+    $this->actingAs($admin)->get('/admin/vehicles')->assertInertia(fn ($page) => $page->has('vehicles.data', 1));
+});
+
+it('saves the back of the licence when a driver submits it', function () {
+    Storage::fake('local');
+    $user = Scenario::passenger();
+
+    $this->actingAs($user)->post('/driver/apply', [
+        'license_number' => 'N01-23-456789',
+        'license_expiry' => now()->addYear()->toDateString(),
+        'license_image' => UploadedFile::fake()->image('front.jpg'),
+        'license_back_image' => UploadedFile::fake()->image('back.jpg'),
+        'consent' => true,
+    ])->assertSessionHasNoErrors();
+
+    expect($user->fresh()->driverProfile->license_back_image_path)->not->toBeNull();
 });

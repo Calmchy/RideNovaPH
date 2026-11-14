@@ -92,6 +92,14 @@ export default function DocTile({
         );
     };
 
+    const openPicker = () => {
+        if (upload?.confirm && !window.confirm(upload.confirm)) {
+            return;
+        }
+
+        fileRef.current?.click();
+    };
+
     return (
         <div className="space-y-2">
             <p className="text-xs font-medium tracking-widest text-ocean uppercase dark:text-foam">
@@ -116,7 +124,9 @@ export default function DocTile({
                     {/* The X button is built into DialogContent (top-right); the title bar keeps it clear of the photo. */}
                     <DialogContent className="max-h-[90vh] gap-0 overflow-hidden p-0 sm:max-w-3xl">
                         <div className="border-b px-5 py-3 pr-12">
-                            <DialogTitle className="text-sm">{label}</DialogTitle>
+                            <DialogTitle className="text-sm">
+                                {label}
+                            </DialogTitle>
                             <DialogDescription className="sr-only">
                                 Full size preview. Press Esc or the X button to
                                 close.
@@ -131,6 +141,23 @@ export default function DocTile({
                         </div>
                     </DialogContent>
                 </Dialog>
+            ) : upload ? (
+                // The blank card itself is the upload target: click it, or drop a photo on it.
+                <button
+                    type="button"
+                    disabled={busy}
+                    onClick={openPicker}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                        e.preventDefault();
+                        send(e.dataTransfer.files?.[0]);
+                    }}
+                    className="flex aspect-[4/3] w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed text-center text-sm text-muted-foreground transition hover:border-ocean hover:bg-muted/40"
+                >
+                    <FileImage className="size-6" aria-hidden />
+                    {emptyText}
+                    <span className="text-xs">Click or drop a photo here</span>
+                </button>
             ) : (
                 <div className="flex aspect-[4/3] w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed text-center text-sm text-muted-foreground">
                     <FileImage className="size-6" aria-hidden />
@@ -154,15 +181,13 @@ export default function DocTile({
                         size="sm"
                         variant="outline"
                         disabled={busy}
-                        onClick={() => {
-                            if (upload.confirm && !window.confirm(upload.confirm)) {
-                                return;
-                            }
-
-                            fileRef.current?.click();
-                        }}
+                        onClick={openPicker}
                     >
-                        {busy ? <Loader2 className="animate-spin" /> : <Camera />}
+                        {busy ? (
+                            <Loader2 className="animate-spin" />
+                        ) : (
+                            <Camera />
+                        )}
                         {upload.label}
                     </Button>
                 </>

@@ -51,7 +51,7 @@ class CharterController extends Controller
             ->where('status', ApprovalStatus::Approved->value)
             ->where('user_id', '!=', $user->id)
             ->where(fn ($q) => $q->where('available_for_hire', true)
-                ->orWhereHas('vehicles', fn ($v) => $v->where('available_for_rent', true)->whereNotNull('daily_rate')))
+                ->orWhereHas('vehicles', fn ($v) => $v->approved()->where('available_for_rent', true)->whereNotNull('daily_rate')))
             ->whereHas('vehicles')
             ->limit(20)->get()
             ->map(function (DriverProfile $p) use ($ratings) {
@@ -71,7 +71,7 @@ class CharterController extends Controller
                         'seats' => $v->seat_capacity,
                     ])->values(),
                     // Vehicles this driver lets people rent WITHOUT the driver (renter drives), at the owner's daily rate.
-                    'rentals' => $p->vehicles->filter(fn ($v) => $v->available_for_rent && $v->daily_rate)->map(fn ($v) => [
+                    'rentals' => $p->vehicles->filter(fn ($v) => $v->available_for_rent && $v->daily_rate && $v->isApproved())->map(fn ($v) => [
                         'id' => $v->id,
                         'name' => $v->model->make->name.' '.$v->model->name,
                         'daily_rate' => $v->daily_rate,

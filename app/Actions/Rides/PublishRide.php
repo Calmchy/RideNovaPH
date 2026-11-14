@@ -22,10 +22,10 @@ class PublishRide
         }
 
         // whereKey + driver_id: a driver can never publish on someone else's vehicle by editing the form.
-        $vehicle = Vehicle::where('driver_id', $driver->id)->whereKey($data['vehicle_id'])->first();
+        $vehicle = Vehicle::approved()->where('driver_id', $driver->id)->whereKey($data['vehicle_id'])->first();
 
         if (! $vehicle) {
-            throw ValidationException::withMessages(['vehicle_id' => 'Choose one of your registered vehicles.']);
+            throw ValidationException::withMessages(['vehicle_id' => 'Choose one of your approved vehicles. A new vehicle can be used once an admin has approved it.']);
         }
 
         if ($vehicle->isRentedOut(Carbon::parse($data['departure_at']))) {

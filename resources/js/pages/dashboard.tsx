@@ -11,16 +11,17 @@ import {
     Plus,
     ReceiptText,
     Route,
-    Star,
     UserCog,
 } from 'lucide-react';
+import AvailableDriversCard from '@/components/available-drivers-card';
 import DashboardSlideshow from '@/components/dashboard-slideshow';
 import type { Slide } from '@/components/dashboard-slideshow';
 import { EmptyState, StatCard } from '@/components/kit';
 import { fmtDateTime, peso, StatusBadge } from '@/components/lux';
+import PassengerRequestsCard from '@/components/passenger-requests-card';
+import type { PassengerRequests } from '@/components/passenger-requests-card';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import AvailableDriversCard from '@/components/available-drivers-card';
 
 type Props = {
     slides: Slide[];
@@ -54,6 +55,8 @@ type Props = {
         vehicle: string;
         trip_status: string;
     }[];
+    /** Drivers only: what passengers are asking of me (seat requests + hire requests), newest first. */
+    passenger_requests: PassengerRequests;
     drivers: {
         id: number;
         name: string;
@@ -98,6 +101,7 @@ export default function Dashboard({
     my_rides,
     unread_messages,
     drivers,
+    passenger_requests,
 }: Props) {
     const { auth } = usePage().props;
     const idCopy = ID_COPY[id_status ?? 'none'];
@@ -114,10 +118,23 @@ export default function Dashboard({
                       badge: stats.awaiting_my_approval,
                   },
               ]),
-        { title: 'Find a ride', href: '/bookings?tab=find', icon: Route },
-        ...(auth.isDriver ? [] : [{ title: 'Rent a vehicle', href: '/rent', icon: Car }]),
+        // Drivers publish rides instead of searching for them, so only passengers get this link.
+        ...(auth.isDriver
+            ? []
+            : [
+                  {
+                      title: 'Find a ride',
+                      href: '/bookings?tab=find',
+                      icon: Route,
+                  },
+              ]),
         { title: 'Transactions', href: '/transactions', icon: ReceiptText },
-        { title: 'Messages', href: '/messages', icon: MessageCircle, badge: unread_messages },
+        {
+            title: 'Messages',
+            href: '/messages',
+            icon: MessageCircle,
+            badge: unread_messages,
+        },
         ...(auth.isDriver
             ? [
                   {
@@ -129,7 +146,16 @@ export default function Dashboard({
                   },
               ]
             : []),
-        { title: 'Verify ID', href: '/settings/profile', icon: BadgeCheck },
+        // Once the ID is verified there is nothing left to do here.
+        ...(id_status === 'approved'
+            ? []
+            : [
+                  {
+                      title: 'Verify ID',
+                      href: '/settings/profile',
+                      icon: BadgeCheck,
+                  },
+              ]),
         { title: 'Profile', href: '/settings/profile', icon: UserCog },
     ];
 
@@ -175,7 +201,10 @@ export default function Dashboard({
                         </h1>
                     </header>
 
-                    <DashboardSlideshow slides={slides} driver={Boolean(auth.isDriver)} />
+                    <DashboardSlideshow
+                        slides={slides}
+                        driver={Boolean(auth.isDriver)}
+                    />
 
                     {/* Passenger numbers. Drivers don't see this row (their rides are listed below). */}
                     {!auth.isDriver && (
@@ -212,7 +241,9 @@ export default function Dashboard({
                     {auth.isDriver && (
                         <section>
                             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                                <h2 className="font-serif text-2xl">My rides</h2>
+                                <h2 className="font-serif text-2xl">
+                                    My rides
+                                </h2>
                                 <div className="flex items-center gap-4">
                                     <Link
                                         href="/driver/rides"
@@ -239,19 +270,27 @@ export default function Dashboard({
                                                     {r.route}
                                                 </p>
                                                 <p className="text-sm text-muted-foreground">
-                                                    {fmtDateTime(r.departure_at)} · {r.vehicle}{' '}
-                                                    · {r.seats_taken}/{r.seats_offered} seats ·{' '}
+                                                    {fmtDateTime(
+                                                        r.departure_at,
+                                                    )}{' '}
+                                                    · {r.vehicle} ·{' '}
+                                                    {r.seats_taken}/
+                                                    {r.seats_offered} seats ·{' '}
                                                     {peso(r.price_per_seat)}
                                                 </p>
                                             </div>
                                             <div className="flex items-center gap-2">
-                                                <StatusBadge status={r.trip_status} />
+                                                <StatusBadge
+                                                    status={r.trip_status}
+                                                />
                                                 <Button
                                                     asChild
                                                     size="sm"
                                                     variant="outline"
                                                 >
-                                                    <Link href={`/driver/rides/${r.id}`}>
+                                                    <Link
+                                                        href={`/driver/rides/${r.id}`}
+                                                    >
                                                         Manage
                                                     </Link>
                                                 </Button>
@@ -275,77 +314,86 @@ export default function Dashboard({
 
                     {/* Drivers provide rides rather than book them, so they don't get this list. */}
                     {!auth.isDriver && (
-                    <section>
-                        <div className="mb-3 flex items-center justify-between">
-                            <h2 className="font-serif text-2xl">
-                                Your upcoming trips
-                            </h2>
-                            <Link
-                                href="/bookings?tab=mine"
-                                className="text-sm text-ocean hover:underline dark:text-foam"
-                            >
-                                All bookings →
-                            </Link>
-                        </div>
-                        {upcoming.length ? (
-                            <div className="divide-y overflow-hidden rounded-2xl border bg-card">
-                                {upcoming.map((b) => (
-                                    <Link
-                                        key={b.id}
-                                        href={`/bookings/${b.id}`}
-                                        className="flex flex-wrap items-center justify-between gap-3 p-4 transition hover:bg-muted/50"
-                                    >
-                                        <div>
-                                            <p className="font-medium">
-                                                {b.route}
-                                            </p>
-                                            <p className="text-sm text-muted-foreground">
-                                                {fmtDateTime(b.departure_at)} ·{' '}
-                                                <span className="font-mono text-xs">
-                                                    {b.reference_no}
-                                                </span>
-                                            </p>
-                                        </div>
-                                        <StatusBadge status={b.status} />
-                                    </Link>
-                                ))}
-                            </div>
-                        ) : (
-                            <EmptyState>
-                                No upcoming trips.{' '}
+                        <section>
+                            <div className="mb-3 flex items-center justify-between">
+                                <h2 className="font-serif text-2xl">
+                                    Your upcoming trips
+                                </h2>
                                 <Link
-                                    href="/bookings?tab=find"
-                                    className="text-ocean underline dark:text-foam"
+                                    href="/bookings?tab=mine"
+                                    className="text-sm text-ocean hover:underline dark:text-foam"
                                 >
-                                    Find a ride
+                                    All bookings →
                                 </Link>
-                            </EmptyState>
-                        )}
-                    </section>
+                            </div>
+                            {upcoming.length ? (
+                                <div className="divide-y overflow-hidden rounded-2xl border bg-card">
+                                    {upcoming.map((b) => (
+                                        <Link
+                                            key={b.id}
+                                            href={`/bookings/${b.id}`}
+                                            className="flex flex-wrap items-center justify-between gap-3 p-4 transition hover:bg-muted/50"
+                                        >
+                                            <div>
+                                                <p className="font-medium">
+                                                    {b.route}
+                                                </p>
+                                                <p className="text-sm text-muted-foreground">
+                                                    {fmtDateTime(
+                                                        b.departure_at,
+                                                    )}{' '}
+                                                    ·{' '}
+                                                    <span className="font-mono text-xs">
+                                                        {b.reference_no}
+                                                    </span>
+                                                </p>
+                                            </div>
+                                            <StatusBadge status={b.status} />
+                                        </Link>
+                                    ))}
+                                </div>
+                            ) : (
+                                <EmptyState>
+                                    No upcoming trips.{' '}
+                                    <Link
+                                        href="/bookings?tab=find"
+                                        className="text-ocean underline dark:text-foam"
+                                    >
+                                        Find a ride
+                                    </Link>
+                                </EmptyState>
+                            )}
+                        </section>
                     )}
                 </div>
 
                 {/* Right: verification + top drivers */}
                 <aside className="min-w-0 space-y-6">
-                    <Link
-                        href="/settings/profile"
-                        className={cn(
-                            'block rounded-2xl border p-5 transition hover:shadow-md',
-                            idCopy.tone,
-                        )}
-                    >
-                        <BadgeCheck className="size-6 text-ocean dark:text-foam" />
-                        <p className="mt-2 font-semibold">{idCopy.title}</p>
-                        <p className="text-sm text-muted-foreground">
-                            {idCopy.text}
-                        </p>
-                        <p className="mt-2 text-sm font-medium text-ocean dark:text-foam">
-                            {idCopy.cta} →
-                        </p>
-                    </Link>
+                    {id_status !== 'approved' && (
+                        <Link
+                            href="/settings/profile"
+                            className={cn(
+                                'block rounded-2xl border p-5 transition hover:shadow-md',
+                                idCopy.tone,
+                            )}
+                        >
+                            <BadgeCheck className="size-6 text-ocean dark:text-foam" />
+                            <p className="mt-2 font-semibold">{idCopy.title}</p>
+                            <p className="text-sm text-muted-foreground">
+                                {idCopy.text}
+                            </p>
+                            <p className="mt-2 text-sm font-medium text-ocean dark:text-foam">
+                                {idCopy.cta} →
+                            </p>
+                        </Link>
+                    )}
 
-                    {/* Available Drivers */}
-                    <AvailableDriversCard drivers={drivers} />
+                    {/* Drivers see passengers asking for a seat; passengers see available drivers */}
+                    {auth.isDriver ? (
+                        <PassengerRequestsCard data={passenger_requests} />
+                    ) : (
+                        <AvailableDriversCard drivers={drivers} />
+                    )}
                 </aside>
             </div>
         </>

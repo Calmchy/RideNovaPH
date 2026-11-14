@@ -12,6 +12,7 @@ use App\Models\RentalExtension;
 use App\Models\RentalRequest;
 use App\Models\Vehicle;
 use App\Support\Like;
+use App\Support\PlaceResolver;
 use App\Support\RentalPanels;
 use App\Support\RentalTerms;
 use Carbon\Carbon;
@@ -48,7 +49,7 @@ class RentalController extends Controller
             'sort' => ['nullable', 'in:price_asc,price_desc,newest'],
         ]);
 
-        $vehicles = Vehicle::with(['model.make', 'driver.user:id,name'])
+        $vehicles = Vehicle::approved()->with(['model.make', 'driver.user:id,name'])
             ->where('available_for_rent', true)->whereNotNull('daily_rate')
             ->whereHas('driver', fn ($d) => $d->where('status', ApprovalStatus::Approved->value))
             // Never offer someone their own vehicle.
@@ -122,6 +123,7 @@ class RentalController extends Controller
             // Pre-fill what we already know about the renter (they can change it).
             'defaults' => ['name' => $user->name, 'phone' => $user->phone_number, 'address' => $user->address],
             'max_days' => RequestRental::MAX_DAYS,
+            'places' => PlaceResolver::all(),
         ]);
     }
 
@@ -306,6 +308,10 @@ class RentalController extends Controller
             'daily_rate' => ['nullable', 'numeric', 'min:1', 'max:100000', 'required_if:available_for_rent,true'],
         ] + RentalTerms::rules());
 
+        if ($data['available_for_rent'] && ! $vehicle->isApproved()) {
+            return back()->withErrors(['available_for_rent' => 'An admin has to approve this vehicle before it can be listed for rent.']);
+        }
+
         $vehicle->forceFill([
             'available_for_rent' => (bool) $data['available_for_rent'],
             'daily_rate' => isset($data['daily_rate']) ? round((float) $data['daily_rate'], 2) : $vehicle->daily_rate,
@@ -323,6 +329,10 @@ class RentalController extends Controller
     {
         $user = $request->user();
         abort_unless($user->isApprovedDriver() && $vehicle->driver_id === $user->id, 403);
+
+        if (! $vehicle->isApproved()) {
+            return back()->withErrors(['vehicle' => 'An admin has to approve this vehicle before it can be listed for rent.']);
+        }
 
         $request->merge([
             'plate_number' => strtoupper(trim((string) $request->input('plate_number'))),
