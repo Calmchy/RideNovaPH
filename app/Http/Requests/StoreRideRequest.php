@@ -2,6 +2,8 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Ride;
+use App\Support\DriverLocation;
 use App\Support\PlaceResolver;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -45,7 +47,7 @@ class StoreRideRequest extends FormRequest
         return $key ? data_get($data, $key, $default) : $data;
     }
 
-    /** From and To must not be the same place. */
+    /** From and To must not be the same place, and From must be where the driver last arrived. */
     public function after(): array
     {
         return [function (Validator $v) {
@@ -58,6 +60,18 @@ class StoreRideRequest extends FormRequest
                     ? "id:$id"
                     : 'new:'.mb_strtolower($this->input($end.'_province').'|'.PlaceResolver::clean($this->input($end.'_place')))
                 : 'id:'.(int) $this->input($end.'_city_id');
+
+            // A driver who has arrived somewhere can only start the next ride from that town.
+            // (Editing an old ride is fine as long as its starting place is not changed.)
+            $arrival = DriverLocation::lastArrival($this->user());
+            $editing = $this->route('ride');
+            $unchanged = $editing instanceof Ride && $key('origin') === 'id:'.$editing->origin_city_id;
+
+            if ($arrival && ! $unchanged && $key('origin') !== 'id:'.$arrival->id) {
+                $v->errors()->add('origin_city_id', "You last arrived in {$arrival->name}".($arrival->province ? ", {$arrival->province->name}" : '').'. Your next ride must start from there.');
+
+                return;
+            }
 
             if ($key('origin') === $key('destination')) {
                 $v->errors()->add('destination_city_id', 'The destination must be different from the starting place.');
