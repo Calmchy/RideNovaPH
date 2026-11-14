@@ -154,3 +154,36 @@ test('the booking page only offers the live panel while tracking is open', funct
 
     $this->actingAs(Scenario::passenger())->get('/bookings')->assertOk();
 });
+test('right after the passenger confirms, the booking page gets the "driver is waiting" panel even before the window opens', function () {
+    [$driver, $passenger, , $booking] = confirmedTrip(departInHours: 72);
+
+    $this->actingAs($passenger)->get("/bookings/{$booking->id}")->assertInertia(fn ($page) => $page
+        ->where('tracking.role', 'passenger')->where('tracking.ride_id', $booking->ride_id));
+
+    // The driver's position is still withheld until the window opens.
+    $json = $this->actingAs($passenger)->getJson("/bookings/{$booking->id}/tracking")->json();
+    expect($json['driver'])->toBeNull()->and((float) $json['pickup']['lat'])->toBe(10.7438);
+});
+
+test('the passenger can mark themselves seated once the driver is there; the driver is told, once', function () {
+    [$driver, $passenger, , $booking] = confirmedTrip();
+    $stranger = Scenario::passenger();
+
+    $this->actingAs($driver)->postJson("/bookings/{$booking->id}/seated")->assertForbidden();
+    $this->actingAs($stranger)->postJson("/bookings/{$booking->id}/seated")->assertForbidden();
+
+    $this->actingAs($passenger)->postJson("/bookings/{$booking->id}/seated")->assertOk();
+    $this->actingAs($passenger)->postJson("/bookings/{$booking->id}/seated")->assertOk(); // second tap: nothing new
+
+    expect($booking->fresh()->seated_at)->not->toBeNull()
+        ->and($driver->notifications()->where('data->title', 'Passenger is seated')->count())->toBe(1);
+
+    $this->actingAs($driver)->getJson("/bookings/{$booking->id}/tracking")->assertJson(['seated' => true]);
+});
+
+test('it is too early to be seated when the trip is days away and the driver has not arrived', function () {
+    [, $passenger, , $booking] = confirmedTrip(departInHours: 72);
+
+    $this->actingAs($passenger)->postJson("/bookings/{$booking->id}/seated")->assertUnprocessable();
+    expect($booking->fresh()->seated_at)->toBeNull();
+});

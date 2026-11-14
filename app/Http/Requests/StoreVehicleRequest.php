@@ -19,6 +19,16 @@ class StoreVehicleRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
+        foreach (['custom_make', 'custom_model'] as $field) {
+            if (is_string($this->input($field))) {
+                $this->merge([$field => trim(preg_replace('/\s+/u', ' ', strip_tags($this->input($field))))]);
+            }
+        }
+
+        if (is_string($this->input('vin'))) {
+            $this->merge(['vin' => strtoupper(trim($this->input('vin')))]);
+        }
+
         if (is_string($this->input('plate_number'))) {
             $this->merge(['plate_number' => strtoupper(trim($this->input('plate_number')))]);
         }
@@ -29,14 +39,31 @@ class StoreVehicleRequest extends FormRequest
         $ignore = $this->route('vehicle')?->id;
 
         $rules = [
-            'model_id' => ['required', 'integer', 'exists:vehicle_models,id'],
+            // Pick a listed model, or choose "other" and type your own make and model.
+            'model_id' => ['required', Rule::when($this->input('model_id') !== 'other', ['integer', 'exists:vehicle_models,id'])],
+            'custom_make' => ['exclude_unless:model_id,other', 'required', 'string', 'min:2', 'max:50', "regex:/^[\p{L}\p{N} .\-']+$/u"],
+            'custom_model' => ['exclude_unless:model_id,other', 'required', 'string', 'min:1', 'max:50', "regex:/^[\p{L}\p{N} .\-']+$/u"],
             'color' => ['required', 'string', 'max:30', 'regex:/^[\p{L} \-]+$/u'],
             // PH plates look like ABC 1234 / ABC-1234 / 123 ABC; keep it permissive but safe.
             'plate_number' => ['required', 'string', 'max:15', 'regex:/^[A-Z0-9 \-]{5,15}$/', Rule::unique('vehicles', 'plate_number')->ignore($ignore)],
+            // A VIN is 17 characters and never contains I, O or Q. Required when registering; older vehicles can add it later.
+            'vin' => [$ignore ? 'nullable' : 'required', 'regex:/^[A-HJ-NPR-Z0-9]{17}$/', Rule::unique('vehicles', 'vin')->ignore($ignore)],
             'seat_capacity' => ['required', 'integer', 'min:1', 'max:20'],
             'manufacture_year' => ['nullable', 'integer', 'min:1990', 'max:'.(now()->year + 1)],
         ];
 
         return $rules;
+    }
+
+    public function messages(): array
+    {
+        return [
+            'vin.required' => 'Enter the 17-character VIN.',
+            'vin.regex' => 'A VIN is 17 letters and numbers (no I, O or Q).',
+            'custom_make.required' => 'Type the make (brand), e.g. Honda.',
+            'custom_model.required' => 'Type the model, e.g. Civic.',
+            'custom_make.regex' => 'Use letters and numbers only.',
+            'custom_model.regex' => 'Use letters and numbers only.',
+        ];
     }
 }

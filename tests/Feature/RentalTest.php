@@ -198,3 +198,82 @@ test('a driver who only rents out the vehicle still shows in the banner, with th
         ->and($entry['rentals'][0]['id'])->toBe($vehicle->id)
         ->and((float) $entry['rentals'][0]['daily_rate'])->toBe(1700.0);
 });
+
+test('a vehicle that is rented out cannot be used to publish a ride until it is returned', function () {
+    [$owner, , $rental] = openRental();
+    $this->actingAs($owner)->patch("/rentals/{$rental->id}/approve")->assertSessionHasNoErrors();
+
+    $form = fn () => [
+        'vehicle_id' => $rental->vehicle_id,
+        'origin_city_id' => App\Models\City::where('name', 'Abuyog')->first()->id,
+        'destination_city_id' => App\Models\City::where('name', 'Ormoc City')->first()->id,
+        'pickup_point' => 'Abuyog market', 'departure_at' => now()->addDays(10)->format('Y-m-d\TH:i'),
+        'seats_offered' => 2, 'price_per_seat' => 300,
+    ];
+
+    // Approved but not started yet: only the rental dates are blocked.
+    $this->actingAs($owner)->post('/driver/rides', $form())->assertSessionHasNoErrors();
+    $this->actingAs($owner)->post('/driver/rides', ['departure_at' => $rental->start_at->addHour()->format('Y-m-d\TH:i')] + $form())
+        ->assertSessionHasErrors('vehicle_id');
+
+    // The renter has the vehicle now: no ride at all, and the form is closed to the owner.
+    $rental->forceFill(['start_at' => now()->subHour(), 'end_at' => now()->addDays(2)])->save();
+    $this->actingAs($owner)->post('/driver/rides', $form())->assertSessionHasErrors('vehicle_id');
+    $this->actingAs($owner)->get('/driver/rides/create')->assertRedirect(route('driver.rentals'));
+
+    // Returned: the vehicle is the owner's again.
+    $rental->forceFill(['status' => RentalStatus::Completed])->save();
+    $this->actingAs($owner)->post('/driver/rides', $form())->assertSessionHasNoErrors();
+});
+
+test('a rental can run longer than a month; the owner decides', function () {
+    [$owner, $vehicle] = rentableCar(1000);
+    $renter = Scenario::passenger();
+
+    $this->actingAs($renter)->post('/rentals', rentalForm($vehicle, [
+        'start_at' => now()->addDays(2)->format('Y-m-d\TH:i'),
+        'end_at' => now()->addDays(61)->format('Y-m-d\TH:i'), // 59 days
+    ]))->assertSessionHasNoErrors();
+
+    expect(RentalRequest::latest('id')->first()->days)->toBe(59);
+});
+
+test('an owner publishes a unit for rent with plate, VIN and front/back photos', function () {
+    Storage::fake('public');
+    $owner = Scenario::driver();
+    $vehicle = Scenario::vehicle($owner, 5);
+
+    $form = fn (array $over = []) => $over + [
+        'plate_number' => 'abc 1234', 'vin' => '1hgcm82633a004352', 'daily_rate' => 1800,
+        'photo_front' => UploadedFile::fake()->image('front.jpg'), 'photo_back' => UploadedFile::fake()->image('back.jpg'),
+    ];
+
+    $this->actingAs($owner)->post("/rentals/vehicles/{$vehicle->id}/publish", $form(['vin' => 'SHORT']))->assertSessionHasErrors('vin');
+    $this->actingAs($owner)->post("/rentals/vehicles/{$vehicle->id}/publish", $form(['photo_back' => null]))->assertSessionHasErrors('photo_back');
+
+    $this->actingAs($owner)->post("/rentals/vehicles/{$vehicle->id}/publish", $form())->assertSessionHasNoErrors();
+
+    $vehicle->refresh();
+    expect($vehicle->available_for_rent)->toBeTrue()
+        ->and($vehicle->vin)->toBe('1HGCM82633A004352')
+        ->and($vehicle->plate_number)->toBe('ABC 1234')
+        ->and($vehicle->photo_front_path)->not->toBeNull()
+        ->and($vehicle->photo_back_path)->not->toBeNull();
+
+    $other = Scenario::driver();
+    $this->actingAs($other)->post("/rentals/vehicles/{$vehicle->id}/publish", $form())->assertForbidden();
+});
+
+test('renters can browse listed vehicles on their own page, but not unlisted or their own', function () {
+    [$owner, $listed] = rentableCar(1200);
+    $hidden = Scenario::vehicle($owner, 5);
+    $renter = Scenario::passenger();
+
+    $this->actingAs($renter)->get('/rent')->assertInertia(fn ($page) => $page
+        ->component('rentals/browse')
+        ->has('vehicles.data', 1)
+        ->where('vehicles.data.0.id', $listed->id));
+
+    // The owner never sees their own unit as something to rent.
+    $this->actingAs($owner)->get('/rent')->assertInertia(fn ($page) => $page->has('vehicles.data', 0));
+});

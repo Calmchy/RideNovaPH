@@ -2,10 +2,11 @@
 // the driver decides the PRICE after reading them, so there is no price field here.
 import { Head, Link, useForm } from '@inertiajs/react';
 import { Phone } from 'lucide-react';
+import { DatePicker } from '@/components/date-picker';
 import { Field, inputCls, PageHeader, Panel } from '@/components/kit';
 import { toLocalInput } from '@/components/lux';
-import { splitName } from '@/lib/split-name';
 import { Button } from '@/components/ui/button';
+import { splitName } from '@/lib/split-name';
 
 type Props = {
     /** The signed-in account's name and phone, used to prefill. */
@@ -213,11 +214,13 @@ export default function CharterCreate({ defaults, driver, vehicles }: Props) {
                                 label="Pick-up date & time *"
                                 error={form.errors.pickup_at}
                             >
-                                <input
-                                    required
-                                    type="datetime-local"
+                                <DatePicker
+                                    withTime
                                     min={now}
-                                    {...f('pickup_at')}
+                                    value={form.data.pickup_at}
+                                    onChange={(v) =>
+                                        form.setData('pickup_at', v)
+                                    }
                                 />
                             </Field>
                         </div>
@@ -240,10 +243,13 @@ export default function CharterCreate({ defaults, driver, vehicles }: Props) {
                                 error={form.errors.return_at}
                                 hint="Fill in both, or leave both empty"
                             >
-                                <input
-                                    type="datetime-local"
+                                <DatePicker
+                                    withTime
                                     min={form.data.pickup_at || now}
-                                    {...f('return_at')}
+                                    value={form.data.return_at}
+                                    onChange={(v) =>
+                                        form.setData('return_at', v)
+                                    }
                                 />
                             </Field>
                         </div>

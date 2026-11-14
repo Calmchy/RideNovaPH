@@ -1,5 +1,6 @@
 import { createInertiaApp } from '@inertiajs/react';
 import ChatbotWidget from '@/components/chatbot-widget';
+import NavigationSkeleton from '@/components/navigation-skeleton';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { initializeTheme } from '@/hooks/use-appearance';
@@ -36,6 +37,8 @@ createInertiaApp({
         return (
             <TooltipProvider delayDuration={0}>
                 {app}
+                {/* Skeleton screen while the next page loads */}
+                <NavigationSkeleton />
                 <Toaster />
                 {/* Nova chatbot on every page (guests included) */}
                 <ChatbotWidget />

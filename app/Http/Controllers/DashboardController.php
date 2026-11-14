@@ -8,6 +8,8 @@ use App\Enums\PaymentStatus;
 use App\Models\Announcement;
 use App\Models\Banner;
 use App\Models\Booking;
+use App\Models\CharterRequest;
+use App\Enums\CharterStatus;
 use App\Models\DriverProfile;
 use App\Models\Payment;
 use App\Models\Ride;
@@ -62,6 +64,7 @@ class DashboardController extends Controller
                 'departure_at' => $b->ride->departure_at->toIso8601String(),
             ]),
             // Drivers: their latest rides (same list as Driver > My rides), so the dashboard isn't empty.
+            'unread_messages' => \App\Support\DirectChat::unreadCount($user),
             'my_rides' => $isDriver
                 ? Ride::with(['origin', 'destination', 'vehicle.model.make'])->withSeatsTaken()
                     ->whereHas('vehicle', fn ($q) => $q->where('driver_id', $user->id))
@@ -77,8 +80,49 @@ class DashboardController extends Controller
                         'trip_status' => $r->tripStatus(),
                     ])
                 : [],
-            'drivers' => $this->drivers(),
+            // Drivers see who is asking for a seat (waiting for their answer) instead of the drivers list.
+            'drivers' => $isDriver ? [] : $this->drivers(),
+            'passenger_requests' => $isDriver ? $this->passengerRequests($user->id) : ['total' => 0, 'items' => []],
         ]);
+    }
+
+    /**
+     * Driver dashboard card: what passengers are asking of ME right now (nothing else).
+     * Seat requests for my rides + "hire my whole vehicle" requests, both still waiting for my answer, newest first.
+     *
+     * @return array{total: int, items: list<array<string, mixed>>}
+     */
+    private function passengerRequests(int $driverId): array
+    {
+        $seats = Booking::with(['passenger:id,name', 'ride.origin', 'ride.destination'])
+            ->whereHas('ride.vehicle', fn ($q) => $q->where('driver_id', $driverId))
+            ->where('status', BookingStatus::Pending->value);
+
+        $hires = CharterRequest::with('passenger:id,name')
+            ->where('driver_id', $driverId)
+            ->where('status', CharterStatus::Pending->value);
+
+        $total = (clone $seats)->count() + (clone $hires)->count();
+
+        $items = collect($seats->latest()->limit(6)->get()->map(fn (Booking $b) => [
+            'key' => 'seat-'.$b->id,
+            'kind' => 'seat',
+            'passenger' => $b->passenger->name,
+            'detail' => $b->ride->origin->name.' → '.$b->ride->destination->name.' · '.$b->seats_booked.($b->seats_booked === 1 ? ' seat' : ' seats'),
+            'when' => $b->ride->departure_at->toIso8601String(),
+            'href' => '/bookings/'.$b->id,
+            'sort' => $b->created_at->timestamp,
+        ]))->merge($hires->latest()->limit(6)->get()->map(fn (CharterRequest $c) => [
+            'key' => 'hire-'.$c->id,
+            'kind' => 'hire',
+            'passenger' => $c->passenger_name ?: $c->passenger->name,
+            'detail' => 'Group of '.$c->group_size.' · '.$c->pickup_location,
+            'when' => $c->pickup_at->toIso8601String(),
+            'href' => '/charters/'.$c->id,
+            'sort' => $c->created_at->timestamp,
+        ]))->sortByDesc('sort')->take(6)->map(fn ($i) => collect($i)->except('sort')->all())->values()->all();
+
+        return ['total' => $total, 'items' => $items];
     }
 
     /** Admin banners and upcoming exam announcements, interleaved into one auto-playing slideshow. */

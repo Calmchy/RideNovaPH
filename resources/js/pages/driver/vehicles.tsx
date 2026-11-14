@@ -1,8 +1,8 @@
 // Vehicle registration: list + add + edit + remove (all scoped to the signed-in driver on the server).
 // Each vehicle shows an editable photo banner (front / back / interior) with a description panel below.
 import { Head, router, useForm } from '@inertiajs/react';
-import { Pencil, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { BadgeCheck, Pencil, Plus, Trash2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import DocTile from '@/components/doc-tile';
 import {
     EmptyState,
@@ -28,32 +28,122 @@ type Vehicle = {
     photos: VehiclePhoto[];
     description: string | null;
     cor_url: string | null;
+    vin: string | null;
+    review_status: 'draft' | 'pending' | 'approved' | 'rejected';
+    review_remarks: string | null;
 };
 type VehicleForm = {
     model_id: string;
     color: string;
     plate_number: string;
+    vin: string;
     seat_capacity: string;
     manufacture_year: string;
+    custom_make: string;
+    custom_model: string;
 };
 type Props = {
     has_profile: boolean;
     vehicles: Vehicle[];
     models: { id: number; label: string }[];
+    /** ISO time the next vehicle may be registered (2 minutes after the last), or null. */
+    next_vehicle_at: string | null;
 };
 
-export default function Vehicles({ has_profile, vehicles, models }: Props) {
+/** The driver's final confirmation: nothing reaches the admin until this button is pressed. */
+function SubmitPanel({ v }: { v: Vehicle }) {
+    const missing = [
+        ...v.photos
+            .filter((p) => !p.url)
+            .map((p) => `${p.label.toLowerCase()} photo`),
+        ...(v.cor_url ? [] : ['COR']),
+        ...(v.vin ? [] : ['VIN (press Edit)']),
+    ];
+
+    return (
+        <div className="rounded-xl border border-dashed p-4">
+            <p className="text-sm font-medium">
+                {v.review_status === 'rejected'
+                    ? 'Fixed what the admin asked for?'
+                    : 'Finished adding your requirements?'}
+            </p>
+            {missing.length > 0 ? (
+                <p className="mt-1 text-sm text-muted-foreground">
+                    Still needed: {missing.join(', ')}.
+                </p>
+            ) : (
+                <p className="mt-1 text-sm text-muted-foreground">
+                    Everything is in. Nothing is sent to the admin until you
+                    press Submit.
+                </p>
+            )}
+            <ReasonDialog
+                title="Submit for admin review?"
+                description="Check that the photos and the COR are clear and correct. The admin will review them and notify you."
+                askReason={false}
+                confirmLabel="Submit"
+                onConfirm={() =>
+                    router.post(
+                        `/driver/vehicles/${v.id}/submit`,
+                        {},
+                        { preserveScroll: true },
+                    )
+                }
+                trigger={
+                    <Button className="mt-3" disabled={missing.length > 0}>
+                        {v.review_status === 'rejected'
+                            ? 'Submit again for review'
+                            : 'Submit for review'}
+                    </Button>
+                }
+            />
+        </div>
+    );
+}
+
+export default function Vehicles({
+    has_profile,
+    vehicles,
+    models,
+    next_vehicle_at,
+}: Props) {
+    const [clock, setClock] = useState(() => Date.now());
+    const waitMs = next_vehicle_at
+        ? new Date(next_vehicle_at).getTime() - clock
+        : 0;
+    const waiting = waitMs > 0;
+
+    useEffect(() => {
+        if (!waiting) {
+            return;
+        }
+
+        const t = setInterval(() => setClock(Date.now()), 1000);
+
+        return () => clearInterval(t);
+    }, [waiting]);
+
+    const waitText = `${Math.floor(waitMs / 60000)}:${String(Math.floor((waitMs % 60000) / 1000)).padStart(2, '0')}`;
     const [editing, setEditing] = useState<Vehicle | null>(null);
+    // Once a driver has a vehicle, the form stays hidden until they ask to add another.
+    const [adding, setAdding] = useState(false);
+    const showForm = editing !== null || adding || vehicles.length === 0;
+    // "Add another vehicle": hide the existing cards (pending / approved) so only the form is shown.
+    const formOnly = adding && editing === null && vehicles.length > 0;
     const form = useForm<VehicleForm>({
         model_id: '',
         color: '',
         plate_number: '',
+        vin: '',
         seat_capacity: '4',
         manufacture_year: '',
+        custom_make: '',
+        custom_model: '',
     });
 
     const reset = () => {
         setEditing(null);
+        setAdding(false);
         form.reset();
         form.clearErrors();
     };
@@ -63,10 +153,13 @@ export default function Vehicles({ has_profile, vehicles, models }: Props) {
             model_id: String(v.model_id),
             color: v.color,
             plate_number: v.plate_number,
+            vin: v.vin ?? '',
             seat_capacity: String(v.seat_capacity),
             manufacture_year: v.manufacture_year
                 ? String(v.manufacture_year)
                 : '',
+            custom_make: '',
+            custom_model: '',
         });
     };
     const submit = (e: React.FormEvent) => {
@@ -75,12 +168,24 @@ export default function Vehicles({ has_profile, vehicles, models }: Props) {
 
         if (editing) {
             form.transform(
-                ({ model_id, color, plate_number, seat_capacity, manufacture_year }) => ({
+                ({
                     model_id,
                     color,
                     plate_number,
+                    vin,
                     seat_capacity,
                     manufacture_year,
+                    custom_make,
+                    custom_model,
+                }) => ({
+                    model_id,
+                    color,
+                    plate_number,
+                    vin,
+                    seat_capacity,
+                    manufacture_year,
+                    custom_make,
+                    custom_model,
                 }),
             );
             form.patch(`/driver/vehicles/${editing.id}`, opts);
@@ -105,8 +210,14 @@ export default function Vehicles({ has_profile, vehicles, models }: Props) {
                 </p>
             )}
 
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
-                <div className="space-y-3">
+            <div
+                className={
+                    formOnly
+                        ? 'mx-auto w-full max-w-xl'
+                        : 'grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]'
+                }
+            >
+                <div className={formOnly ? 'hidden' : 'space-y-3'}>
                     {vehicles.length ? (
                         vehicles.map((v) => (
                             <div
@@ -115,11 +226,33 @@ export default function Vehicles({ has_profile, vehicles, models }: Props) {
                             >
                                 <div className="flex flex-wrap items-center justify-between gap-3">
                                     <div>
-                                        <p className="font-medium">
-                                            {v.name}{' '}
-                                            <span className="text-muted-foreground">
-                                                · {v.color}
+                                        <p className="flex flex-wrap items-center gap-2 font-medium">
+                                            <span>
+                                                {v.name}{' '}
+                                                <span className="text-muted-foreground">
+                                                    · {v.color}
+                                                </span>
                                             </span>
+                                            {v.review_status === 'approved' ? (
+                                                <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2 py-0.5 text-xs font-medium text-emerald-600 dark:text-emerald-300">
+                                                    <BadgeCheck className="size-3.5" />
+                                                    Registered Vehicle
+                                                </span>
+                                            ) : v.review_status ===
+                                              'rejected' ? (
+                                                <span className="rounded-full border border-red-500/40 bg-red-500/15 px-2 py-0.5 text-xs font-medium text-red-600 dark:text-red-300">
+                                                    Rejected
+                                                </span>
+                                            ) : v.review_status === 'draft' ? (
+                                                <span className="rounded-full border border-slate-400/40 bg-slate-400/15 px-2 py-0.5 text-xs font-medium text-slate-600 dark:text-slate-300">
+                                                    Draft · not submitted yet
+                                                </span>
+                                            ) : (
+                                                <span className="rounded-full border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-300">
+                                                    Submitted · waiting for
+                                                    admin review
+                                                </span>
+                                            )}
                                         </p>
                                         <p className="text-sm text-muted-foreground">
                                             <span className="font-mono">
@@ -130,6 +263,22 @@ export default function Vehicles({ has_profile, vehicles, models }: Props) {
                                                 ` · ${v.manufacture_year}`}{' '}
                                             · {v.rides_count} ride(s)
                                         </p>
+                                        {v.review_status === 'rejected' && (
+                                            <p className="mt-1 rounded-lg bg-red-500/10 px-3 py-1.5 text-sm text-red-700 dark:text-red-300">
+                                                Rejected by the admin:{' '}
+                                                {v.review_remarks ??
+                                                    'no reason given'}
+                                                . Update the photos or COR and
+                                                then press Submit again.
+                                            </p>
+                                        )}
+                                        {v.review_status === 'pending' && (
+                                            <p className="mt-1 text-xs text-muted-foreground">
+                                                Submitted. You can publish rides
+                                                with this vehicle once an admin
+                                                approves it.
+                                            </p>
+                                        )}
                                     </div>
                                     <div className="flex gap-1">
                                         <Button
@@ -188,6 +337,11 @@ export default function Vehicles({ has_profile, vehicles, models }: Props) {
                                         }}
                                     />
                                 </div>
+
+                                {(v.review_status === 'draft' ||
+                                    v.review_status === 'rejected') && (
+                                    <SubmitPanel v={v} />
+                                )}
                             </div>
                         ))
                     ) : (
@@ -197,69 +351,119 @@ export default function Vehicles({ has_profile, vehicles, models }: Props) {
                     )}
                 </div>
 
-                <Panel
-                    title={editing ? 'Edit vehicle' : 'Add a vehicle'}
-                    className="h-fit"
-                >
-                    <form onSubmit={submit} className="grid gap-4 p-5">
-                        <Field
-                            label="Make & model"
-                            error={form.errors.model_id}
+                {!showForm && (
+                    <div className="h-fit space-y-3 rounded-2xl border bg-card p-5">
+                        <p className="flex items-center gap-2 text-sm font-medium">
+                            <BadgeCheck className="size-4 text-emerald-500" />
+                            {vehicles.length === 1
+                                ? 'Your vehicle is registered'
+                                : `${vehicles.length} vehicles registered`}
+                        </p>
+                        <Button
+                            className="w-full"
+                            disabled={!has_profile || waiting}
+                            onClick={() => setAdding(true)}
                         >
-                            <select
-                                required
-                                value={form.data.model_id}
-                                onChange={(e) =>
-                                    form.setData('model_id', e.target.value)
-                                }
-                                className={inputCls}
-                            >
-                                <option value="">Choose…</option>
-                                {models.map((m) => (
-                                    <option key={m.id} value={m.id}>
-                                        {m.label}
-                                    </option>
-                                ))}
-                            </select>
-                        </Field>
-                        <Field label="Colour" error={form.errors.color}>
-                            <input
-                                required
-                                value={form.data.color}
-                                onChange={(e) =>
-                                    form.setData('color', e.target.value)
-                                }
-                                className={inputCls}
-                            />
-                        </Field>
-                        <Field
-                            label="Plate number"
-                            error={form.errors.plate_number}
-                            hint="e.g. ABC 1234"
-                        >
-                            <input
-                                required
-                                value={form.data.plate_number}
-                                onChange={(e) =>
-                                    form.setData('plate_number', e.target.value)
-                                }
-                                className={inputCls}
-                            />
-                        </Field>
-                        <div className="grid grid-cols-2 gap-3">
+                            <Plus /> Add another vehicle
+                        </Button>
+                        {waiting && (
+                            <p className="text-xs text-muted-foreground">
+                                You can register another vehicle in {waitText}.
+                                This short wait keeps the system free of spam.
+                            </p>
+                        )}
+                    </div>
+                )}
+                {showForm && (
+                    <Panel
+                        title={editing ? 'Edit vehicle' : 'Add a vehicle'}
+                        className="h-fit"
+                    >
+                        <form onSubmit={submit} className="grid gap-4 p-5">
                             <Field
-                                label="Passenger seats"
-                                error={form.errors.seat_capacity}
+                                label="Make & model"
+                                error={form.errors.model_id}
+                            >
+                                <select
+                                    required
+                                    value={form.data.model_id}
+                                    onChange={(e) =>
+                                        form.setData('model_id', e.target.value)
+                                    }
+                                    className={inputCls}
+                                >
+                                    <option value="">Choose…</option>
+                                    {models.map((m) => (
+                                        <option key={m.id} value={m.id}>
+                                            {m.label}
+                                        </option>
+                                    ))}
+                                    <option value="other">
+                                        Other (type my own)
+                                    </option>
+                                </select>
+                            </Field>
+                            {form.data.model_id === 'other' && (
+                                <div className="grid gap-4 sm:grid-cols-2">
+                                    <Field
+                                        label="Make (brand)"
+                                        error={form.errors.custom_make}
+                                    >
+                                        <input
+                                            required
+                                            maxLength={50}
+                                            placeholder="e.g. Honda"
+                                            value={form.data.custom_make}
+                                            onChange={(e) =>
+                                                form.setData(
+                                                    'custom_make',
+                                                    e.target.value,
+                                                )
+                                            }
+                                            className={inputCls}
+                                        />
+                                    </Field>
+                                    <Field
+                                        label="Model"
+                                        error={form.errors.custom_model}
+                                    >
+                                        <input
+                                            required
+                                            maxLength={50}
+                                            placeholder="e.g. Civic"
+                                            value={form.data.custom_model}
+                                            onChange={(e) =>
+                                                form.setData(
+                                                    'custom_model',
+                                                    e.target.value,
+                                                )
+                                            }
+                                            className={inputCls}
+                                        />
+                                    </Field>
+                                </div>
+                            )}
+                            <Field label="Colour" error={form.errors.color}>
+                                <input
+                                    required
+                                    value={form.data.color}
+                                    onChange={(e) =>
+                                        form.setData('color', e.target.value)
+                                    }
+                                    className={inputCls}
+                                />
+                            </Field>
+                            <Field
+                                label="Plate number"
+                                error={form.errors.plate_number}
+                                hint="e.g. ABC 1234"
                             >
                                 <input
                                     required
-                                    type="number"
-                                    min={1}
-                                    max={20}
-                                    value={form.data.seat_capacity}
+                                    value={form.data.plate_number}
                                     onChange={(e) =>
                                         form.setData(
-                                            'seat_capacity',
+                                            'plate_number',
                                             e.target.value,
                                         )
                                     }
@@ -267,48 +471,88 @@ export default function Vehicles({ has_profile, vehicles, models }: Props) {
                                 />
                             </Field>
                             <Field
-                                label="Year"
-                                error={form.errors.manufacture_year}
+                                label="VIN (17 characters)"
+                                error={form.errors.vin}
+                                hint="Vehicle identification number: on the OR/CR, or the dashboard and door jamb."
                             >
                                 <input
-                                    type="number"
-                                    min={1990}
-                                    value={form.data.manufacture_year}
+                                    required={!editing}
+                                    maxLength={17}
+                                    placeholder="1HGCM82633A004352"
+                                    value={form.data.vin}
                                     onChange={(e) =>
                                         form.setData(
-                                            'manufacture_year',
-                                            e.target.value,
+                                            'vin',
+                                            e.target.value.toUpperCase(),
                                         )
                                     }
-                                    className={inputCls}
+                                    className={`${inputCls} font-mono uppercase`}
                                 />
                             </Field>
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                            {editing
-                                ? 'Change photos, the COR and the description from the vehicle’s card.'
-                                : 'After you register, add the photos, the COR and a description from the vehicle’s card.'}
-                        </p>
-                        <div className="flex gap-2">
-                            <Button
-                                type="submit"
-                                disabled={form.processing || !has_profile}
-                                className="flex-1"
-                            >
-                                {editing ? 'Save changes' : 'Register vehicle'}
-                            </Button>
-                            {editing && (
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={reset}
+                            <div className="grid grid-cols-2 gap-3">
+                                <Field
+                                    label="Passenger seats"
+                                    error={form.errors.seat_capacity}
                                 >
-                                    Cancel
+                                    <input
+                                        required
+                                        type="number"
+                                        min={1}
+                                        max={20}
+                                        value={form.data.seat_capacity}
+                                        onChange={(e) =>
+                                            form.setData(
+                                                'seat_capacity',
+                                                e.target.value,
+                                            )
+                                        }
+                                        className={inputCls}
+                                    />
+                                </Field>
+                                <Field
+                                    label="Year"
+                                    error={form.errors.manufacture_year}
+                                >
+                                    <input
+                                        type="number"
+                                        min={1990}
+                                        value={form.data.manufacture_year}
+                                        onChange={(e) =>
+                                            form.setData(
+                                                'manufacture_year',
+                                                e.target.value,
+                                            )
+                                        }
+                                        className={inputCls}
+                                    />
+                                </Field>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                                {editing
+                                    ? 'Change photos, the COR and the description from the vehicle’s card.'
+                                    : 'After you save, add the photos, the COR and a description from the vehicle’s card. An admin reviews it before you can use it.'}
+                            </p>
+                            <div className="flex gap-2">
+                                <Button
+                                    type="submit"
+                                    disabled={form.processing || !has_profile}
+                                    className="flex-1"
+                                >
+                                    {editing ? 'Save changes' : 'Save vehicle'}
                                 </Button>
-                            )}
-                        </div>
-                    </form>
-                </Panel>
+                                {(editing || vehicles.length > 0) && (
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={reset}
+                                    >
+                                        Cancel
+                                    </Button>
+                                )}
+                            </div>
+                        </form>
+                    </Panel>
+                )}
             </div>
         </>
     );
