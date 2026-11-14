@@ -1,56 +1,58 @@
-// Driver dashboard card: passengers asking for a seat, newest first. Opens the booking to approve or decline.
+// Driver dashboard card: ONLY what passengers are asking of me right now, newest first:
+//  - seat requests for my rides, and
+//  - requests to hire my whole vehicle.
+// Each row opens that request, where the driver accepts or declines.
 import { Link } from '@inertiajs/react';
 import { fmtDateTime } from '@/components/lux';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useInitials } from '@/hooks/use-initials';
 
-export type PassengerRequest = {
-    id: number;
-    passenger: string;
-    route: string;
-    departure_at: string;
-    seats: number;
+export type PassengerRequests = {
+    /** Everything waiting for an answer (the list shows only the newest few). */
+    total: number;
+    items: {
+        key: string;
+        kind: 'seat' | 'hire';
+        passenger: string;
+        detail: string;
+        when: string;
+        href: string;
+    }[];
 };
 
+const KIND = {
+    seat: 'Seat request',
+    hire: 'Hire request',
+} as const;
+
 export default function PassengerRequestsCard({
-    requests,
-    total,
+    data,
 }: {
-    requests: PassengerRequest[];
-    /** All pending requests (the list shows only the newest few). */
-    total: number;
+    data: PassengerRequests;
 }) {
     const initials = useInitials();
 
     return (
         <section className="rounded-2xl border bg-card p-5 shadow-sm">
-            <div className="flex items-center justify-between">
-                <h2 className="font-semibold">
-                    Passenger requests
-                    {total > 0 && (
-                        <span className="ml-2 rounded-full bg-coral px-2 py-0.5 text-xs font-semibold text-white">
-                            {total}
-                        </span>
-                    )}
-                </h2>
-                <Link
-                    href="/bookings?tab=requests"
-                    className="text-sm font-medium text-ocean hover:underline dark:text-foam"
-                >
-                    View all →
-                </Link>
-            </div>
+            <h2 className="font-semibold">
+                Passenger requests
+                {data.total > 0 && (
+                    <span className="ml-2 rounded-full bg-coral px-2 py-0.5 text-xs font-semibold text-white">
+                        {data.total}
+                    </span>
+                )}
+            </h2>
 
-            {requests.length === 0 ? (
+            {data.items.length === 0 ? (
                 <p className="mt-3 text-sm text-muted-foreground">
                     No passengers are waiting for your answer.
                 </p>
             ) : (
                 <ul className="mt-3 space-y-1">
-                    {requests.map((r) => (
-                        <li key={r.id}>
+                    {data.items.map((r) => (
+                        <li key={r.key}>
                             <Link
-                                href={`/bookings/${r.id}`}
+                                href={r.href}
                                 className="flex items-center gap-3 rounded-xl p-2 transition hover:bg-muted/40"
                             >
                                 <Avatar className="size-10">
@@ -59,15 +61,19 @@ export default function PassengerRequestsCard({
                                     </AvatarFallback>
                                 </Avatar>
                                 <span className="min-w-0">
-                                    <span className="block truncate text-sm font-medium">
-                                        {r.passenger}
+                                    <span className="flex items-center gap-2">
+                                        <span className="truncate text-sm font-medium">
+                                            {r.passenger}
+                                        </span>
+                                        <span className="shrink-0 rounded-full bg-sand/60 px-2 py-0.5 text-[10px] font-semibold text-deep">
+                                            {KIND[r.kind]}
+                                        </span>
                                     </span>
                                     <span className="block truncate text-xs text-muted-foreground">
-                                        {r.route} · {r.seats}{' '}
-                                        {r.seats === 1 ? 'seat' : 'seats'}
+                                        {r.detail}
                                     </span>
                                     <span className="block text-xs text-muted-foreground">
-                                        {fmtDateTime(r.departure_at)}
+                                        {fmtDateTime(r.when)}
                                     </span>
                                 </span>
                             </Link>
@@ -75,6 +81,15 @@ export default function PassengerRequestsCard({
                     ))}
                 </ul>
             )}
+
+            <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 border-t pt-3 text-sm font-medium text-ocean dark:text-foam">
+                <Link href="/driver/rides" className="hover:underline">
+                    Seat requests →
+                </Link>
+                <Link href="/driver/hire" className="hover:underline">
+                    Hire requests →
+                </Link>
+            </div>
         </section>
     );
 }
