@@ -16,6 +16,7 @@ use App\Models\Booking;
 use App\Models\City;
 use App\Models\Ride;
 use App\Models\Vehicle;
+use App\Support\DriverLocation;
 use App\Support\Like;
 use App\Support\PlaceResolver;
 use Illuminate\Http\RedirectResponse;
@@ -117,6 +118,8 @@ class RideController extends Controller
                 ? ['province' => (string) $request->user()->default_province, 'place' => (string) $request->user()->default_place]
                 : null,
             'announcements' => $this->eventOptions(),
+            // Where the driver last arrived: the next ride must start from there.
+            'arrival' => DriverLocation::present(DriverLocation::lastArrival($request->user())),
             'ride' => null,
             'prefill' => $this->prefillFromSlide($request),
             'locked' => false,
@@ -201,6 +204,7 @@ class RideController extends Controller
                 ->map(fn ($c) => ['id' => $c->id, 'name' => $c->name, 'province' => $c->province?->name ?? '']),
             'places' => PlaceResolver::all(),
             'announcements' => $this->eventOptions($ride->announcement_id),
+            'arrival' => DriverLocation::present(DriverLocation::lastArrival($request->user())),
             'ride' => [
                 'id' => $ride->id,
                 'vehicle_id' => (string) $ride->vehicle_id,

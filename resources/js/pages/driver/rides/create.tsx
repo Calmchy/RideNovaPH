@@ -19,6 +19,8 @@ type Props = {
     /** The driver's saved default place: starts the From field. */
     default_place?: { province: string; place: string } | null;
     announcements: { id: number; title: string }[];
+    /** The town where the driver last arrived (latest completed trip). New rides must start there. */
+    arrival?: { city_id: number; name: string; province: string } | null;
     /** Present when EDITING an existing ride. */
     ride: {
         id: number;
@@ -53,6 +55,7 @@ export default function CreateRide({
     cities,
     places,
     default_place,
+    arrival,
     announcements,
     ride,
     prefill,
@@ -61,13 +64,17 @@ export default function CreateRide({
     const editing = ride !== null;
     const form = useForm({
         vehicle_id: ride?.vehicle_id ?? String(vehicles[0]?.id ?? ''),
-        origin_city_id: ride?.origin_city_id ?? '',
+        // Where the driver last arrived wins over a saved default place.
+        origin_city_id:
+            ride?.origin_city_id ?? (arrival ? String(arrival.city_id) : ''),
         origin_province:
-            !ride?.origin_city_id && default_place
+            !ride?.origin_city_id && !arrival && default_place
                 ? default_place.province
                 : '',
         origin_place:
-            !ride?.origin_city_id && default_place ? default_place.place : '',
+            !ride?.origin_city_id && !arrival && default_place
+                ? default_place.place
+                : '',
         destination_city_id:
             ride?.destination_city_id ?? prefill?.destination_city_id ?? '',
         destination_province: '',
@@ -150,34 +157,61 @@ export default function CreateRide({
                                     form.errors.origin_province
                                 }
                             >
-                                <PlacePicker
-                                    disabled={locked}
-                                    places={places}
-                                    cities={cities}
-                                    value={{
-                                        id: form.data.origin_city_id,
-                                        province: form.data.origin_province,
-                                        place: form.data.origin_place,
-                                    }}
-                                    onChange={(v) =>
-                                        form.setData((d) => ({
-                                            ...d,
-                                            origin_city_id: v.id,
-                                            origin_province: v.province,
-                                            origin_place: v.place,
-                                        }))
-                                    }
-                                />
-                                {!locked && (
-                                    <DefaultPlace
-                                        current={default_place ?? null}
+                                {arrival && !editing ? (
+                                    // The driver has arrived somewhere: the next ride can only start from there.
+                                    <div className="rounded-xl border bg-muted/40 px-3 py-2.5 text-sm">
+                                        <p className="font-medium">
+                                            {arrival.name}
+                                            {arrival.province
+                                                ? `, ${arrival.province}`
+                                                : ''}
+                                        </p>
+                                        <p className="mt-1 text-xs text-muted-foreground">
+                                            You arrived here on your last trip,
+                                            so your next ride starts from here.
+                                            This changes after you complete a
+                                            trip that ends somewhere else.
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <>
+                                    <PlacePicker
+                                        disabled={locked}
+                                        places={places}
                                         cities={cities}
                                         value={{
                                             id: form.data.origin_city_id,
                                             province: form.data.origin_province,
                                             place: form.data.origin_place,
                                         }}
+                                        onChange={(v) =>
+                                            form.setData((d) => ({
+                                                ...d,
+                                                origin_city_id: v.id,
+                                                origin_province: v.province,
+                                                origin_place: v.place,
+                                            }))
+                                        }
                                     />
+                                    {!locked && (
+                                        <DefaultPlace
+                                            current={default_place ?? null}
+                                            cities={cities}
+                                            value={{
+                                                id: form.data.origin_city_id,
+                                                province: form.data.origin_province,
+                                                place: form.data.origin_place,
+                                            }}
+                                        />
+                                    )}
+                                        {arrival && editing && (
+                                            <p className="mt-1 text-xs text-muted-foreground">
+                                                You last arrived in{' '}
+                                                {arrival.name}. A changed
+                                                starting place must be there.
+                                            </p>
+                                        )}
+                                    </>
                                 )}
                             </Field>
                             <Field
